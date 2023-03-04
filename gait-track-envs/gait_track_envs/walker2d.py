@@ -60,8 +60,9 @@ class Walker2dEnv(MujocoEnv, utils.EzPickle):
         reward_run = ((posafter - posbefore) / self.dt)
         reward = reward_run + alive_bonus
         reward -= 1e-3 * np.square(a).sum()
-        done = not (height > 0.8 and height < 2.0 and
+        terminated = not (height > 0.8 and height < 2.0 and
                     ang > -1.0 and ang < 1.0)
+        truncated = False
         ob = self._get_obs()
 
         # Get pos/vel of the feet
@@ -70,7 +71,7 @@ class Walker2dEnv(MujocoEnv, utils.EzPickle):
         info = {"reward_run": reward_run,
                 **track_res}
 
-        return ob, reward, False, info
+        return ob, reward, terminated, truncated, info
 
 
     def _get_obs(self):

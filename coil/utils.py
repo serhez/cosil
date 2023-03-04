@@ -82,10 +82,10 @@ class ObservationsRecorderWrapper(gym.Wrapper):
         self.dones = []
 
     def step(self, action):
-        state, reward, done, info = self._env.step(action)
+        state, reward, terminated, truncated, info = self._env.step(action)
         self.obs_buffer.append(info)
-        self.dones.append(done)
-        return state, reward, done, info
+        self.dones.append(terminated or truncated)
+        return state, reward, terminated, truncated, info
 
     def get_stacked_dict(self):
         res = {}
@@ -149,6 +149,7 @@ def get_marker_info(info_dict, legs, marker_idx, *, pos_type="norm", vel_type="r
         
     return all_data, all_keys
 
+# TODO: Study
 def train_wgan_critic(opt, critic, expert_obs: list, memory, batch_size=256, use_transitions=True):
 
         opt.zero_grad()
@@ -209,6 +210,7 @@ def train_wgan_critic(opt, critic, expert_obs: list, memory, batch_size=256, use
 
         return loss.item(), expert_scores.detach().mean().item(), policy_scores.detach().mean().item(), gradient_penalty.item()
 
+# TODO: Study
 def train_disc(opt, disc: Discriminator, expert_obs: torch.Tensor, memory, use_transitions=False):
 
         opt.zero_grad()
@@ -248,8 +250,9 @@ def train_disc(opt, disc: Discriminator, expert_obs: torch.Tensor, memory, use_t
         expert_disc = disc(expert_feats)
         policy_disc = disc(marker_samples)
 
-        expert_labels = 0.8*torch.ones(len(expert_feats), 1, device=expert_obs.device)
-        policy_labels = 0.2*torch.ones(len(marker_feats), 1, device=expert_obs.device)
+        expert_labels = 0.8*torch.ones(len(expert_feats), 1, device=expert_obs.device) # NOTE: Shouldn't expert labels be all ones?
+        policy_labels = 0.2*torch.ones(len(marker_feats), 1, device=expert_obs.device) # NOTE: Shouldn't policy labels be all zeros?
+        # NOTE: This is so the discriminator learns to distinguish between expert and policy samples
 
         loss = disc_loss(expert_disc, expert_labels) \
             + disc_loss(policy_disc, policy_labels)
@@ -432,7 +435,7 @@ def create_replay_data(env, memory, marker_info_fn, agent, absorbing_state=True,
     start_time = time.time()
     step = 0
     while step < steps:
-        state = env.reset()
+        state, _ = env.reset()
         marker_obs, _ = marker_info_fn(env.get_track_dict())
         done = False
         rsum = 0
@@ -443,7 +446,8 @@ def create_replay_data(env, memory, marker_info_fn, agent, absorbing_state=True,
                 feats = np.concatenate([feats, np.zeros(1)])
 
             action = agent.select_action(feats, evaluate=False)
-            next_state, reward, done, info = env.step(action)
+            next_state, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
 
             rsum += info["reward_run"]
             

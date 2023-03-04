@@ -107,14 +107,15 @@ class SAC(object):
                 morpho_params = morpho_dist.sample()
                 env.set_task(*morpho_params.numpy())
 
-            state = env.reset()
+            state, _ = env.reset()
             state = np.concatenate([state, env.morpho_params])
             marker_obs, _ = marker_info_fn(env.get_track_dict())
             done = False
 
             while not done:
                 action = env.action_space.sample()
-                next_state, reward, done, info = env.step(action)
+                next_state, reward, terminated, truncated, info = env.step(action)
+                done = terminated or truncated
                 next_marker_obs, _ = marker_info_fn(info)
 
                 next_state = np.concatenate([next_state, env.morpho_params])
@@ -181,6 +182,7 @@ class SAC(object):
 
         return mean_loss
 
+    # TODO: Study
     def update_g_inv(self, memory, batch_size):
         loss_fn = torch.nn.MSELoss()
         self.g_inv_optim.zero_grad()
@@ -249,6 +251,7 @@ class SAC(object):
             if i % 100 == 0:
                 print(f'loss {loss:.3f}')
 
+    # TODO: Study
     def update_parameters(self, memory, expert_obs, batch_size, updates, disc, plot_histogram=False, update_value_only=False):
 
         first_batches = memory.sample(batch_size=batch_size)

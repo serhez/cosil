@@ -68,8 +68,8 @@ class MujocoEnv(gym.Env):
         self._set_action_space()
 
         action = self.action_space.sample()
-        observation, _reward, done, _info = self.step(action)
-        assert not done
+        observation, _, terminated, truncated, _ = self.step(action)
+        assert not (terminated or truncated)
 
         self._set_observation_space(observation)
 
@@ -182,7 +182,7 @@ class MujocoEnv(gym.Env):
             ob = self.simulate_to_stop(gravity=-5)
         else:
             ob = self._get_obs()
-        return ob
+        return ob, {}
 
     def simulate_to_stop(self, max_steps=1000, vel_threshold=1e-2, gravity=None,
             freeze_qpos_idx=[], render=False):

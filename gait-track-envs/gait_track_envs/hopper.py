@@ -55,8 +55,9 @@ class HopperEnv(MujocoEnv, utils.EzPickle):
         reward += alive_bonus
         reward -= 1e-3 * np.square(a).sum()
         s = self.state_vector()
-        done = not (np.isfinite(s).all() and (np.abs(s[2:]) < 100).all() and
+        terminated = not (np.isfinite(s).all() and (np.abs(s[2:]) < 100).all() and
                     (height > .7) and (abs(ang) < .2))
+        truncated = False
         ob = self._get_obs()
         feet_positions = np.array([self.sim.data.get_site_xpos("foot").copy()])
         feet_velp = np.array([self.sim.data.get_site_xvelp("foot").copy()])
@@ -72,7 +73,7 @@ class HopperEnv(MujocoEnv, utils.EzPickle):
                 "feet_velp": feet_velp,
                 "rel_feet_pos": rel_feet_positions,
                 "rel_feet_velp": rel_feet_velocities}
-        return ob, reward, done, info
+        return ob, reward, terminated, truncated, info
 
     def _get_obs(self):
         return np.concatenate([

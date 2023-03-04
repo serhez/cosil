@@ -75,7 +75,8 @@ class HalfCheetahEnv(MujocoEnv, utils.EzPickle):
         reward_ctrl = - 0.1 * np.square(action).sum()
         reward_run = (xposafter - xposbefore)/self.dt
         reward = reward_ctrl + reward_run
-        done = False
+        terminated = False
+        truncated = False
 
         # Get pos/vel of the feet
         track_info = self.get_track_dict()
@@ -83,7 +84,7 @@ class HalfCheetahEnv(MujocoEnv, utils.EzPickle):
 
         info = {"reward_run": reward_run, "reward_ctrl": reward_ctrl,
                 **track_info}
-        return ob, reward, done, info
+        return ob, reward, terminated, truncated, info
 
     def _get_obs(self):
         qpos = self.sim.data.qpos.flat[1:]
@@ -97,7 +98,7 @@ class HalfCheetahEnv(MujocoEnv, utils.EzPickle):
 
     def reset_model(self):
         qpos = self.init_qpos + self.np_random.uniform(low=-.1, high=.1, size=self.model.nq)
-        qvel = self.init_qvel + self.np_random.randn(self.model.nv) * .1
+        qvel = self.init_qvel + self.np_random.standard_normal(self.model.nv) * .1
         qpos[1] += 2
         self.set_state(qpos, qvel)
         return self._get_obs()

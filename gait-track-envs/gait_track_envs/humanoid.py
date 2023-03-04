@@ -176,7 +176,8 @@ class HumanoidEnv(MujocoEnv, utils.EzPickle):
         quad_impact_cost = min(quad_impact_cost, 10)
         reward = lin_vel_cost - quad_ctrl_cost - quad_impact_cost + alive_bonus
         qpos = self.sim.data.qpos
-        done = not self.termination_bounds[0] < qpos[2] < self.termination_bounds[1]
+        terminated = not self.termination_bounds[0] < qpos[2] < self.termination_bounds[1]
+        truncated = False
 
         # Get pos/vel of the feet
         track_info = self.get_track_dict()
@@ -184,7 +185,8 @@ class HumanoidEnv(MujocoEnv, utils.EzPickle):
         return (
             self._get_obs(),
             reward,
-            done,
+            terminated,
+            truncated,
             dict(
                 reward_run=lin_vel_cost,
                 reward_quadctrl=-quad_ctrl_cost,

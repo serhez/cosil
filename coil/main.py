@@ -4,6 +4,7 @@ import argparse
 from collections import deque
 import os
 import gym
+import gait_track_envs
 import numpy as np
 import itertools
 import torch
@@ -210,7 +211,7 @@ def single_run(args: argparse.Namespace):
         episode_steps = 0
         log_dict, logged = {}, 0
         done = False
-        state = env.reset()
+        state, _ = env.reset()
         # Compute marker state phi(s) in paper
         marker_obs, to_match = get_marker_info(env.get_track_dict(), policy_legs, policy_limb_indices,
                 pos_type=args.pos_type, vel_type=args.vel_type, torso_type=args.torso_type, head_type=args.head_type, head_wrt=args.head_wrt)
@@ -281,25 +282,26 @@ def single_run(args: argparse.Namespace):
 
                     updates += 1
             # Environment step
-            next_state, reward, done, info = env.step(action)
+            next_state, reward, terminated, truncated, info = env.step(action)
             # phi(s)
-            next_marker_obs, _ = get_marker_info(info, policy_legs, policy_limb_indices,
+            next_marker_obs, _ = get_marker_info(info, policy_legs, policy_limb_indices, # NOTE: Do we need to get the markers for the next state?
                     pos_type=args.pos_type, vel_type=args.vel_type, torso_type=args.torso_type, head_type=args.head_type, head_wrt=args.head_wrt)
             
             if args.torso_type and args.torso_type != ['vel']:
-                x_pos_history.append(next_marker_obs[x_pos_index])
+                x_pos_history.append(next_marker_obs[x_pos_index]) # NOTE: What is this? -> only used for plotting
 
             train_marker_obs_history.append(marker_obs)
 
             episode_steps += 1
             total_numsteps += 1
             # Change reward to remove action penalty
-            reward = info['reward_run']
+            reward = info['reward_run'] # NOTE: Why are we removing the action penalty?
             episode_reward += reward
 
             # Ignore the "done" signal if it comes from hitting the time horizon.
             # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
-            mask = 1 if episode_steps == env._max_episode_steps else float(not done)
+            # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when the episode is done, as well as meaning "done" for `memory.push()`
+            mask = 1 if episode_steps == env._max_episode_steps else float(not (terminated or truncated))
             
             if args.omit_done:
                 mask = 1.
@@ -457,7 +459,7 @@ def single_run(args: argparse.Namespace):
                 env.set_task(*optimized_morpho_params)
 
             for test_ep in range(episodes):
-                state = env.reset()
+                state, _ = env.reset()
                 episode_reward = 0
                 done = False
                 episode_steps = 0
@@ -470,7 +472,8 @@ def single_run(args: argparse.Namespace):
                         feats = np.concatenate([feats, np.zeros(1)])
                     action = agent.select_action(feats, evaluate=True)
 
-                    next_state, _, done, info = env.step(action)
+                    next_state, _, terminated, truncated, info = env.step(action)
+                    done = terminated or truncated
 
                     if test_ep == 0:
                         recorder.capture_frame()
@@ -542,7 +545,7 @@ if __name__ == '__main__':
                         help='Mujoco Gym environment')
     parser.add_argument('--algo', default='GAIL',
                         help='Algorithm GAIL or SAIL or PWIL')                                            
-    parser.add_argument('--expert-demos', type=str, default='demos/expert_demos.pt',
+    parser.add_argument('--expert-demos', type=str, default='../data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt',
                         help='Path to the expert demonstration file')
     parser.add_argument('--policy', default="Gaussian",
                         help='Policy Type: Gaussian | Deterministic (default: Gaussian)')
@@ -656,7 +659,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    wandb.init(name=args.algo, config=args, entity="imitomorph")
+    wandb.init(name=args.algo, config=args)
 
     single_run(args)
 
