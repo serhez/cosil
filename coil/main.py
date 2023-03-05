@@ -548,7 +548,7 @@ if __name__ == '__main__':
                         help='Mujoco Gym environment')
     parser.add_argument('--algo', default='GAIL',
                         help='Algorithm GAIL or SAIL or PWIL')                                            
-    parser.add_argument('--expert-demos', type=str, default='../data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt',
+    parser.add_argument('--expert-demos', type=str, default='data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt',
                         help='Path to the expert demonstration file')
     parser.add_argument('--policy', default="Gaussian",
                         help='Policy Type: Gaussian | Deterministic (default: Gaussian)')
