@@ -8,8 +8,8 @@ from collections import deque
 from typing import Any
 
 import cma
-import gait_track_envs
 import gym
+import gait_track_envs
 import numpy as np
 import torch
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
@@ -253,6 +253,9 @@ class CoIL(object):
                 [0.5] * len(self.env.morpho_params), 0.5, inopts=cma_options
             )
             es_buffer = deque()
+        else:
+            es = None
+            es_buffer = None
 
         # Main loop
         for i_episode in itertools.count(1):
@@ -393,8 +396,11 @@ class CoIL(object):
                             logged += 1
 
                         self.updates += 1
+
                 # Environment step
                 next_state, reward, terminated, truncated, info = self.env.step(action)
+                done = terminated or truncated
+
                 # phi(s)
                 next_marker_obs, _ = get_marker_info(
                     info,
@@ -428,7 +434,7 @@ class CoIL(object):
                 mask = (
                     1
                     if episode_steps == self.env._max_episode_steps
-                    else float(not (terminated or truncated))
+                    else float(not done)
                 )
 
                 if self.args.omit_done:
@@ -557,8 +563,8 @@ class CoIL(object):
         self,
         i_episode: int,
         epsilon: float,
-        es: cma.CMAEvolutionStrategy,
-        es_buffer: deque,
+        es: cma.CMAEvolutionStrategy | None,
+        es_buffer: deque | None,
         log_dict: dict[str, Any],
     ):
         optimized_morpho_params = None
@@ -602,6 +608,9 @@ class CoIL(object):
                 )
             # Ablation: CMA
             elif self.args.dist_optimizer == "CMA":
+                assert es is not None
+                assert es_buffer is not None
+
                 # Average over same morphologies
                 X = np.array(self.morphos).reshape(
                     -1, self.args.episodes_per_morpho, self.num_morpho
@@ -685,7 +694,7 @@ class CoIL(object):
         if not os.path.exists("videos"):
             os.mkdir("videos")
         vid_path = f"videos/ep_{i_episode}.mp4"
-        recorder = VideoRecorder(self.env.vid_path, enabled=self.args.record_test)
+        recorder = VideoRecorder(self.env, vid_path, enabled=self.args.record_test)
 
         if self.args.co_adapt and optimized_morpho_params is not None:
             self.env.set_task(*optimized_morpho_params)

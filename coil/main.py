@@ -3,11 +3,12 @@
 import argparse
 
 import gym
+import gait_track_envs # pyright: reportUnusedImport=false
 import numpy as np
 import torch
 
 import wandb
-from coil import CoIL
+from coilobj import CoIL
 
 
 def main():
@@ -40,7 +41,7 @@ def parse_args():
     parser.add_argument(
         "--expert-demos",
         type=str,
-        default="../data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt",
+        default="data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt",
         help="Path to the expert demonstration file",
     )
     parser.add_argument(
