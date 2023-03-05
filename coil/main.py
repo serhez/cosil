@@ -281,8 +281,11 @@ def single_run(args: argparse.Namespace):
                         logged += 1
 
                     updates += 1
+
             # Environment step
             next_state, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+
             # phi(s)
             next_marker_obs, _ = get_marker_info(info, policy_legs, policy_limb_indices, # NOTE: Do we need to get the markers for the next state?
                     pos_type=args.pos_type, vel_type=args.vel_type, torso_type=args.torso_type, head_type=args.head_type, head_wrt=args.head_wrt)
@@ -301,7 +304,7 @@ def single_run(args: argparse.Namespace):
             # Ignore the "done" signal if it comes from hitting the time horizon.
             # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
             # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when the episode is done, as well as meaning "done" for `memory.push()`
-            mask = 1 if episode_steps == env._max_episode_steps else float(not (terminated or truncated))
+            mask = 1 if episode_steps == env._max_episode_steps else float(not done)
             
             if args.omit_done:
                 mask = 1.
