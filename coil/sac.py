@@ -1,15 +1,19 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
 import os
+import time
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.optim import Adam
-from utils import compute_distance, handle_absorbing, merge_batches, soft_update, hard_update
-from model import GaussianPolicy, QNetwork, DeterministicPolicy, EnsembleQNetwork, InverseDynamics, MorphoValueFunction
-from vae import VAE 
+from model import (DeterministicPolicy, EnsembleQNetwork, GaussianPolicy,
+                   InverseDynamics, MorphoValueFunction, QNetwork)
 from replay_memory import ReplayMemory
-import numpy as np
-import matplotlib.pyplot as plt
-import time
+from torch.optim import Adam
+from utils import (compute_distance, handle_absorbing, hard_update,
+                   merge_batches, soft_update)
+from vae import VAE
+
 
 class SAC(object):
     def __init__(self, num_inputs, action_space, num_morpho_obs, num_marker_obs, num_morpho_parameters, args):
