@@ -693,10 +693,11 @@ class CoIL(object):
         avg_reward = 0.0
         avg_steps = 0
         episodes = self.args.eval_episodes
-        if not os.path.exists("videos"):
-            os.mkdir("videos")
-        vid_path = f"videos/ep_{i_episode}.mp4"
-        recorder = VideoRecorder(self.env, vid_path, enabled=self.args.record_test)
+        if self.args.record_test:
+            if not os.path.exists("videos"):
+                os.mkdir("videos")
+            vid_path = f"videos/ep_{i_episode}.mp4"
+            recorder = VideoRecorder(self.env, vid_path)
 
         if self.args.co_adapt and optimized_morpho_params is not None:
             self.env.set_task(*optimized_morpho_params)
@@ -706,7 +707,7 @@ class CoIL(object):
             episode_reward = 0
             done = False
             episode_steps = 0
-            if test_ep == 0:
+            if self.args.record_test and test_ep == 0:
                 recorder.capture_frame()
 
             while not done:
@@ -718,7 +719,7 @@ class CoIL(object):
                 next_state, _, terminated, truncated, info = self.env.step(action)
                 done = terminated or truncated
 
-                if test_ep == 0:
+                if self.args.record_test and test_ep == 0:
                     recorder.capture_frame()
 
                 marker_obs, _ = get_marker_info(
@@ -789,7 +790,8 @@ class CoIL(object):
 
         print("Took", round(time.time() - s, 2))
 
-        recorder.close()
+        if self.args.record_test:
+            recorder.close()
 
     def _save(self, checkpoint=False):
         if checkpoint:
