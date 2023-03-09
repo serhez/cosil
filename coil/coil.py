@@ -190,7 +190,7 @@ class CoIL(object):
             raise NotImplementedError
 
         if self.args.resume is not None:
-            self.agent.load_checkpoint(
+            self._load(
                 self.disc, self.disc_opt, self.memory, self.args.resume
             )
             print(f"Loaded {self.args.resume}")
@@ -228,7 +228,7 @@ class CoIL(object):
         # For linear annealing of exploration in Q-function variant
         epsilon = 1.0
 
-        prev_best_reward = -99
+        prev_best_reward = -9999
 
         # We experimented with Primal wasserstein imitation learning (Dadaishi et al. 2020)
         # but did not include experiments in paper as it did not perform well
@@ -524,12 +524,11 @@ class CoIL(object):
 
             log_dict["reward_train"] = episode_reward
 
-            if self.args.save_checkpoints and episode_reward > prev_best_reward:
-                ckpt_path = self.agent.save_checkpoint(
-                    self.disc, self.disc_opt, self.memory, self.args.env_name, "best"
-                )
+            if self.args.save_optimal and episode_reward > prev_best_reward:
+                self._save()
                 # These are big so dont save in wandb
-                # wandb.save(ckpt_path)
+                # if self.args.use_wandb:
+                    # wandb.save(ckpt_path)
                 prev_best_reward = episode_reward
                 print("New best reward")
 
@@ -548,12 +547,15 @@ class CoIL(object):
 
             # Evaluation episodes
             # Also used to make plots
-            if i_episode % 20 == 0 and self.args.eval is True:
+            if self.args.eval and i_episode % self.args.eval_per_episodes == 0:
                 self._evaluate(i_episode, optimized_morpho_params, log_dict)
                 train_marker_obs_history = []
 
             log_dict["total_numsteps"] = self.total_numsteps
-            wandb.log(log_dict)
+
+            if self.args.use_wandb:
+                wandb.log(log_dict)
+
             log_dict, logged = {}, 0
 
     # Adapt morphology.
@@ -690,7 +692,7 @@ class CoIL(object):
         test_marker_obs_history = []
         avg_reward = 0.0
         avg_steps = 0
-        episodes = 10
+        episodes = self.args.eval_episodes
         if not os.path.exists("videos"):
             os.mkdir("videos")
         vid_path = f"videos/ep_{i_episode}.mp4"
@@ -758,13 +760,13 @@ class CoIL(object):
         )
         print("----------------------------------------")
         if self.args.save_checkpoints:
-            ckpt_path = self.agent.save_checkpoint(
-                self.disc, self.disc_opt, self.memory, self.args.env_name, "1"
-            )
+            self._save(True)
         # These are big so only save policy on wandb
-        # wandb.save(ckpt_path)
+        # if self.args.use_wandb:
+            # wandb.save(ckpt_path)
         torch.save(self.agent.policy.state_dict(), "imitator.pt")
-        wandb.save("imitator.pt")
+        if self.args.use_wandb:
+            wandb.save("imitator.pt")
 
         print("Calculating distributional distance")
         s = time.time()
@@ -788,3 +790,28 @@ class CoIL(object):
         print("Took", round(time.time() - s, 2))
 
         recorder.close()
+
+    def _save(self, checkpoint=False):
+        if checkpoint:
+            dir_path = 'models/checkpoints/' + self.args.dir_path
+        else:
+            dir_path = 'models/optimal/' + self.args.dir_path
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+
+        model_path = os.path.join(dir_path, self.args.run_id+'.pt')
+        print('Saving model to {}'.format(model_path))
+
+        data = self.agent.get_model_dict(self.disc, self.disc_opt, self.memory)
+        data['morpho_dict'] = self.env.morpho_params
+
+        torch.save(data, model_path)
+
+        return model_path
+        
+    def _load(self, disc, disc_opt, memory, path_name):
+        print('Loading model from {}'.format(path_name))
+        if path_name is not None:
+            model = torch.load(path_name)
+            self.agent.load(disc, disc_opt, memory, model)
+            self.env.morpho_params = model['morpho_dict']

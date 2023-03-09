@@ -390,61 +390,57 @@ class SAC(object):
         return qf_loss.item(), policy_loss.item(), alpha_loss.item(), alpha_tlogs.item(), std, mean_modified_reward.item(), entropy, vae_loss.item(), absorbing_rewards.item()
 
     # Save model parameters
-    def save_checkpoint(self, disc, disc_opt, memory, env_name, suffix="", ckpt_path=None):
-        if not os.path.exists('checkpoints/'):
-            os.makedirs('checkpoints/')
-        if ckpt_path is None:
-            ckpt_path = "checkpoints/sac_checkpoint_{}_{}".format(env_name, suffix)
-        print('Saving models to {}'.format(ckpt_path))
-        torch.save({'policy_state_dict': self.policy.state_dict(),
-                    'critic_state_dict': self.critic.state_dict(),
-                    'critic_target_state_dict': self.critic_target.state_dict(),
-                    'buffer': memory.buffer,
-                    'disc_state_dict': disc.state_dict(),
-                    'disc_optim_state_dict': disc_opt.state_dict(),
-                    'g_inv_state_dict': self.g_inv.state_dict(),
-                    'g_inv_optim_state_dict': self.g_inv_optim.state_dict(),
-                    'dynamics_state_dict': self.dynamics.state_dict(),
-                    'dynamics_optim_state_dict': self.dynamics_optim.state_dict(),
-                    'log_alpha': self.log_alpha,
-                    'log_alpha_optim_state_dict': self.alpha_optim.state_dict(),
-                    'critic_optimizer_state_dict': self.critic_optim.state_dict(),
-                    'policy_optimizer_state_dict': self.policy_optim.state_dict()}, ckpt_path)
-        return ckpt_path
+    def get_model_dict(self, disc, disc_opt, memory):
+        data = {
+            'policy_state_dict': self.policy.state_dict(),
+            'critic_state_dict': self.critic.state_dict(),
+            'critic_target_state_dict': self.critic_target.state_dict(),
+            'buffer': memory.buffer,
+            'disc_state_dict': disc.state_dict(),
+            'disc_optim_state_dict': disc_opt.state_dict(),
+            'g_inv_state_dict': self.g_inv.state_dict(),
+            'g_inv_optim_state_dict': self.g_inv_optim.state_dict(),
+            'dynamics_state_dict': self.dynamics.state_dict(),
+            'dynamics_optim_state_dict': self.dynamics_optim.state_dict(),
+            'critic_optimizer_state_dict': self.critic_optim.state_dict(),
+            'policy_optimizer_state_dict': self.policy_optim.state_dict(),
+        }
+        if self.automatic_entropy_tuning:
+            data['log_alpha'] = self.log_alpha
+            data['log_alpha_optim_state_dict'] = self.alpha_optim.state_dict()
+
+        return data
 
     # Load model parameters
-    def load_checkpoint(self, disc, disc_opt, memory, ckpt_path, evaluate=False):
-        print('Loading models from {}'.format(ckpt_path))
-        if ckpt_path is not None:
-            checkpoint = torch.load(ckpt_path)
-            self.policy.load_state_dict(checkpoint['policy_state_dict'])
-            self.critic.load_state_dict(checkpoint['critic_state_dict'])
-            self.critic_target.load_state_dict(checkpoint['critic_target_state_dict'])
-            self.critic_optim.load_state_dict(checkpoint['critic_optimizer_state_dict'])
-            self.policy_optim.load_state_dict(checkpoint['policy_optimizer_state_dict'])
-            
-            if "dynamics_state_dict" in checkpoint:
-                self.dynamics.load_state_dict(checkpoint['dynamics_state_dict'])
-                self.dynamics_optim.load_state_dict(checkpoint['dynamics_optim_state_dict'])
-                self.g_inv.load_state_dict(checkpoint['g_inv_state_dict'])
-                self.g_inv_optim.load_state_dict(checkpoint['g_inv_optim_state_dict'])
-                self.log_alpha = checkpoint['log_alpha']
+    def load(self, disc, disc_opt, memory, model, evaluate=False):
+        self.policy.load_state_dict(model['policy_state_dict'])
+        self.critic.load_state_dict(model['critic_state_dict'])
+        self.critic_target.load_state_dict(model['critic_target_state_dict'])
+        self.critic_optim.load_state_dict(model['critic_optimizer_state_dict'])
+        self.policy_optim.load_state_dict(model['policy_optimizer_state_dict'])
+        
+        if "dynamics_state_dict" in model:
+            self.dynamics.load_state_dict(model['dynamics_state_dict'])
+            self.dynamics_optim.load_state_dict(model['dynamics_optim_state_dict'])
+            self.g_inv.load_state_dict(model['g_inv_state_dict'])
+            self.g_inv_optim.load_state_dict(model['g_inv_optim_state_dict'])
+            if 'log_alpha' in model and 'log_alpha_optim_state_dict' in model: # the model was trained with automatic entropy tuning
+                self.log_alpha = model['log_alpha']
                 self.alpha = self.log_alpha.exp()
-                self.alpha_optim.load_state_dict(checkpoint['log_alpha_optim_state_dict'])
-            
-            disc.load_state_dict(checkpoint['disc_state_dict'])
-            disc_opt.load_state_dict(checkpoint['disc_optim_state_dict'])
-            self.old_q_net.load_state_dict(checkpoint['critic_state_dict'])
+                self.alpha_optim.load_state_dict(model['log_alpha_optim_state_dict'])
+        
+        disc.load_state_dict(model['disc_state_dict'])
+        disc_opt.load_state_dict(model['disc_optim_state_dict'])
+        self.old_q_net.load_state_dict(model['critic_state_dict'])
 
-            memory.buffer = checkpoint['buffer']
-            memory.position = len(memory.buffer) % memory.capacity
+        memory.buffer = model['buffer']
+        memory.position = len(memory.buffer) % memory.capacity
 
-            if evaluate:
-                self.policy.eval()
-                self.critic.eval()
-                self.critic_target.eval()
-            else:
-                self.policy.train()
-                self.critic.train()
-                self.critic_target.train()
-            return checkpoint
+        if evaluate:
+            self.policy.eval()
+            self.critic.eval()
+            self.critic_target.eval()
+        else:
+            self.policy.train()
+            self.critic.train()
+            self.critic_target.train()

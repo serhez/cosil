@@ -1,37 +1,16 @@
-# Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-
 import argparse
-
-import gym
-import gait_track_envs # pyright: reportUnusedImport=false
-import numpy as np
-import torch
-
-import wandb
-from coilobj import CoIL
-
-
-def main():
-    args = parse_args()
-
-    # Set up wandb
-    wandb.init(name=args.algo, config=args)
-
-    # Set up environment
-    env = gym.make(args.env_name)
-    env.seed(args.seed)
-    env.action_space.seed(args.seed)
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-
-    coil = CoIL(env, args)
-    coil.train()
-
-    env.close()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="GAIL + SAC + co-adaptation")
+
+    parser.add_argument(
+        "--num-agents",
+        type=int,
+        default=1,
+        metavar="N",
+        help="number of agents to train (default: 1)",
+    )
     parser.add_argument(
         "--env-name",
         default="GaitTrackHalfCheetahOriginal-v0",
@@ -53,14 +32,14 @@ def parse_args():
         "--eval",
         type=bool,
         default=True,
-        help="Evaluates a policy a policy every 10 episode (default: True)",
+        help="Evaluates a policy every eval_per_episodes (default: True)",
     )
     parser.add_argument(
         "--gamma",
         type=float,
         default=0.99,
         metavar="G",
-        help="discount factor for reward (default: 0.99)",
+        help="Discount factor for reward (default: 0.99)",
     )
     parser.add_argument(
         "--target_entropy",
@@ -74,14 +53,14 @@ def parse_args():
         type=float,
         default=0.005,
         metavar="G",
-        help="target smoothing coefficient(τ) (default: 0.005)",
+        help="Target smoothing coefficient(τ) (default: 0.005)",
     )
     parser.add_argument(
         "--lr",
         type=float,
         default=0.0003,
         metavar="G",
-        help="learning rate (default: 0.0003)",
+        help="Learning rate (default: 0.0003)",
     )
     parser.add_argument(
         "--alpha",
@@ -94,7 +73,7 @@ def parse_args():
     parser.add_argument(
         "--automatic_entropy_tuning",
         type=bool,
-        default=False,
+        default=True,
         metavar="G",
         help="Automaically adjust α (default: False)",
     )
@@ -103,21 +82,21 @@ def parse_args():
         type=int,
         default=123456,
         metavar="N",
-        help="random seed (default: 123456)",
+        help="Random seed (default: 123456)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=256,
         metavar="N",
-        help="batch size (default: 256)",
+        help="Batch size (default: 256)",
     )
     parser.add_argument(
         "--num_steps",
         type=int,
         default=1000001,
         metavar="N",
-        help="maximum number of steps (default: 1000000)",
+        help="Maximum number of steps (default: 1000000)",
     )
     parser.add_argument(
         "--hidden_size",
@@ -155,12 +134,25 @@ def parse_args():
         help="size of replay buffer (default: 20000000)",
     )
     parser.add_argument(
-        "--cuda", action="store_true", help="run on CUDA (default: False)"
+        "--cuda",
+        type=bool,
+        default=False,
+        help="run on CUDA (default: False)"
     )
-    parser.add_argument("--run-name", default="gail", help="Run name (logging only)")
+    parser.add_argument(
+        "--run-name",
+        default="test",
+        help="Run name (logging only)"
+    )
+    parser.add_argument(
+        "--project-name",
+        default="cosil",
+        help="Run name (logging only)"
+    )
     parser.add_argument(
         "--log-scale-rewards",
-        action="store_true",
+        type=bool,
+        default=False,
         help="Use sigmoid directly as reward or log of sigmoid",
     )
     parser.add_argument(
@@ -197,13 +189,22 @@ def parse_args():
         help="Steps before starting to train SAC",
     )
     parser.add_argument(
-        "--record-test", action="store_true", help="Record tests (may be slow)"
+        "--record-test",
+        type=bool,
+        default=False,
+        help="Record tests (may be slow)"
     )
     parser.add_argument(
-        "--load-warmup", action="store_true", help="Load previously saved warmup data"
+        "--load-warmup",
+        type=bool,
+        default=False,
+        help="Load previously saved warmup data"
     )
     parser.add_argument(
-        "--q-weight-decay", type=float, default=1e-5, help="Q-function weight decay"
+        "--q-weight-decay",
+        type=float,
+        default=1e-5,
+        help="Q-function weight decay"
     )
     parser.add_argument(
         "--disc-weight-decay",
@@ -261,16 +262,21 @@ def parse_args():
     )
     parser.add_argument(
         "--learn-disc-transitions",
-        action="store_true",
+        type=bool,
+        default=False,
         help="Learn discriminator using s, s' transitions",
     )
     parser.add_argument(
         "--train-distance-value",
-        action="store_true",
+        type=bool,
+        default=False,
         help="Learn a separate distance value which is used to optimize morphology",
     )
     parser.add_argument(
-        "--co-adapt", action="store_true", help="Adapt morphology as well as behaviour"
+        "--co-adapt",
+        type=bool,
+        default=False,
+        help="Adapt morphology as well as behaviour (default: False)",
     )
     parser.add_argument(
         "--expert-env-name", type=str, default=None, help="Expert env name"
@@ -288,7 +294,7 @@ def parse_args():
         help="Episode length for non-mocap expert data",
     )
     parser.add_argument(
-        "--resume", type=str, default=None, help="Resume from given policy"
+        "--resume", type=str, default=None, help="Resume from given policy; specify the path + name of the .pt file to resume from"
     )
     parser.add_argument(
         "--torso-type",
@@ -313,17 +319,20 @@ def parse_args():
     )
     parser.add_argument(
         "--absorbing-state",
-        action="store_true",
+        type=bool,
+        default=True,
         help="Replace terminal states with special absorbing states",
     )
     parser.add_argument(
         "--omit-done",
-        action="store_true",
+        type=bool,
+        default=False,
         help="Simply set done=False always for learning purposes. Alternative to absorbing states.",
     )
     parser.add_argument(
         "--save-morphos",
-        action="store_true",
+        type=bool,
+        default=False,
         help="Save morphology parameters and corresponding Wasserstein distances for later",
     )
     parser.add_argument(
@@ -341,16 +350,47 @@ def parse_args():
         default=2.0,
         help="BO LCB acquisition function exploration weight",
     )
-    parser.add_argument("--fixed-morpho", nargs="+", default=None, type=float)
     parser.add_argument(
-        "--normalize-obs", action="store_true", help="Normalize observations for critic"
+        "--fixed-morpho",
+        nargs="+",
+        default=None,
+        type=float
     )
     parser.add_argument(
-        "--save-checkpoints", action="store_true", help="Save buffer and models"
+        "--normalize-obs",
+        type=bool,
+        default=False,
+        help="Normalize observations for critic"
+    )
+    parser.add_argument(
+        "--save-checkpoints",
+        type=bool,
+        default=False,
+        help="Save checkpoints for buffer and models (default: false)"
+    )
+    parser.add_argument(
+        "--save-optimal",
+        type=bool,
+        default=True,
+        help="Save optimal buffer and models (default: true)"
+    )
+    parser.add_argument(
+        "--use-wandb",
+        type=bool,
+        default=False,
+        help="Record logs to Weights & Biases (default: false)"
+    )
+    parser.add_argument(
+        "--eval-episodes",
+        type=int,
+        default=10,
+        help="Number of episodes to evaluate on (default: 10)",
+    )
+    parser.add_argument(
+        "--eval-per-episodes",
+        type=int,
+        default=20,
+        help="Number of episodes until a round of evaluation happens (default: 20)",
     )
 
     return parser.parse_args()
-
-
-if __name__ == "__main__":
-    main()
