@@ -19,12 +19,17 @@ def parse_args():
     parser.add_argument(
         "--method",
         default="CoIL",
-        help="Algorithm CoIL or CoSIL or RL (default: CoIL)"
+        help="Algorithm: CoIL or CoSIL or RL (default: CoIL)"
+    )
+    parser.add_argument(
+        "--agent",
+        default="SAC",
+        help="Algorithm: SAC"
     )
     parser.add_argument(
         "--rewarder",
-        default="GAIL",
-        help="Reward function, either RL or GAIL or SAIL or PWIL (default: GAIL)"
+        default="env",
+        help="Reward function, either env or GAIL or SAIL or PWIL (default: GAIL)"
     )
     parser.add_argument(
         "--expert-demos",
@@ -380,7 +385,7 @@ def parse_args():
     parser.add_argument(
         "--save-optimal",
         type=bool,
-        default=False,
+        default=True,
         help="Save optimal buffer and models (default: true)"
     )
     parser.add_argument(
@@ -393,7 +398,7 @@ def parse_args():
         "--use-wandb",
         type=bool,
         default=False,
-        help="Record logs to Weights & Biases (default: false)"
+        help="Record logs to Weights & Biases (default: true)"
     )
     parser.add_argument(
         "--eval-episodes",
@@ -404,7 +409,7 @@ def parse_args():
     parser.add_argument(
         "--eval-per-episodes",
         type=int,
-        default=2,
+        default=20,
         help="Number of episodes until a round of evaluation happens (default: 20)",
     )
 

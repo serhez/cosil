@@ -3,8 +3,10 @@ from torch import optim
 from common.models import Discriminator
 from utils.imitation import train_disc
 
+from .rewarder import Rewarder
 
-class GAIL:
+
+class GAIL(Rewarder):
     def __init__(self, expert_obs, args):
         self.device = torch.device("cuda" if args.cuda else "cpu")
         self.learn_disc_transitions = args.learn_disc_transitions
@@ -25,7 +27,12 @@ class GAIL:
             use_transitions=self.learn_disc_transitions,
         )
 
-    def compute_rewards(self, feats):
+    def compute_rewards(self, batch):
+        _, _, _, _, _, marker_batch, next_marker_batch = batch
+        feats = torch.FloatTensor(next_marker_batch).to(self.device)
+        if self.learn_disc_transitions:
+            feats = torch.cat((marker_batch, next_marker_batch), dim=1)
+
         self.disc.train(False)
 
         rewards = (self.disc(feats).sigmoid() + 1e-7).detach()
@@ -36,9 +43,6 @@ class GAIL:
             rewards = -(1 - rewards)
 
         return rewards
-
-    def get_vae_loss(self, *_):
-        return torch.tensor(0.)
 
     def get_model_dict(self):
         data = {

@@ -2,6 +2,7 @@ import itertools
 import time
 from types import SimpleNamespace
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import ot
@@ -9,7 +10,123 @@ import pyswarms as ps
 import torch
 from sklearn.decomposition import PCA
 
-from run_gpy import create_GPBO_model, get_new_candidates_BO
+matplotlib.use("agg")
+import GPyOpt
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from bo_mat.models.bo_gpymodel import GPDext
+from bo_mat.models.build_gpy_model import get_kernel_module, get_mean_module
+from sklearn.preprocessing import MinMaxScaler
+
+
+def create_GPBO_model(args, X, Y):
+    # Create a specific mean function - linear mean function
+    mean_module = get_mean_module(args.mean, X, Y)
+
+    # Create a specific kernel function - rbf + linear
+    covar_module = get_kernel_module(args.kernel, X, args.add_bias, args.add_linear)
+
+    # Create the GP-BO model
+    model = GPDext(
+        kernel=covar_module, mean_function=mean_module, optimizer=args.optimizer
+    )
+
+    return model
+
+
+def get_new_candidates_BO(model, X, Y, env_name, min_task, max_task, acq_weight):
+    # x_max, x_min = 2.*np.ones(3), 0.5*np.ones(3)#x_scaler.data_max_, x_scaler.data_min_
+
+    # Domains
+    # - Arm bandit
+    #     space  =[{'name': 'var_1', 'type': 'bandit', 'domain': [(-1,1),(1,0),(0,1)]},
+    #              {'name': 'var_2', 'type': 'bandit', 'domain': [(-1,4),(0,0),(1,2)]}]
+    #
+    #     - Continuous domain
+    #     space =[ {'name': 'var_1', 'type': 'continuous', 'domain':(-1,1), 'dimensionality':1},
+    #              {'name': 'var_2', 'type': 'continuous', 'domain':(-3,1), 'dimensionality':2},
+    #              {'name': 'var_3', 'type': 'bandit', 'domain': [(-1,1),(1,0),(0,1)], 'dimensionality':2},
+    #              {'name': 'var_4', 'type': 'bandit', 'domain': [(-1,4),(0,0),(1,2)]},
+    #              {'name': 'var_5', 'type': 'discrete', 'domain': (0,1,2,3)}]
+    #
+    #     - Discrete domain
+    #     space =[ {'name': 'var_3', 'type': 'discrete', 'domain': (0,1,2,3)}]
+    #              {'name': 'var_3', 'type': 'discrete', 'domain': (-10,10)}]
+    #
+    #
+    #     - Mixed domain
+    #     space =[{'name': 'var_1', 'type': 'continuous', 'domain':(-1,1), 'dimensionality' :1},
+    #             {'name': 'var_4', 'type': 'continuous', 'domain':(-3,1), 'dimensionality' :2},
+    #             {'name': 'var_3', 'type': 'discrete', 'domain': (0,1,2,3)}]
+
+    if env_name == "GaitTrackScaledHumanoid-v0":
+        domain = [
+            {"name": "var1", "type": "continuous", "domain": (0.5, 2.0)},
+            {"name": "var_2", "type": "continuous", "domain": (0.5, 2.0)},
+            {"name": "var_3", "type": "continuous", "domain": (0.5, 2.0)},
+        ]
+    elif env_name == "GaitTrackHalfCheetah-v0":
+        domain = [
+            {
+                "name": f"var{i+1}",
+                "type": "continuous",
+                "domain": (min_task[i], max_task[i]),
+            }
+            for i in range(len(min_task))
+        ]
+    elif env_name == "GaitTrack2segHalfCheetah-v0":
+        domain = [
+            {
+                "name": f"var{i+1}",
+                "type": "continuous",
+                "domain": (min_task[i], max_task[i]),
+            }
+            for i in range(len(min_task))
+        ]
+    else:
+        raise NotImplementedError
+
+    # X_init = np.array([[0.0], [0.5], [1.0]])
+    # Y_init = func.f(X_init)
+
+    # iter_count = 10
+    # current_iter = 0
+    # X_step = X_init
+    # Y_step = Y_init
+
+    # Maximization is not effective in this case so we need to change Y to negative values
+    Y = Y
+
+    bo_step = GPyOpt.methods.BayesianOptimization(
+        f=None,
+        domain=domain,
+        X=X,
+        Y=Y,
+        model=model,
+        normalize_Y=True,
+        maximize=False,
+        acquisition_type="LCB",
+        acquisition_weight=acq_weight,
+    )
+
+    # Here is when the model is trained
+    x_next = bo_step.suggest_next_locations()
+
+    exploitation_lcb = GPyOpt.acquisitions.AcquisitionLCB(
+        model=bo_step.model,
+        space=bo_step.space,
+        optimizer=bo_step.acquisition.optimizer,
+        exploration_weight=0.0,
+    )
+
+    x_next_exploit = exploitation_lcb.optimize()[0]
+
+    print(
+        f"Proposed next X=:[{x_next}] with exploration {bo_step.acquisition.exploration_weight}"
+    )
+
+    return x_next, x_next_exploit, bo_step
 
 
 def get_marker_info(
@@ -276,7 +393,18 @@ def handle_absorbing(
         # in addition add transition from absorbing to itself
         add_action = np.zeros_like(action)
         absorbing_state = next_marker_obs.copy()
-        to_push.append((next_feats, add_action, 0.0, next_feats, 1.0, absorbing_state, absorbing_state))
+        to_push.append(
+            (
+                next_feats,
+                add_action,
+                0.0,
+                next_feats,
+                1.0,
+                1.0,
+                absorbing_state,
+                absorbing_state,
+            )
+        )
     else:
         next_feats = np.concatenate([next_feats, np.zeros(1)])
         next_marker_obs = np.concatenate([next_marker_obs, np.zeros(1)])
@@ -285,14 +413,14 @@ def handle_absorbing(
         pwil_reward = pwil_rewarder.compute_reward({"observation": next_marker_obs})
         reward = pwil_reward
 
-    to_push.append((feats, action, reward, next_feats, 1.0, marker_obs, next_marker_obs))
+    to_push.append(
+        (feats, action, reward, next_feats, 1.0, 1.0, marker_obs, next_marker_obs)
+    )
 
     return to_push
 
 
-def create_replay_data(
-    env, marker_info_fn, agent, absorbing_state=True, steps=5000
-):
+def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5000):
     to_push = []
     start_time = time.time()
     step = 0
@@ -319,18 +447,30 @@ def create_replay_data(
             mask = 1.0
 
             if absorbing_state:
-                to_push.extend(handle_absorbing(
-                    feats,
-                    action,
-                    reward,
-                    next_feats,
-                    mask,
-                    marker_obs,
-                    next_marker_obs,
-                    agent.num_inputs + agent.num_morpho_obs,
-                ))
+                to_push.extend(
+                    handle_absorbing(
+                        feats,
+                        action,
+                        reward,
+                        next_feats,
+                        mask,
+                        marker_obs,
+                        next_marker_obs,
+                        agent.num_inputs + agent.num_morpho_obs,
+                    )
+                )
             else:
-                to_push.append((feats, action, reward, next_feats, mask, marker_obs, next_marker_obs))
+                to_push.append(
+                    (
+                        feats,
+                        action,
+                        reward,
+                        next_feats,
+                        mask,
+                        marker_obs,
+                        next_marker_obs,
+                    )
+                )
 
             state = next_state
             marker_obs = next_marker_obs

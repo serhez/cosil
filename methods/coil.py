@@ -11,14 +11,12 @@ import cma
 import gym
 import numpy as np
 import torch
-import wandb
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
-from common.gail import GAIL
-from common.pwil import PWILRewarder
+import wandb
+from agents import SAC
 from common.replay_memory import ReplayMemory
-from common.sac import SAC
-from common.sail import SAIL
+from rewarders import GAIL, PWIL, SAIL, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (bo_step, compute_distance, get_marker_info,
                                  handle_absorbing, optimize_morpho_params_pso,
@@ -26,6 +24,8 @@ from utils.co_adaptation import (bo_step, compute_distance, get_marker_info,
 
 
 # TODO: Encapsulate the morphology in a class
+# TODO: Move much of the code (e.g., the main loop) to main.py to avoid
+#       code repetition in other methods
 class CoIL(object):
     def __init__(self, env: gym.Env, args: argparse.Namespace):
         self.args = args
@@ -57,9 +57,7 @@ class CoIL(object):
             self.optimized_morpho = False
 
         self.morpho_params_np = np.array(self.env.morpho_params)
-        self.num_morpho = self.env.morpho_params.shape[
-            0
-        ]  # number of morphology parameters
+        self.num_morpho = self.env.morpho_params.shape[0]
 
         self.batch_size = self.args.batch_size
         self.memory = ReplayMemory(self.args.replay_size, self.args.seed)
@@ -131,13 +129,16 @@ class CoIL(object):
         # The dimensionality of each state in demo (marker state)
         self.demo_dim = self.expert_obs[0].shape[-1]
 
-        self.agent = SAC(
-            self.obs_size,
-            self.env.action_space,
-            self.num_morpho,
-            len(self.env.morpho_params),
-            self.args,
-        )
+        if args.agent == "SAC":
+            self.agent = SAC(
+                self.obs_size,
+                self.env.action_space,
+                self.num_morpho,
+                len(self.env.morpho_params),
+                self.args,
+            )
+        else:
+            raise ValueError("Invalid agent")
 
         # If training the discriminator on transitions, it becomes (s, s')
         if self.args.learn_disc_transitions:
@@ -158,7 +159,10 @@ class CoIL(object):
                     co_adapt=self.args.co_adapt
                 )
         elif self.args.rewarder == "PWIL":
+            # TODO: add PWIL
             pass
+        elif self.args.rewarder == "env":
+            self.rewarder = EnvReward(args)
         else:
             raise NotImplementedError
 
@@ -207,7 +211,7 @@ class CoIL(object):
         # but did not include experiments in paper as it did not perform well
         pwil_rewarder = None
         if self.args.rewarder == "PWIL":
-            pwil_rewarder = PWILRewarder(
+            pwil_rewarder = PWIL(
                 self.expert_obs,
                 False,
                 self.demo_dim,
@@ -381,11 +385,7 @@ class CoIL(object):
                 # Ignore the "done" signal if it comes from hitting the time horizon.
                 # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
                 # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when the episode is done, as well as meaning "done" for `self.memory.push()`
-                mask = (
-                    1
-                    if episode_steps == self.env._max_episode_steps
-                    else float(not done)
-                )
+                mask = (1 if episode_steps == self.env._max_episode_steps else float(not done))
 
                 if self.args.omit_done:
                     mask = 1.0
@@ -417,6 +417,7 @@ class CoIL(object):
                         action,
                         reward,
                         next_feats,
+                        mask,
                         mask,
                         marker_obs,
                         next_marker_obs,
@@ -474,7 +475,7 @@ class CoIL(object):
             log_dict["reward_train"] = episode_reward
 
             if self.args.save_optimal and episode_reward > prev_best_reward:
-                self._save()
+                self._save("optimal")
                 # These are big so dont save in wandb
                 # if self.args.use_wandb:
                 # wandb.save(ckpt_path)
@@ -510,6 +511,8 @@ class CoIL(object):
         return self.agent, self.env.morpho_params
 
     def _pretrain_sail(self, co_adapt=True, steps=50000):
+        assert isinstance(self.rewarder, SAIL), "SAIL rewarder required for pretraining"
+
         g_inv_file_name = f"pretrained_models/g_inv.pt"
         policy_file_name = f"pretrained_models/policy.pt"
 
@@ -571,6 +574,7 @@ class CoIL(object):
                         action,
                         reward,
                         next_state,
+                        mask,
                         mask,
                         marker_obs,
                         next_marker_obs,
@@ -802,6 +806,7 @@ class CoIL(object):
         # These are big so only save policy on wandb
         # if self.args.use_wandb:
         # wandb.save(ckpt_path)
+        # TODO: Remove
         torch.save(self.agent.policy.state_dict(), "imitator.pt")
         if self.args.use_wandb:
             wandb.save("imitator.pt")
@@ -823,6 +828,7 @@ class CoIL(object):
         self.metrics["pos_test"].append(pos_test_distance)
         self.metrics["reward"].append(avg_reward)
 
+        # TODO: Remove
         torch.save(self.metrics, "metrics.pt")
 
         print("Took", round(time.time() - s, 2))

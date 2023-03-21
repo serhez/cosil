@@ -25,7 +25,7 @@ def train_wgan_critic(opt, critic, expert_obs: list, batch, use_transitions=True
     if use_transitions:
         expert_feats = torch.cat((expert_feats, expert_obs[expert_inds + 1]), dim=1)
 
-    _, _, _, _, _, marker_samples, next_marker_samples = batch
+    _, _, _, _, _, _, marker_samples, next_marker_samples = batch
     marker_feats = marker_samples
 
     if use_transitions:
@@ -96,7 +96,7 @@ def train_disc(
     if use_transitions:
         expert_feats = torch.cat((expert_feats, expert_obs[expert_inds + 1]), dim=1)
 
-    _, _, _, _, _, marker_samples, next_marker_samples = batch
+    _, _, _, _, _, _, marker_samples, next_marker_samples = batch
     marker_feats = marker_samples
 
     if use_transitions:

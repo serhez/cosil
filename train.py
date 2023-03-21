@@ -1,5 +1,3 @@
-# Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-
 import time
 
 import gym
@@ -8,18 +6,16 @@ import torch
 import wandb
 from gait_track_envs import register_env
 
-from coal import CoAL
-from coil import CoIL
+from methods import CoAL, CoIL, CoSIL
 from config import parse_args
-from cosil import CoSIL
 
 
 def main():
     args = parse_args()
 
-    np.random.seed(args.seed)
-
     for _ in range(args.num_agents):
+        np.random.seed(args.seed)
+
         args.run_id = str(int(time.time()))
         args.name = f"{args.run_name}-{args.env_name}-{str(args.seed)}-{args.run_id}"
         args.group = f"{args.run_name}-{args.env_name}"
@@ -40,16 +36,14 @@ def main():
 
         # Train a model using the selected training method
         if args.method == "CoIL":
-            coil = CoIL(env, args)
-            coil.train()
+            method = CoIL(env, args)
         elif args.method == "CoSIL":
-            cosil = CoSIL(env, args)
-            cosil.train()
+            method = CoSIL(env, args)
         elif args.method == "CoAL":
-            rl = CoAL(env, args)
-            rl.train()
+            method = CoAL(env, args)
         else:
             raise ValueError(f"Invalid training method: {args.method}")
+        method.train()
 
         env.close()
 

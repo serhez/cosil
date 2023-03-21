@@ -28,7 +28,7 @@ import ot
 from sklearn import preprocessing
 
 
-class PWILRewarder(object):
+class PWIL(object):
     """Rewarder class to compute PWIL rewards."""
 
     def __init__(
@@ -143,7 +143,7 @@ class PWILRewarder(object):
         num_expert_atoms = len(self.expert_atoms)
         self.expert_weights = np.ones(num_expert_atoms) / (num_expert_atoms)
 
-    def compute_reward(self, obs_act):
+    def compute_rewards(self, obs_act):
         """Computes reward as presented in Algorithm 1."""
         # Scale observation and action.
         if self.observation_only:
