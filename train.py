@@ -35,6 +35,7 @@ def main():
         torch.manual_seed(args.seed)
 
         # Train a model using the selected training method
+        print(f'Training using method {args.method}')
         if args.method == "CoIL":
             method = CoIL(env, args)
         elif args.method == "CoSIL":

@@ -8,7 +8,7 @@ class Rewarder(ABC):
     """
     
     @abstractmethod
-    def train(self, batch) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def train(self, batch) -> Tuple[float, float, float]:
         """
         Train the rewarder and update the rewarder's parameters.
 
@@ -18,9 +18,9 @@ class Rewarder(ABC):
         
         Returns
         -------
-        loss: torch.Tensor -> the loss
-        expert_probs: torch.Tensor -> the probability of the expert's action
-        policy_probs: torch.Tensor -> the probability of the policy's action
+        loss: float -> the loss
+        expert_probs: float -> the probability of the expert's action
+        policy_probs: float -> the probability of the policy's action
         """
         pass
 

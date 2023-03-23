@@ -18,9 +18,14 @@ from agents import SAC
 from common.replay_memory import ReplayMemory
 from rewarders import GAIL, PWIL, SAIL, EnvReward
 from utils import dict_add, dict_div
-from utils.co_adaptation import (bo_step, compute_distance, get_marker_info,
-                                 handle_absorbing, optimize_morpho_params_pso,
-                                 rs_step)
+from utils.co_adaptation import (
+    bo_step,
+    compute_distance,
+    get_marker_info,
+    handle_absorbing,
+    optimize_morpho_params_pso,
+    rs_step,
+)
 
 
 # TODO: Encapsulate the morphology in a class
@@ -129,6 +134,7 @@ class CoIL(object):
         # The dimensionality of each state in demo (marker state)
         self.demo_dim = self.expert_obs[0].shape[-1]
 
+        print(f'Training using agent {args.agent}')
         if args.agent == "SAC":
             self.agent = SAC(
                 self.obs_size,
@@ -147,10 +153,11 @@ class CoIL(object):
         print("Keys to match:", self.to_match)
         print("Expert observation shapes:", [x.shape for x in self.expert_obs])
 
-        if self.args.rewarder == "GAIL":
+        print(f'Training using rewarder {args.rewarder}')
+        if args.rewarder == "GAIL":
             self.rewarder = GAIL(self.expert_obs, args)
         elif (
-            self.args.rewarder == "SAIL"
+            args.rewarder == "SAIL"
         ):  # SAIL includes a pretraining step for the VAE and inverse dynamics
             self.rewarder = SAIL(self.env, self.expert_obs, args)
             self.vae_loss = self.rewarder.pretrain_vae(10000)
@@ -158,15 +165,15 @@ class CoIL(object):
                 self.rewarder.g_inv_loss = self._pretrain_sail(
                     co_adapt=self.args.co_adapt
                 )
-        elif self.args.rewarder == "PWIL":
+        elif args.rewarder == "PWIL":
             # TODO: add PWIL
             pass
-        elif self.args.rewarder == "env":
+        elif args.rewarder == "env":
             self.rewarder = EnvReward(args)
         else:
             raise NotImplementedError
 
-        if self.args.resume is not None:
+        if args.resume is not None:
             if self._load(self.args.resume):
                 print(f"Loaded {self.args.resume}")
                 print("Loaded", len(self.memory), "transitions")
@@ -305,7 +312,7 @@ class CoIL(object):
                         if self.total_numsteps % self.args.train_every == 0:
                             # Different algo variants discriminator update (pseudocode line 8-9)
                             batch = self.memory.sample(self.batch_size)
-                            self.rewarder.train(batch)
+                            disc_loss, expert_probs, policy_probs = self.rewarder.train(batch)
 
                         # Policy update (pseudocode line 10)
                         if (
@@ -385,7 +392,11 @@ class CoIL(object):
                 # Ignore the "done" signal if it comes from hitting the time horizon.
                 # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
                 # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when the episode is done, as well as meaning "done" for `self.memory.push()`
-                mask = (1 if episode_steps == self.env._max_episode_steps else float(not done))
+                mask = (
+                    1
+                    if episode_steps == self.env._max_episode_steps
+                    else float(not done)
+                )
 
                 if self.args.omit_done:
                     mask = 1.0

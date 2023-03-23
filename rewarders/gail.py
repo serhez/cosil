@@ -28,7 +28,7 @@ class GAIL(Rewarder):
         )
 
     def compute_rewards(self, batch):
-        _, _, _, _, _, marker_batch, next_marker_batch = batch
+        _, _, _, _, _, _, marker_batch, next_marker_batch = batch
         feats = torch.FloatTensor(next_marker_batch).to(self.device)
         if self.learn_disc_transitions:
             feats = torch.cat((marker_batch, next_marker_batch), dim=1)
@@ -46,12 +46,12 @@ class GAIL(Rewarder):
 
     def get_model_dict(self):
         data = {
-            'disc_state_dict': self.disc.state_dict(),
-            'disc_optim_state_dict': self.disc_opt.state_dict(),
+            "disc_state_dict": self.disc.state_dict(),
+            "disc_optim_state_dict": self.disc_opt.state_dict(),
         }
         return data
 
     def load(self, model):
-        self.disc.load_state_dict(model['disc_state_dict'])
-        self.disc_opt.load_state_dict(model['disc_optim_state_dict'])
+        self.disc.load_state_dict(model["disc_state_dict"])
+        self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
         return True

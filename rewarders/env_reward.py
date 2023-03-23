@@ -8,7 +8,7 @@ class EnvReward(Rewarder):
         self.device = torch.device("cuda" if args.cuda else "cpu")
 
     def train(self, _):
-        pass
+        return 0., 0., 0.
 
     def compute_rewards(self, batch):
         _, _, reward_batch, _, _, _, _, _ = batch

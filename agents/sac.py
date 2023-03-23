@@ -2,6 +2,7 @@
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
+from typing import Tuple
 
 from common.models import (
     DeterministicPolicy,
@@ -160,7 +161,7 @@ class SAC(object):
 
     def update_parameters(
         self, batch, rewarder: Rewarder, updates: int, update_value_only=False
-    ):
+        ) -> Tuple[float, float, float, float, float, float, float, float, float]:
         (
             state_batch,
             action_batch,
@@ -192,8 +193,12 @@ class SAC(object):
             )
             q_next_target = self.critic_target.min(next_state_batch, next_state_action)
             min_qf_next_target = q_next_target - self.alpha * next_state_log_pi
-            # BUG: Make sure terminated * truncated is what we want
-            next_q_value = reward_batch + (terminated_batch * truncated_batch) * self.gamma * (min_qf_next_target)
+            dones = torch.logical_or(
+                terminated_batch,
+                truncated_batch,
+                out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype)
+            )
+            next_q_value = reward_batch + dones * self.gamma * (min_qf_next_target)
 
         mean_modified_reward = reward_batch.mean()
 

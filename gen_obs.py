@@ -1,3 +1,4 @@
+import os
 import time
 
 import gym
@@ -6,16 +7,33 @@ import torch
 from gait_track_envs import register_env
 
 from agents import SAC
-from common.replay_memory import ReplayMemory
 from config import parse_args
-from utils.co_adaptation import get_marker_info
 from utils.model import load_model
+
+
+def add_obs(obs_list, info, done):
+    obs_list["dones"] = np.append(
+        obs_list["dones"],
+        done,
+    )
+
+    for key, val in info.items():
+        if key not in obs_list:
+            obs_list[key] = np.empty((0, *val.shape))
+
+        assert (
+            len(obs_list[key]) == len(obs_list["dones"]) - 1
+        ), "Observations must yield the same info"
+
+        obs_list[key] = np.append(obs_list[key], np.array([val]), axis=0)
 
 
 def gen_obs(args, env):
     assert args.resume is not None, "Must provide model path to generate observations"
 
-    memory = ReplayMemory(args.replay_size, args.seed)
+    obs_list = {
+        "dones": np.array([]),
+    }
 
     obs_size = env.observation_space.shape[0]
     if args.absorbing_state:
@@ -29,25 +47,16 @@ def gen_obs(args, env):
     )
 
     load_model(args.resume, env, agent, co_adapt=False, evaluate=True)
-    
+
     # Generate observations
     for episode in range(args.num_steps):
         state, _ = env.reset()
         feat = np.concatenate([state, env.morpho_params])
         if args.absorbing_state:
             feat = np.concatenate([feat, np.zeros(1)])
-        marker_obs, _ = get_marker_info(
-            env.get_track_dict(),
-            args.policy_legs,
-            args.policy_markers,
-            pos_type=args.pos_type,
-            vel_type=args.vel_type,
-            torso_type=args.torso_type,
-            head_type=args.head_type,
-            head_wrt=args.head_wrt,
-        )
 
         tot_reward = 0
+        num_obs = 0
         done = False
         while not done:
             action = agent.select_action(feat, evaluate=True)
@@ -56,42 +65,33 @@ def gen_obs(args, env):
             next_feat = np.concatenate([next_state, env.morpho_params])
             if args.absorbing_state:
                 next_feat = np.concatenate([next_feat, np.zeros(1)])
-            next_marker_obs, _ = get_marker_info(
-                info,
-                args.policy_legs,
-                args.policy_markers,
-                pos_type=args.pos_type,
-                vel_type=args.vel_type,
-                torso_type=args.torso_type,
-                head_type=args.head_type,
-                head_wrt=args.head_wrt,
-            )
 
-            memory.push(
-                feat,
-                action,
-                reward,
-                next_feat,
-                terminated,
-                truncated,
-                marker_obs,
-                next_marker_obs
-            )
+            add_obs(obs_list, info, terminated or truncated)
+            num_obs += 1
 
             feat = next_feat
-            marker_obs = next_marker_obs
 
             tot_reward += reward
             done = terminated or truncated
 
-        print(f'Episode: {episode}, reward: {tot_reward}')
+        print(f"Episode: {episode}")
+        print(f"\tReward: {tot_reward:.3f}")
+        print(f"\tGenerated {num_obs} observations")
 
-    return memory
+    return obs_list
 
 
-# TODO: implement
-def save(args, memory):
-    pass
+def save(obs_list: dict, path: str):
+    assert path is not None, "Must provide path to save observations"
+    try:
+        split_path = os.path.split(path)
+        dir_path = split_path[0]
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+    except:
+        raise ValueError("Invalid path")
+
+    torch.save(obs_list, path)
 
 
 def main():
@@ -114,7 +114,7 @@ def main():
     obs = gen_obs(args, env)
     env.close()
 
-    save(args, obs)
+    save(obs, args.obs_save_path)
 
 
 if __name__ == "__main__":

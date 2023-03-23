@@ -19,21 +19,18 @@ def parse_args():
     parser.add_argument(
         "--method",
         default="CoIL",
-        help="Algorithm: CoIL or CoSIL or RL (default: CoIL)"
+        help="Algorithm: CoIL or CoSIL or RL (default: CoIL)",
     )
-    parser.add_argument(
-        "--agent",
-        default="SAC",
-        help="Algorithm: SAC"
-    )
+    parser.add_argument("--agent", default="SAC", help="Algorithm: SAC")
     parser.add_argument(
         "--rewarder",
-        default="env",
-        help="Reward function, either env or GAIL or SAIL or PWIL (default: GAIL)"
+        default="GAIL",
+        help="Reward function, either env or GAIL or SAIL or PWIL (default: GAIL)",
     )
     parser.add_argument(
         "--expert-demos",
         type=str,
+        # default="data/demonstrator/GaitTrackHalfCheetahOriginal-v0/expert.pt",
         default="data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt",
         help="Path to the expert demonstration file",
     )
@@ -148,20 +145,11 @@ def parse_args():
         help="size of replay buffer (default: 20000000)",
     )
     parser.add_argument(
-        "--cuda",
-        type=bool,
-        default=False,
-        help="run on CUDA (default: False)"
+        "--cuda", type=bool, default=False, help="run on CUDA (default: False)"
     )
+    parser.add_argument("--run-name", default="test", help="Run name (logging only)")
     parser.add_argument(
-        "--run-name",
-        default="test",
-        help="Run name (logging only)"
-    )
-    parser.add_argument(
-        "--project-name",
-        default="cosil",
-        help="Run name (logging only)"
+        "--project-name", default="cosil", help="Run name (logging only)"
     )
     parser.add_argument(
         "--log-scale-rewards",
@@ -203,22 +191,16 @@ def parse_args():
         help="Steps before starting to train SAC",
     )
     parser.add_argument(
-        "--record-test",
-        type=bool,
-        default=False,
-        help="Record tests (may be slow)"
+        "--record-test", type=bool, default=False, help="Record tests (may be slow)"
     )
     parser.add_argument(
         "--load-warmup",
         type=bool,
         default=False,
-        help="Load previously saved warmup data"
+        help="Load previously saved warmup data",
     )
     parser.add_argument(
-        "--q-weight-decay",
-        type=float,
-        default=1e-5,
-        help="Q-function weight decay"
+        "--q-weight-decay", type=float, default=1e-5, help="Q-function weight decay"
     )
     parser.add_argument(
         "--disc-weight-decay",
@@ -308,7 +290,16 @@ def parse_args():
         help="Episode length for non-mocap expert data",
     )
     parser.add_argument(
-        "--resume", type=str, default=None, help="Resume from given policy; specify the path + name of the .pt file to resume from"
+        "--obs-save-path",
+        type=str,
+        default=None,
+        help="Path to which to save the observations (gen_obs)",
+    )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="Resume from given policy; specify the path + name of the .pt file to resume from",
     )
     parser.add_argument(
         "--torso-type",
@@ -334,7 +325,7 @@ def parse_args():
     parser.add_argument(
         "--absorbing-state",
         type=bool,
-        default=True,
+        default=False,
         help="Replace terminal states with special absorbing states",
     )
     parser.add_argument(
@@ -364,41 +355,36 @@ def parse_args():
         default=2.0,
         help="BO LCB acquisition function exploration weight",
     )
-    parser.add_argument(
-        "--fixed-morpho",
-        nargs="+",
-        default=None,
-        type=float
-    )
+    parser.add_argument("--fixed-morpho", nargs="+", default=None, type=float)
     parser.add_argument(
         "--normalize-obs",
         type=bool,
         default=False,
-        help="Normalize observations for critic"
+        help="Normalize observations for critic",
     )
     parser.add_argument(
         "--save-checkpoints",
         type=bool,
         default=False,
-        help="Save checkpoints for buffer and models (default: false)"
+        help="Save checkpoints for buffer and models (default: false)",
     )
     parser.add_argument(
         "--save-optimal",
         type=bool,
-        default=True,
-        help="Save optimal buffer and models (default: true)"
+        default=False,
+        help="Save optimal buffer and models (default: true)",
     )
     parser.add_argument(
         "--save-final",
         type=bool,
         default=True,
-        help="Save the final buffer and models (default: true)"
+        help="Save the final buffer and models (default: true)",
     )
     parser.add_argument(
         "--use-wandb",
         type=bool,
-        default=False,
-        help="Record logs to Weights & Biases (default: true)"
+        default=True,
+        help="Record logs to Weights & Biases (default: true)",
     )
     parser.add_argument(
         "--eval-episodes",
