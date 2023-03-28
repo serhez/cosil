@@ -4,7 +4,7 @@ import argparse
 from collections import deque
 import os
 import gym
-import gait_track_envs
+from gait_track_envs import register_env
 import numpy as np
 import itertools
 import torch
@@ -26,6 +26,7 @@ import cma
 
 def single_run(args: argparse.Namespace):
 
+    register_env(args.env_name)
     env = gym.make(args.env_name)
     env.seed(args.seed)
     env.action_space.seed(args.seed)
