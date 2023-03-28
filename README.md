@@ -6,3 +6,8 @@ The `mocap` folder includes code for preprocessing the CMU motion capture data,
 The `gait-track-envs` folder includes a pip installable package for the adapted mujoco environments 
     which allow changing morphology before each episode
 See each folder for further instructions
+
+# Install dependencies
+1. Install pytorch, Gpy, numpy 
+2. Go to bo_mat folder and `pip install -e .`
+3. Go to gait-track-envs folder and `pip install -e.`

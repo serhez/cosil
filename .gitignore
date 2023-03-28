@@ -1,1 +1,4 @@
 wandb/
+models/
+imitator.pt
+metrics.pt

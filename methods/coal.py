@@ -1,0 +1,2 @@
+class CoAL:
+    pass
