@@ -460,10 +460,11 @@ class CoIL(object):
             self.distances.append(train_distance)
             self.pos_train_distances.append(pos_train_distance)
 
-            if self.args.save_morphos:
-                torch.save(
-                    {"morphos": self.morphos, "distances": self.distances}, "morphos.pt"
-                )
+            # TODO: Remove
+            # if self.args.save_morphos:
+            #     torch.save(
+            #         {"morphos": self.morphos, "distances": self.distances}, "morphos.pt"
+            #     )
 
             print(
                 f"Training distance: {train_distance:.2f} - baseline: {(pos_baseline_distance+vel_baseline_distance):.2f} in {time.time()-s:.2f}"
@@ -818,9 +819,9 @@ class CoIL(object):
         # if self.args.use_wandb:
         # wandb.save(ckpt_path)
         # TODO: Remove
-        torch.save(self.agent.policy.state_dict(), "imitator.pt")
-        if self.args.use_wandb:
-            wandb.save("imitator.pt")
+        # torch.save(self.agent.policy.state_dict(), "imitator.pt")
+        # if self.args.use_wandb:
+        #     wandb.save("imitator.pt")
 
         print("Calculating distributional distance")
         s = time.time()
@@ -840,7 +841,7 @@ class CoIL(object):
         self.metrics["reward"].append(avg_reward)
 
         # TODO: Remove
-        torch.save(self.metrics, "metrics.pt")
+        # torch.save(self.metrics, "metrics.pt")
 
         print("Took", round(time.time() - s, 2))
 
