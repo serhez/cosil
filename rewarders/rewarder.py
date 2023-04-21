@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import Tuple
+from typing import Any, Tuple, Dict
 import torch
 
 class Rewarder(ABC):
@@ -14,13 +14,13 @@ class Rewarder(ABC):
 
         Parameters
         ----------
-        batch: tuple -> a batch of data
+        batch -> a batch of data
         
         Returns
         -------
-        loss: float -> the loss
-        expert_probs: float -> the probability of the expert's action
-        policy_probs: float -> the probability of the policy's action
+        The loss
+        The probability of the expert's action
+        The probability of the policy's action
         """
         pass
 
@@ -31,16 +31,16 @@ class Rewarder(ABC):
 
         Parameters
         ----------
-        batch: tuple -> a batch of data
+        batch -> a batch of data
         
         Returns
         -------
-        rewards: torch.Tensor -> the rewards
+        The rewards
         """
         pass
 
     @abstractmethod
-    def get_model_dict(self) -> dict:
+    def get_model_dict(self) -> Dict[str, Any]:
         """
         Get the rewarder's parameters.
 
@@ -50,18 +50,18 @@ class Rewarder(ABC):
 
         Returns
         -------
-        model: dict -> a dictionary of the rewarder's parameters
+        A dictionary of the rewarder's parameters
         """
         pass
 
     @abstractmethod
-    def load(self, model):
+    def load(self, model: Dict[str, Any]):
         """
         Load the rewarder's parameters from a model.
 
         Parameters
         ----------
-        model: dict -> a dictionary of the rewarder's parameters
+        model -> a dictionary of the rewarder's parameters
 
         Returns
         -------

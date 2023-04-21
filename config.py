@@ -18,7 +18,7 @@ def parse_args():
     )
     parser.add_argument(
         "--method",
-        default="CoIL",
+        default="CoSIL",
         help="Algorithm: CoIL or CoSIL or RL (default: CoIL)",
     )
     parser.add_argument("--agent", default="SAC", help="Algorithm: SAC")
@@ -80,6 +80,20 @@ def parse_args():
         metavar="G",
         help="Temperature parameter α determines the relative importance of the entropy\
                                 term against the reward (default: 0.2)",
+    )
+    parser.add_argument(
+        "--omega",
+        type=float,
+        default=1.0,
+        metavar="G",
+        help="The reward / Q-value weighting parameter, e.g.: omega * Q_value_1 + (1 - omega) * Q_value_2 (default: 1.0)",
+    )
+    parser.add_argument(
+        "--dual-mode",
+        type=str,
+        default="q",
+        metavar="G",
+        help="Mode for dual learning: 'q' (for q-value) or 'reward'",
     )
     parser.add_argument(
         "--automatic_entropy_tuning",
@@ -383,7 +397,7 @@ def parse_args():
     parser.add_argument(
         "--use-wandb",
         type=bool,
-        default=True,
+        default=False,
         help="Record logs to Weights & Biases (default: true)",
     )
     parser.add_argument(

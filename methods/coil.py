@@ -134,18 +134,6 @@ class CoIL(object):
         # The dimensionality of each state in demo (marker state)
         self.demo_dim = self.expert_obs[0].shape[-1]
 
-        print(f'Training using agent {args.agent}')
-        if args.agent == "SAC":
-            self.agent = SAC(
-                self.obs_size,
-                self.env.action_space,
-                self.num_morpho,
-                len(self.env.morpho_params),
-                self.args,
-            )
-        else:
-            raise ValueError("Invalid agent")
-
         # If training the discriminator on transitions, it becomes (s, s')
         if self.args.learn_disc_transitions:
             self.demo_dim *= 2
@@ -172,6 +160,19 @@ class CoIL(object):
             self.rewarder = EnvReward(args)
         else:
             raise NotImplementedError
+
+        print(f'Training using agent {args.agent}')
+        if args.agent == "SAC":
+            self.agent = SAC(
+                self.args,
+                self.obs_size,
+                self.env.action_space,
+                self.num_morpho,
+                len(self.env.morpho_params),
+                self.rewarder,
+            )
+        else:
+            raise ValueError("Invalid agent")
 
         if args.resume is not None:
             if self._load(self.args.resume):
@@ -322,36 +323,14 @@ class CoIL(object):
                         ):
                             # Update parameters of all the networks
                             batch = self.memory.sample(self.batch_size)
-                            (
-                                critic_loss,
-                                policy_loss,
-                                ent_loss,
-                                alpha,
-                                action_std,
-                                mean_modified_reward,
-                                entropy,
-                                self.vae_loss,
-                                absorbing_reward,
-                            ) = self.agent.update_parameters(
-                                batch, self.rewarder, self.updates
-                            )
-
-                            new_log = {
-                                "loss/critic_loss": critic_loss,
-                                "loss/policy": policy_loss,
-                                "loss/policy_prior_loss": self.vae_loss,
-                                "loss/entropy_loss": ent_loss,
+                            new_log = self.agent.update_parameters(batch, self.updates)
+                            new_log.update({
                                 "loss/disc_loss": disc_loss,
                                 "loss/disc_gradient_penalty": gradient_penalty,
                                 "loss/g_inv_loss": self.g_inv_loss,
-                                "modified_reward": mean_modified_reward,
-                                "absorbing_reward": absorbing_reward,
-                                "action_std": action_std,
                                 "probs/expert_disc": expert_probs,
                                 "probs/policy_disc": policy_probs,
-                                "entropy_temperature/alpha": alpha,
-                                "entropy_temperature/entropy": entropy,
-                            }
+                            })
 
                             dict_add(log_dict, new_log)
                             logged += 1
@@ -480,9 +459,10 @@ class CoIL(object):
             if self.optimized_morpho:
                 log_dict["reward_optimized_train"] = episode_reward
 
-            optimized_morpho_params = self._adapt_morphology(
-                i_episode, epsilon, es, es_buffer, log_dict
-            )
+            # Adapt the morphology
+            optimized_morpho_params = None
+            if self.args.co_adapt and (i_episode % self.args.episodes_per_morpho == 0):
+                optimized_morpho_params = self._adapt_morphology(epsilon, es, es_buffer, log_dict)
 
             log_dict["reward_train"] = episode_reward
 
@@ -614,124 +594,122 @@ class CoIL(object):
     # Line 13 in Algorithm 1
     def _adapt_morphology(
         self,
-        i_episode: int,
         epsilon: float,
         es: cma.CMAEvolutionStrategy | None,
         es_buffer: deque | None,
-        log_dict: dict[str, Any],
+        log_dict: dict[str, Any]
     ):
         optimized_morpho_params = None
 
-        if self.args.co_adapt and (i_episode % self.args.episodes_per_morpho == 0):
-            if self.total_numsteps < self.args.morpho_warmup:
-                print("Sampling morphology")
-                morpho_params = self.morpho_dist.sample()
-                self.morpho_params_np = morpho_params.numpy()
-            # Following three use distribution distance morphology adaptation with different optimizers
-            # Bayesian optimization (Algorithm 2)
-            elif self.args.dist_optimizer == "BO":
-                bo_s = time.time()
-                self.morpho_params_np, optimized_morpho_params = bo_step(
-                    self.args,
-                    self.morphos,
-                    self.num_morpho,
-                    self.pos_train_distances,
-                    self.env,
+        if self.total_numsteps < self.args.morpho_warmup:
+            print("Sampling morphology")
+            morpho_params = self.morpho_dist.sample()
+            self.morpho_params_np = morpho_params.numpy()
+        # Following three use distribution distance morphology adaptation with different optimizers
+        # Bayesian optimization (Algorithm 2)
+        elif self.args.dist_optimizer == "BO":
+            bo_s = time.time()
+            self.morpho_params_np, optimized_morpho_params = bo_step(
+                self.args,
+                self.morphos,
+                self.num_morpho,
+                self.pos_train_distances,
+                self.env,
+            )
+            self.optimized_morpho = True
+            for j in range(len(self.morpho_params_np)):
+                log_dict[
+                    f"morpho_param_values/morpho_param_{j}"
+                ] = self.morpho_params_np[j]
+            for j in range(len(optimized_morpho_params)):
+                log_dict[
+                    f"morpho_exploit/morpho_param_{j}"
+                ] = optimized_morpho_params[j]
+            bo_e = time.time()
+            print(f"BO took {bo_e-bo_s:.2f}")
+        # Ablation: Random search
+        elif self.args.dist_optimizer == "RS":
+            self.morpho_params_np, optimized_morpho_params = rs_step(
+                self.args,
+                self.num_morpho,
+                self.morphos,
+                self.pos_train_distances,
+                self.env.min_task,
+                self.env.max_task,
+            )
+        # Ablation: CMA
+        elif self.args.dist_optimizer == "CMA":
+            assert es is not None
+            assert es_buffer is not None
+
+            # Average over same morphologies
+            X = np.array(self.morphos).reshape(
+                -1, self.args.episodes_per_morpho, self.num_morpho
+            )[:, 0]
+            Y = (
+                np.array(self.pos_train_distances)
+                .reshape(-1, self.args.episodes_per_morpho)
+                .mean(1, keepdims=True)
+            )
+
+            if len(es_buffer) == 0:
+                suggestion = es.ask()
+                suggestion = (self.env.max_task - suggestion) / (
+                    self.env.max_task - self.env.min_task
                 )
-                self.optimized_morpho = True
+
+                [es_buffer.append(m) for m in suggestion]
+
+                if X.shape[0] >= 5:
+                    curr = (X[-5:] - self.env.min_task) / (
+                        self.env.max_task - self.env.min_task
+                    )
+                    es.tell(curr, Y[-5:])
+
+            self.morpho_params_np = es_buffer.pop()
+            optimized_morpho_params = X[np.argmin(Y)]
+
+        else:
+            # Q-function version
+            self.optimized_morpho = random.random() > epsilon
+
+            if (
+                self.total_numsteps > self.args.morpho_warmup
+            ) and self.optimized_morpho:
+                print("Optimizing morphology")
+                (
+                    morpho_loss,
+                    morpho_params,
+                    fig,
+                    grads_abs_sum,
+                ) = optimize_morpho_params_pso(
+                    self.agent,
+                    self.initial_states_memory,
+                    self.bounds,
+                    use_distance_value=self.args.train_distance_value,
+                    device=self.device,
+                )
+                optimized_morpho_params = morpho_params.clone().numpy()
+                self.morpho_params_np = morpho_params.detach().numpy()
+                log_dict["morpho/morpho_loss"] = morpho_loss
+                log_dict["morpho/grads_abs_sum"] = grads_abs_sum
+                log_dict["q_fn_scale"] = wandb.Image(fig)
+
                 for j in range(len(self.morpho_params_np)):
                     log_dict[
                         f"morpho_param_values/morpho_param_{j}"
                     ] = self.morpho_params_np[j]
-                for j in range(len(optimized_morpho_params)):
-                    log_dict[
-                        f"morpho_exploit/morpho_param_{j}"
-                    ] = optimized_morpho_params[j]
-                bo_e = time.time()
-                print(f"BO took {bo_e-bo_s:.2f}")
-            # Ablation: Random search
-            elif self.args.dist_optimizer == "RS":
-                self.morpho_params_np, optimized_morpho_params = rs_step(
-                    self.args,
-                    self.num_morpho,
-                    self.morphos,
-                    self.pos_train_distances,
-                    self.env.min_task,
-                    self.env.max_task,
-                )
-            # Ablation: CMA
-            elif self.args.dist_optimizer == "CMA":
-                assert es is not None
-                assert es_buffer is not None
-
-                # Average over same morphologies
-                X = np.array(self.morphos).reshape(
-                    -1, self.args.episodes_per_morpho, self.num_morpho
-                )[:, 0]
-                Y = (
-                    np.array(self.pos_train_distances)
-                    .reshape(-1, self.args.episodes_per_morpho)
-                    .mean(1, keepdims=True)
-                )
-
-                if len(es_buffer) == 0:
-                    suggestion = es.ask()
-                    suggestion = (self.env.max_task - suggestion) / (
-                        self.env.max_task - self.env.min_task
-                    )
-
-                    [es_buffer.append(m) for m in suggestion]
-
-                    if X.shape[0] >= 5:
-                        curr = (X[-5:] - self.env.min_task) / (
-                            self.env.max_task - self.env.min_task
-                        )
-                        es.tell(curr, Y[-5:])
-
-                self.morpho_params_np = es_buffer.pop()
-                optimized_morpho_params = X[np.argmin(Y)]
-
             else:
-                # Q-function version
-                self.optimized_morpho = random.random() > epsilon
+                print("Sampling morphology")
+                morpho_params = self.morpho_dist.sample()
+                self.morpho_params_np = morpho_params.numpy()
 
-                if (
-                    self.total_numsteps > self.args.morpho_warmup
-                ) and self.optimized_morpho:
-                    print("Optimizing morphology")
-                    (
-                        morpho_loss,
-                        morpho_params,
-                        fig,
-                        grads_abs_sum,
-                    ) = optimize_morpho_params_pso(
-                        self.agent,
-                        self.initial_states_memory,
-                        self.bounds,
-                        use_distance_value=self.args.train_distance_value,
-                        device=self.device,
-                    )
-                    optimized_morpho_params = morpho_params.clone().numpy()
-                    self.morpho_params_np = morpho_params.detach().numpy()
-                    log_dict["morpho/morpho_loss"] = morpho_loss
-                    log_dict["morpho/grads_abs_sum"] = grads_abs_sum
-                    log_dict["q_fn_scale"] = wandb.Image(fig)
+        self.optimized_or_not.append(self.optimized_morpho)
+        # Set new morphology in environment
+        self.env.set_task(*self.morpho_params_np)
 
-                    for j in range(len(self.morpho_params_np)):
-                        log_dict[
-                            f"morpho_param_values/morpho_param_{j}"
-                        ] = self.morpho_params_np[j]
-                else:
-                    print("Sampling morphology")
-                    morpho_params = self.morpho_dist.sample()
-                    self.morpho_params_np = morpho_params.numpy()
-
-            self.optimized_or_not.append(self.optimized_morpho)
-            # Set new morphology in environment
-            self.env.set_task(*self.morpho_params_np)
-
-            print("Current morpho")
-            print(self.env.morpho_params)
+        print("Current morpho")
+        print(self.env.morpho_params)
 
         return optimized_morpho_params
 

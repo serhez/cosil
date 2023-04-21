@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 import torch
 import torch.nn.functional as F
@@ -12,15 +12,14 @@ from common.models import (
     MorphoValueFunction,
 )
 from common.replay_memory import ReplayMemory
-from rewarders import SAIL, Rewarder
+from rewarders import SAIL, DualRewarder, Rewarder
 from utils.rl import hard_update, soft_update
 
 from .agent import Agent
 
 
-# TODO: Make this class as DualSAC (pass rewarders as arguments to __init__(), etc.)
 # TODO: Move the remaining imitation learning code somewhere else
-class SAC(Agent):
+class DualSAC(Agent):
     def __init__(
         self,
         config,
@@ -28,39 +27,60 @@ class SAC(Agent):
         action_space,
         num_morpho_obs: int,
         num_morpho_parameters: int,
-        rewarder: Rewarder,
+        dual_rewarder: DualRewarder,
+        omega_update_fn: Callable[[float], float] | None = None,
     ):
         self.gamma = config.gamma
         self.tau = config.tau
         self.alpha = config.alpha
+        self._omega = config.omega
+        self._omega_init = config.omega
+        self._omega_update_fn = omega_update_fn
         self.num_morpho_obs = num_morpho_obs
         self.num_inputs = num_inputs
         self.learn_disc_transitions = config.learn_disc_transitions
+        self.device = torch.device("cuda" if config.cuda else "cpu")
 
         self.policy_type = config.policy
         self.target_update_interval = config.target_update_interval
         self.automatic_entropy_tuning = config.automatic_entropy_tuning
 
+        self.dual_rewarder = dual_rewarder
+
         self.morpho_slice = slice(-self.num_morpho_obs, None)
         if config.absorbing_state:
             self.morpho_slice = slice(-self.num_morpho_obs - 1, -1)
 
-        self.rewarder = rewarder
+        # TODO: Do affine=True and create an optimizer for each of them
+        # TODO: Make these a final layer of the EnsembleQNetwork (i.e., the critics)
+        self.norm_1 = torch.nn.BatchNorm1d(
+            1, affine=False, track_running_stats=True
+        ).to(self.device)
+        self.norm_2 = torch.nn.BatchNorm1d(
+            1, affine=False, track_running_stats=True
+        ).to(self.device)
 
-        self.device = torch.device("cuda" if config.cuda else "cpu")
-        self.reward_bn = torch.nn.BatchNorm1d(1, affine=False).to(self.device)
-
-        self.critic = EnsembleQNetwork(
+        self.critic_1 = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
         ).to(device=self.device)
-        self.critic_optim = Adam(
-            self.critic.parameters(), lr=config.lr, weight_decay=config.q_weight_decay
+        self.critic_1_optim = Adam(
+            self.critic_1.parameters(), lr=config.lr, weight_decay=config.q_weight_decay
+        )
+        self.critic_2 = EnsembleQNetwork(
+            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+        ).to(device=self.device)
+        self.critic_2_optim = Adam(
+            self.critic_2.parameters(), lr=config.lr, weight_decay=config.q_weight_decay
         )
 
-        self.critic_target = EnsembleQNetwork(
+        self.critic_1_target = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
         ).to(self.device)
-        hard_update(self.critic_target, self.critic)
+        hard_update(self.critic_1_target, self.critic_1)
+        self.critic_2_target = EnsembleQNetwork(
+            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+        ).to(self.device)
+        hard_update(self.critic_2_target, self.critic_2)
 
         self.morpho_value = MorphoValueFunction(num_morpho_parameters).to(self.device)
         self.morpho_value_optim = Adam(self.morpho_value.parameters(), lr=1e-2)
@@ -100,6 +120,40 @@ class SAC(Agent):
                 num_inputs, action_space.shape[0], config.hidden_size, action_space
             ).to(self.device)
             self.policy_optim = Adam(self.policy.parameters(), lr=config.lr)
+
+    @property
+    def omega(self) -> float:
+        """
+        The Q-value weighting parameter: omega * Q-value_1 + (1 - omega) * Q-value_2.
+        """
+
+        return self._omega
+
+    def update_omega(self) -> float:
+        """
+        Updates the omega parameter using the omega_update_fn and returns the new value.
+        If no omega_update_fn was provided, the omega parameter is not updated.
+
+        Returns
+        -------
+        The new value of omega
+        """
+
+        if self._omega_update_fn is not None:
+            self._omega = self._omega_update_fn(self._omega)
+        return self._omega
+
+    def reset_omega(self) -> float:
+        """
+        Resets the omega parameter to the initial value and returns the new value.
+
+        Returns
+        -------
+        The new value of omega
+        """
+
+        self._omega = self._omega_init
+        return self._omega
 
     def select_action(self, state, evaluate=False):
         state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
@@ -167,6 +221,7 @@ class SAC(Agent):
             if i % 100 == 0:
                 print(f"loss {loss:.3f}")
 
+    # TODO: Normalize the Q-values
     def update_parameters(
         self, batch, updates: int, update_value_only=False
     ) -> Dict[str, Any]:
@@ -182,7 +237,8 @@ class SAC(Agent):
         Returns
         -------
         A dict reporting:
-            - "loss/critic_loss"
+            - "loss/critic_1_loss"
+            - "loss/critic_2_loss"
             - "loss/policy"
             - "loss/policy_prior_loss"
             - "loss/entropy_loss"
@@ -217,25 +273,45 @@ class SAC(Agent):
         marker_batch = torch.FloatTensor(marker_batch).to(self.device)
         next_marker_batch = torch.FloatTensor(next_marker_batch).to(self.device)
 
-        new_rewards = self.rewarder.compute_rewards(batch)
+        dones = torch.logical_or(
+            terminated_batch,
+            truncated_batch,
+            out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype),
+        )
 
-        assert reward_batch.shape == new_rewards.shape
-        reward_batch = new_rewards
+        rewards_1 = self.dual_rewarder.rewarder_1.compute_rewards(batch)
+        rewards_2 = self.dual_rewarder.rewarder_2.compute_rewards(batch)
+        assert reward_batch.shape == rewards_1.shape
+        assert reward_batch.shape == rewards_2.shape
 
+        # Compute the next Q-values
         with torch.no_grad():
             next_state_action, next_state_log_pi, _, _ = self.policy.sample(
                 next_state_batch
             )
-            q_next_target = self.critic_target.min(next_state_batch, next_state_action)
-            min_qf_next_target = q_next_target - self.alpha * next_state_log_pi
-            dones = torch.logical_or(
-                terminated_batch,
-                truncated_batch,
-                out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype),
-            )
-            next_q_value = reward_batch + dones * self.gamma * (min_qf_next_target)
+            ent = self.alpha * next_state_log_pi
 
-        mean_modified_reward = reward_batch.mean()
+            # Compute the next Q_1-value
+            q_next_target_1 = self.critic_1_target.min(
+                next_state_batch, next_state_action
+            )
+            min_qf_next_target_1 = q_next_target_1 - ent
+            next_q_value_1 = rewards_1 + dones * self.gamma * min_qf_next_target_1
+
+            # Compute the next Q_2-value
+            q_next_target_2 = self.critic_2_target.min(
+                next_state_batch, next_state_action
+            )
+            min_qf_next_target_2 = q_next_target_2 - ent
+            next_q_value_2 = rewards_2 + dones * self.gamma * min_qf_next_target_2
+
+        # The overall reward, used only for logging
+        mean_modified_reward_1 = rewards_1.mean()
+        mean_modified_reward_2 = rewards_2.mean()
+        mean_modified_reward = (
+            self._omega * mean_modified_reward_1
+            + (1 - self._omega) * mean_modified_reward_2
+        )
 
         # Plot absorbing rewards
         marker_feats = next_marker_batch
@@ -243,17 +319,25 @@ class SAC(Agent):
             marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
         absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
-        qfs = self.critic(state_batch, action_batch)
-        qf_loss = sum([F.mse_loss(q_value, next_q_value) for q_value in qfs])
+        # Critics losses
+        qfs_1 = self.critic_1(state_batch, action_batch)
+        qf_1_loss = sum([F.mse_loss(q_value, next_q_value_1) for q_value in qfs_1])
+        qfs_2 = self.critic_2(state_batch, action_batch)
+        qf_2_loss = sum([F.mse_loss(q_value, next_q_value_2) for q_value in qfs_2])
 
-        self.critic_optim.zero_grad()
-        qf_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self.critic.parameters(), 10)
-        self.critic_optim.step()
+        # Update the critics
+        self.critic_1_optim.zero_grad()
+        qf_1_loss.backward()
+        torch.nn.utils.clip_grad.clip_grad_norm_(self.critic_1.parameters(), 10)
+        self.critic_1_optim.step()
+        self.critic_2_optim.zero_grad()
+        qf_2_loss.backward()
+        torch.nn.utils.clip_grad.clip_grad_norm_(self.critic_2.parameters(), 10)
+        self.critic_2_optim.step()
 
         pi, log_pi, policy_mean, dist = self.policy.sample(state_batch)
 
-        # metrics
+        # Metrics
         std = (
             ((1 - torch.tanh(dist.mean).pow(2)).pow(2) * dist.stddev.pow(2))
             .mean()
@@ -261,15 +345,21 @@ class SAC(Agent):
         )
         entropy = -log_pi.mean().item()
 
-        min_qf_pi = self.critic.min(state_batch, pi)
-        policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        # FIX: Do we subtract alpha * log_pi both times?
+        min_qf_1_pi = self.critic_1.min(state_batch, pi)
+        policy_losses_1 = self.norm_1((self.alpha * log_pi) - min_qf_1_pi)
+        policy_loss_1 = policy_losses_1.mean()
+        min_qf_2_pi = self.critic_2.min(state_batch, pi)
+        policy_losses_2 = self.norm_2((self.alpha * log_pi) - min_qf_2_pi)
+        policy_loss_2 = policy_losses_2.mean()
+        policy_loss = self._omega * policy_loss_1 + (1 - self._omega) * policy_loss_2
 
         vae_loss = torch.tensor(0.0)
-        if isinstance(self.rewarder, SAIL):
-            vae_loss = self.rewarder.get_vae_loss(
-                state_batch, marker_batch, policy_mean
-            )
-            policy_loss += vae_loss
+
+        for rewarder in [self.dual_rewarder.rewarder_1, self.dual_rewarder.rewarder_2]:
+            if isinstance(rewarder, SAIL):
+                vae_loss = rewarder.get_vae_loss(state_batch, marker_batch, policy_mean)
+                policy_loss += vae_loss
 
         self.policy_optim.zero_grad()
         policy_loss.backward()
@@ -293,11 +383,13 @@ class SAC(Agent):
             alpha_tlogs = torch.tensor(self.alpha)  # For TensorboardX logs
 
         if updates % self.target_update_interval == 0:
-            soft_update(self.critic_target, self.critic, self.tau)
+            soft_update(self.critic_1_target, self.critic_1, self.tau)
+            soft_update(self.critic_2_target, self.critic_2, self.tau)
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
         return {
-            "loss/critic_loss": qf_loss,
+            "loss/critic_1_loss": qf_1_loss,
+            "loss/critic_2_loss": qf_2_loss,
             "loss/policy": policy_loss.item(),
             "loss/entropy_loss": alpha_loss.item(),
             "entropy_temperature/alpha": alpha_tlogs.item(),
@@ -309,12 +401,15 @@ class SAC(Agent):
         }
 
     # Return a dictionary containing the model state for saving
-    def get_model_dict(self):
+    def get_model_dict(self) -> Dict[str, Any]:
         data = {
             "policy_state_dict": self.policy.state_dict(),
-            "critic_state_dict": self.critic.state_dict(),
-            "critic_target_state_dict": self.critic_target.state_dict(),
-            "critic_optimizer_state_dict": self.critic_optim.state_dict(),
+            "critic_1_state_dict": self.critic_1.state_dict(),
+            "critic_1_target_state_dict": self.critic_1_target.state_dict(),
+            "critic_1_optimizer_state_dict": self.critic_1_optim.state_dict(),
+            "critic_2_state_dict": self.critic_2.state_dict(),
+            "critic_2_target_state_dict": self.critic_2_target.state_dict(),
+            "critic_2_optimizer_state_dict": self.critic_2_optim.state_dict(),
             "policy_optimizer_state_dict": self.policy_optim.state_dict(),
         }
         if self.automatic_entropy_tuning:
@@ -324,11 +419,14 @@ class SAC(Agent):
         return data
 
     # Load model parameters
-    def load(self, model, evaluate=False):
+    def load(self, model: Dict[str, Any], evaluate=False):
         self.policy.load_state_dict(model["policy_state_dict"])
-        self.critic.load_state_dict(model["critic_state_dict"])
-        self.critic_target.load_state_dict(model["critic_target_state_dict"])
-        self.critic_optim.load_state_dict(model["critic_optimizer_state_dict"])
+        self.critic_1.load_state_dict(model["critic_1_state_dict"])
+        self.critic_1_target.load_state_dict(model["critic_1_target_state_dict"])
+        self.critic_1_optim.load_state_dict(model["critic_1_optimizer_state_dict"])
+        self.critic_2.load_state_dict(model["critic_2_state_dict"])
+        self.critic_2_target.load_state_dict(model["critic_2_target_state_dict"])
+        self.critic_2_optim.load_state_dict(model["critic_2_optimizer_state_dict"])
         self.policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if (
@@ -340,11 +438,15 @@ class SAC(Agent):
 
         if evaluate:
             self.policy.eval()
-            self.critic.eval()
-            self.critic_target.eval()
+            self.critic_1.eval()
+            self.critic_1_target.eval()
+            self.critic_2.eval()
+            self.critic_2_target.eval()
         else:
             self.policy.train()
-            self.critic.train()
-            self.critic_target.train()
+            self.critic_1.train()
+            self.critic_1_target.train()
+            self.critic_2.train()
+            self.critic_2_target.train()
 
         return True
