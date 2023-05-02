@@ -1,10 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 
 class Logger(ABC):
     @abstractmethod
-    def log(self, message: Dict[str, Any], level: str = "INFO", mask: list[str] = []) -> bool:
+    def log(
+        self,
+        message: Union[str, Dict[str, Any]],
+        level: str = "INFO",
+        mask: list[str] = [],
+    ) -> bool:
         """
         Log a message to the logger.
 

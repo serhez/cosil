@@ -5,10 +5,10 @@ from .rewarder import Rewarder
 
 class EnvReward(Rewarder):
     def __init__(self, args):
-        self._device = torch.device("cuda" if args.cuda else "cpu")
+        self._device = torch.device(args.device)
 
     def train(self, _):
-        return 0., 0., 0.
+        return 0.0, 0.0, 0.0
 
     def compute_rewards(self, batch):
         _, _, reward_batch, _, _, _, _, _ = batch

@@ -1,5 +1,6 @@
+from typing import Any, Dict, Union
+
 from .logger import Logger
-from typing import Dict
 
 
 class MultiLogger(Logger):
@@ -7,16 +8,21 @@ class MultiLogger(Logger):
 
     def __init__(self, loggers: Dict[str, Logger]):
         """
-        Initializes a multi logger.
+        Initializes a multi-logger.
 
         Parameters
         ----------
-        loggers -> a dictionary with the name of the loggers as key and the loggers as value.
+        loggers -> a dictionary with the names of the loggers as keys and the loggers as values.
         """
 
         self._loggers = loggers
 
-    def log(self, message: dict, level: str = "INFO", mask: list[str] = []) -> bool:
+    def log(
+        self,
+        message: Union[str, Dict[str, Any]],
+        level: str = "INFO",
+        mask: list[str] = [],
+    ) -> bool:
         """
         Logs a message to multiple loggers.
 

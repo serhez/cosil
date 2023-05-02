@@ -100,9 +100,8 @@ def main():
     np.random.seed(args.seed)
 
     args.run_id = str(int(time.time()))
-    args.name = f"{args.run_name}-{args.env_name}-{str(args.seed)}-{args.run_id}"
-    args.group = f"{args.run_name}-{args.env_name}"
-    args.dir_path = f"{args.run_name}/{args.env_name}/{args.seed}"
+    args.name = f"{args.experiment_name}-{args.env_name}-{str(args.seed)}-{args.run_id}"
+    args.dir_path = f"{args.experiment_name}/{args.env_name}/{args.seed}"
 
     # Set up environment
     register_env(args.env_name)

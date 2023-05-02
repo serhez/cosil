@@ -16,6 +16,7 @@ from gym.wrappers.monitoring.video_recorder import VideoRecorder
 import wandb
 from agents import SAC, DualSAC
 from common.replay_memory import ReplayMemory
+from loggers import Logger
 from rewarders import GAIL, PWIL, SAIL, DualRewarder, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
@@ -32,15 +33,14 @@ from utils.co_adaptation import (
 # TODO: Move much of the code (e.g., the main loop) to main.py to avoid
 #       code repetition in other methods
 class CoSIL(object):
-    def __init__(self, env: gym.Env, args: argparse.Namespace):
+    def __init__(self, args: argparse.Namespace, logger: Logger, env: gym.Env):
         self.args = args
         self.env = env
         self.absorbing_state = args.absorbing_state
 
-        if self.args.cuda:
-            self.device = "cuda"
-        else:
-            self.device = "cpu"
+        self.device = args.device
+
+        self.logger = logger
 
         # Bounds for morphology optimization
         highs = torch.tensor(self.env.max_task)
@@ -53,7 +53,9 @@ class CoSIL(object):
         # Is the current morpho optimized or random?
         self.optimized_morpho = True
         if self.args.fixed_morpho is not None:
-            print("Fixing morphology to", self.args.fixed_morpho)
+            self.logger.log(
+                f"Fixing morphology to {self.args.fixed_morpho}", "INFO", ["wandb"]
+            )
             self.env.set_task(*self.args.fixed_morpho)
 
         if self.args.co_adapt:
@@ -113,12 +115,14 @@ class CoSIL(object):
             self.expert_obs = [
                 torch.from_numpy(x).float().to(self.device) for x in expert_obs_np
             ]
-            print(f"Expert obs {len(self.expert_obs)} episodes loaded")
+            self.logger.log(
+                f"Expert obs {len(self.expert_obs)} episodes loaded", "INFO", ["wandb"]
+            )
 
         # For terminating environments like Humanoid it is important to use absorbing state
         # From paper Discriminator-actor-critic: Addressing sample inefficiency and reward bias in adversarial imitation learning
         if self.absorbing_state:
-            print("Adding absorbing states")
+            self.logger.log("Adding absorbing states", "INFO", ["wandb"])
             self.expert_obs = [
                 torch.cat([ep, torch.zeros(ep.size(0), 1, device=self.device)], dim=-1)
                 for ep in self.expert_obs
@@ -137,12 +141,17 @@ class CoSIL(object):
         if self.args.learn_disc_transitions:
             self.demo_dim *= 2
 
-        print(
-            "Keys to match:", self.to_match
-        )  # TODO: We can observe this to know if we are doing the right thing for my own generated obs
-        print("Expert observation shapes:", [x.shape for x in self.expert_obs])
+        # TODO: We can observe this to know if we are doing the right thing for my own generated obs
+        self.logger.log(f"Keys to match: {self.to_match}", "INFO", ["wandb"])
+        self.logger.log(
+            f"Expert observation shapes: {[x.shape for x in self.expert_obs]}",
+            "INFO",
+            ["wandb"],
+        )
 
-        print(f"Training using imitation rewarder {args.rewarder}")
+        self.logger.log(
+            f"Training using imitation rewarder {args.rewarder}", "INFO", ["wandb"]
+        )
         reinforcement_rewarder = EnvReward(args)
         if args.rewarder == "GAIL":
             imitation_rewarder = GAIL(self.expert_obs, args)
@@ -167,10 +176,11 @@ class CoSIL(object):
             omega_init=args.omega,
             omega_update_fn=self._omega_update_fn,
         )
+        self.rewarder_batch_size = self.args.rewarder_batch_size
 
         if args.agent == "SAC":
             if self.dual_mode == "reward":
-                print("Training using agent SAC")
+                self.logger.log("Training using agent SAC", "INFO", ["wandb"])
                 self.agent = SAC(
                     self.args,
                     self.obs_size,
@@ -180,7 +190,11 @@ class CoSIL(object):
                     self.rewarder,
                 )
             else:
-                print("Training using agent SAC in dual-Q mode (DualSAC)")
+                self.logger.log(
+                    "Training using agent SAC in dual-Q mode (DualSAC)",
+                    "INFO",
+                    ["wandb"],
+                )
                 self.agent = DualSAC(
                     self.args,
                     self.obs_size,
@@ -195,24 +209,26 @@ class CoSIL(object):
 
         if args.resume is not None:
             if self._load(self.args.resume):
-                print(f"Loaded {self.args.resume}")
-                print("Loaded", len(self.memory), "transitions")
+                self.logger.log(f"Loaded {self.args.resume}", "INFO", ["wandb"])
+                self.logger.log(
+                    f"Loaded {len(self.memory)} transitions", "INFO", ["wandb"]
+                )
             else:
                 raise ValueError(f"Failed to load {self.args.resume}")
 
-    def _omega_update_fn(self, x: float) -> float:
+    def _omega_update_fn(self, current_omega: float) -> float:
         """
-        The function that determines how omega is updated
+        The function that determines how omega is updated.
 
         Parameters
         ----------
-        x -> the current value of omega
+        current_omega -> the current value of omega.
 
         Returns
         -------
-        The new value of omega
+        The new value of omega.
         """
-        return 0.3 / np.log(0.01 * x + 2.0)
+        return 0.3 / np.log(0.01 * current_omega + 2.0)
 
     def train(self):
         self.morphos = []
@@ -328,24 +344,24 @@ class CoSIL(object):
                 self.disc = None
 
             while not done:
-                # Algorithm 1 line 5-
+                # Sample random action
                 if self.args.start_steps > self.total_numsteps:
-                    action = self.env.action_space.sample()  # Sample random action
+                    action = self.env.action_space.sample()
+
+                # Sample action from policy
                 else:
                     feats = np.concatenate([state, self.env.morpho_params])
                     if self.absorbing_state:
                         feats = np.concatenate([feats, np.zeros(1)])
 
-                    action = self.agent.select_action(
-                        feats
-                    )  # Sample action from policy
+                    action = self.agent.select_action(feats)
 
                 if len(self.memory) > self.batch_size:
                     # Number of updates per step in environment
                     for i in range(self.args.updates_per_step):
                         if self.total_numsteps % self.args.train_every == 0:
                             # Different algo variants discriminator update (pseudocode line 8-9)
-                            batch = self.memory.sample(self.batch_size)
+                            batch = self.memory.sample(self.rewarder_batch_size)
                             disc_loss, expert_probs, policy_probs = self.rewarder.train(
                                 batch
                             )
@@ -483,14 +499,10 @@ class CoSIL(object):
             self.distances.append(train_distance)
             self.pos_train_distances.append(pos_train_distance)
 
-            # TODO: Remove
-            # if self.args.save_morphos:
-            #     torch.save(
-            #         {"morphos": self.morphos, "distances": self.distances}, "morphos.pt"
-            #     )
-
-            print(
-                f"Training distance: {train_distance:.2f} - baseline: {(pos_baseline_distance+vel_baseline_distance):.2f} in {time.time()-s:.2f}"
+            self.logger.log(
+                f"Training distance: {train_distance:.2f} - baseline: {(pos_baseline_distance+vel_baseline_distance):.2f} in {time.time()-s:.2f}",
+                "INFO",
+                ["wandb"],
             )
             if x_pos_history is not None:
                 log_dict["xpos"] = wandb.Histogram(np.stack(x_pos_history))
@@ -509,35 +521,37 @@ class CoSIL(object):
                 optimized_morpho_params = self._adapt_morphology(
                     epsilon, es, es_buffer, log_dict
                 )
-                if self.dual_mode == "reward":
+                if isinstance(self.rewarder, DualRewarder):
                     self.rewarder.reset_omega()
-                elif self.dual_mode == "q":
-                    assert (
-                        type(self.agent) == DualSAC
-                    ), "Dual-Q mode only works with DualSAC"
+                elif isinstance(self.agent, DualSAC):
                     self.agent.reset_omega()
+                else:
+                    self.logger.log(
+                        "Not resetting omega, not a dual agent nor rewarder",
+                        "INFO",
+                        ["wandb"],
+                    )
 
             log_dict["reward_train"] = episode_reward
 
             if self.args.save_optimal and episode_reward > prev_best_reward:
                 self._save("optimal")
-                # These are big so dont save in wandb
-                # if self.args.use_wandb:
-                # wandb.save(ckpt_path)
                 prev_best_reward = episode_reward
-                print("New best reward")
+                self.logger.log("New best reward", "INFO", ["wandb"])
 
             took = time.time() - start
             log_dict["episode_time"] = took
 
-            print(
+            self.logger.log(
                 "Episode: {}, total numsteps: {}, episode steps: {}, reward: {} took: {}".format(
                     i_episode,
                     self.total_numsteps,
                     episode_steps,
                     round(episode_reward, 2),
                     round(took, 3),
-                )
+                ),
+                "INFO",
+                ["wandb"],
             )
 
             # Evaluation episodes
@@ -548,21 +562,20 @@ class CoSIL(object):
 
             log_dict["total_numsteps"] = self.total_numsteps
 
-            if self.args.use_wandb:
-                wandb.log(log_dict)
+            self.logger.log(log_dict, "INFO", ["console"])
 
             log_dict, logged = {}, 0
 
         return self.agent, self.env.morpho_params
 
-    def _pretrain_sail(self, sail, co_adapt=True, steps=50000):
+    def _pretrain_sail(self, sail: SAIL, co_adapt=True, steps=50000):
         assert isinstance(sail, SAIL), "SAIL rewarder required for pretraining"
 
         g_inv_file_name = "pretrained_models/g_inv.pt"
         policy_file_name = "pretrained_models/policy.pt"
 
         if os.path.exists(g_inv_file_name):
-            print("Loading pretrained G_INV from disk")
+            self.logger.log("Loading pretrained G_INV from disk", "INFO", ["wandb"])
             sail.load_g_inv(g_inv_file_name)
             return 0
 
@@ -630,7 +643,11 @@ class CoSIL(object):
 
                 step += 1
 
-        print(f"Took {time.time() - s} to generate {step} steps experience")
+        self.logger.log(
+            f"Took {time.time() - s} to generate {step} steps experience",
+            "INFO",
+            ["wandb"],
+        )
 
         g_inv_loss = sail.pretrain_g_inv(memory, self.batch_size, n_epochs=300)
         policy_pretrain_loss = self.agent.pretrain_policy(
@@ -655,11 +672,11 @@ class CoSIL(object):
         optimized_morpho_params = None
 
         if self.total_numsteps < self.args.morpho_warmup:
-            print("Sampling morphology")
+            self.logger.log("Sampling morphology", "INFO", ["wandb"])
             morpho_params = self.morpho_dist.sample()
             self.morpho_params_np = morpho_params.numpy()
-        # Following three use distribution distance morphology adaptation with different optimizers
-        # Bayesian optimization (Algorithm 2)
+
+        # Bayesian optimization
         elif self.args.dist_optimizer == "BO":
             bo_s = time.time()
             self.morpho_params_np, optimized_morpho_params = bo_step(
@@ -679,9 +696,11 @@ class CoSIL(object):
                     j
                 ]
             bo_e = time.time()
-            print(f"BO took {bo_e-bo_s:.2f}")
-        # Ablation: Random search
+            self.logger.log(f"BO took {bo_e-bo_s:.2f}", "INFO", ["wandb"])
+
+        # Ablation: Random search (Bergstra and Bengio 2012)
         elif self.args.dist_optimizer == "RS":
+            self.optimized_morpho = False
             self.morpho_params_np, optimized_morpho_params = rs_step(
                 self.args,
                 self.num_morpho,
@@ -690,10 +709,13 @@ class CoSIL(object):
                 self.env.min_task,
                 self.env.max_task,
             )
-        # Ablation: CMA
+
+        # Ablation: CMA (Hansen and Ostermeier 2001)
         elif self.args.dist_optimizer == "CMA":
             assert es is not None
             assert es_buffer is not None
+
+            self.optimized_morpho = False
 
             # Average over same morphologies
             X = np.array(self.morphos).reshape(
@@ -722,14 +744,14 @@ class CoSIL(object):
             self.morpho_params_np = es_buffer.pop()
             optimized_morpho_params = X[np.argmin(Y)]
 
-        else:
-            # Q-function version
+        # Particle Swarm Optimization (Eberhart and Kennedy 1995)
+        elif self.args.dist_optimizer == "PSO":
             self.optimized_morpho = random.random() > epsilon
 
             if (
                 self.total_numsteps > self.args.morpho_warmup
             ) and self.optimized_morpho:
-                print("Optimizing morphology")
+                self.logger.log("Optimizing morphology", "INFO", ["wandb"])
                 (
                     morpho_loss,
                     morpho_params,
@@ -753,16 +775,19 @@ class CoSIL(object):
                         f"morpho_param_values/morpho_param_{j}"
                     ] = self.morpho_params_np[j]
             else:
-                print("Sampling morphology")
+                self.logger.log("Randmly sampling morphology", "INFO", ["wandb"])
                 morpho_params = self.morpho_dist.sample()
                 self.morpho_params_np = morpho_params.numpy()
+        else:
+            raise ValueError(f"Unknown morphology optimizer {self.args.dist_optimizer}")
 
         self.optimized_or_not.append(self.optimized_morpho)
         # Set new morphology in environment
         self.env.set_task(*self.morpho_params_np)
 
-        print("Current morpho")
-        print(self.env.morpho_params)
+        self.logger.log(
+            {"current_morpho": self.env.morpho_params}, "INFO", ["console", "wandb"]
+        )
 
         return optimized_morpho_params
 
@@ -837,24 +862,18 @@ class CoSIL(object):
         log_dict["test_time"] = took
         if vid_path is not None:
             log_dict["test_video"] = wandb.Video(vid_path, fps=20, format="gif")
-        print("----------------------------------------")
-        print(
+
+        test_summary_log = (
             "Test Episodes: {}, Avg. Reward: {}, Steps: {}, Took {}".format(
                 episodes, round(avg_reward, 2), avg_steps, round(took, 2)
             )
         )
-        print("----------------------------------------")
+        self.logger.log(test_summary_log, "INFO", ["wandb"])
+
         if self.args.save_checkpoints:
             self._save("checkpoint")
-        # These are big so only save policy on wandb
-        # if self.args.use_wandb:
-        # wandb.save(ckpt_path)
-        # TODO: Remove
-        # torch.save(self.agent.policy.state_dict(), "imitator.pt")
-        # if self.args.use_wandb:
-        #     wandb.save("imitator.pt")
 
-        print("Calculating distributional distance")
+        self.logger.log("Calculating distributional distance", "INFO", ["wandb"])
         s = time.time()
         # Compute and log distribution distances
         test_marker_obs_history = np.stack(test_marker_obs_history)
@@ -871,10 +890,7 @@ class CoSIL(object):
         self.metrics["pos_test"].append(pos_test_distance)
         self.metrics["reward"].append(avg_reward)
 
-        # TODO: Remove
-        # torch.save(self.metrics, "metrics.pt")
-
-        print("Took", round(time.time() - s, 2))
+        self.logger.log("Took " + str(round(time.time() - s, 2)), "INFO", ["wandb"])
 
         if recorder is not None:
             recorder.close()
@@ -893,7 +909,7 @@ class CoSIL(object):
             os.makedirs(dir_path)
 
         model_path = os.path.join(dir_path, self.args.run_id + ".pt")
-        print("Saving model to {}".format(model_path))
+        self.logger.log(f"Saving model to {model_path}", "INFO", ["wandb"])
 
         data = {
             "buffer": self.memory.buffer,
@@ -907,7 +923,7 @@ class CoSIL(object):
         return model_path
 
     def _load(self, path_name):
-        print("Loading model from {}".format(path_name))
+        self.logger.log(f"Loading model from {path_name}", "INFO", ["wandb"])
         success = True
         if path_name is not None:
             model = torch.load(path_name)

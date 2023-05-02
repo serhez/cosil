@@ -29,6 +29,23 @@ class Agent(ABC):
         pass
 
     @abstractmethod
+    def get_value(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        """
+        Get the value of a state-action pair.
+
+        Parameters
+        ----------
+        state -> the state.
+        action -> the action.
+
+        Returns
+        -------
+        The values of the state-action pair.
+        """
+
+        pass
+
+    @abstractmethod
     def pretrain_policy(
         self, memory: ReplayMemory, batch_size: int, n_epochs: int = 200
     ) -> torch.Tensor:

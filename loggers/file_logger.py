@@ -1,6 +1,8 @@
 import json
+import os
+import uuid
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from .logger import Logger
 
@@ -8,7 +10,7 @@ from .logger import Logger
 class FileLogger(Logger):
     """Logs to a file."""
 
-    def __init__(self, json_file_path: str):
+    def __init__(self, project: str, group: str, experiment: str, run_id: str):
         """
         Initializes a file logger.
 
@@ -17,9 +19,33 @@ class FileLogger(Logger):
         file_path -> the path to the file to log to, it must be a json file.
         """
 
-        self._file_path = json_file_path
+        TRIES = 10
 
-    def log(self, message: Dict[str, Any], level: str = "INFO", _ = []) -> bool:
+        # Define file path and name
+        dir_path = f"logs/{project}/{group}/{experiment}/"
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        file_path = dir_path + run_id + ".json"
+
+        # Use a random uuid if the file name is already taken
+        while os.path.exists(file_path) and TRIES > 0:
+            file_path = dir_path + str(uuid.uuid4()) + ".json"
+            TRIES -= 1
+        if TRIES == 0:
+            print(
+                "[WARNING] Could not create log file: too many tries. Subsequent logs will fail to be saved"
+            )
+
+        # Create the file
+        with open(file_path, "x"):
+            pass
+        print(f"Logging to file {file_path}")
+
+        self._file_path = file_path
+
+    def log(
+        self, message: Union[str, Dict[str, Any]], level: str = "INFO", _=[]
+    ) -> bool:
         """
         Logs a message to a file.
 
@@ -35,14 +61,25 @@ class FileLogger(Logger):
         """
 
         try:
-            with open(self._file_path, "a") as file:
-                log = {
-                    "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-                    "level": level,
-                    "message": message,
-                }
-                file.write(json.dumps(log))
-        except:
+            with open(self._file_path) as file:
+                try:
+                    logs = json.load(file)
+                except json.decoder.JSONDecodeError:
+                    logs = []
+
+            log = {
+                "timestamp": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                "level": level,
+                "message": message,
+            }
+            logs.append(log)
+
+            with open(self._file_path, "w") as file:
+                file.seek(0)
+                json.dump(logs, file, indent=4)
+
+        except Exception as e:
+            print(f"[ERROR] Error while logging to a file: {e}")
             return False
 
         return True

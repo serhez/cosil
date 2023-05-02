@@ -14,7 +14,7 @@ from .rewarder import Rewarder
 
 class SAIL(Rewarder):
     def __init__(self, env, expert_obs, args) -> None:
-        self.device = torch.device("cuda" if args.cuda else "cpu")
+        self.device = torch.device(args.device)
         self.expert_obs = expert_obs
         self.num_inputs = env.observation_space.shape[0]
         self.learn_disc_transitions = args.learn_disc_transitions
@@ -25,10 +25,16 @@ class SAIL(Rewarder):
         num_marker_obs = self.expert_obs[0].shape[-1]
         self.morpho_slice = slice(-num_morpho_obs, None)
         if args.absorbing_state:
-            self.morpho_slice = slice(-num_morpho_obs-1, -1)
+            self.morpho_slice = slice(-num_morpho_obs - 1, -1)
 
-        self.g_inv = InverseDynamics(num_marker_obs * 2 + num_morpho_obs, env.action_space.shape[0], action_space=env.action_space).to(self.device)
-        self.g_inv_optim = Adam(self.g_inv.parameters(), lr=3e-4, betas=(0.5, 0.9), weight_decay=1e-5)
+        self.g_inv = InverseDynamics(
+            num_marker_obs * 2 + num_morpho_obs,
+            env.action_space.shape[0],
+            action_space=env.action_space,
+        ).to(self.device)
+        self.g_inv_optim = Adam(
+            self.g_inv.parameters(), lr=3e-4, betas=(0.5, 0.9), weight_decay=1e-5
+        )
 
         self.dynamics = VAE(num_marker_obs).to(self.device)
         self.dynamics_optim = Adam(self.dynamics.parameters(), lr=args.lr)
@@ -56,7 +62,12 @@ class SAIL(Rewarder):
         )
 
     def train(self, batch):
-        disc_loss, expert_probs, policy_probs, _, = train_wgan_critic(
+        (
+            disc_loss,
+            expert_probs,
+            policy_probs,
+            _,
+        ) = train_wgan_critic(
             self.disc_opt,
             self.disc,
             self.expert_obs,
@@ -85,22 +96,26 @@ class SAIL(Rewarder):
         correct_inds = torch.cat(correct_inds)
 
         expert_obs = torch.cat(self.expert_obs, dim=0)
-        expert_inds = correct_inds[torch.randint(0, len(correct_inds), (len(feats[0]), ))]
+        expert_inds = correct_inds[
+            torch.randint(0, len(correct_inds), (len(feats[0]),))
+        ]
 
         expert_feats = expert_obs[expert_inds]
 
         if self.learn_disc_transitions:
-            expert_feats = torch.cat((expert_obs[expert_inds], expert_obs[expert_inds + 1]), dim=1) 
+            expert_feats = torch.cat(
+                (expert_obs[expert_inds], expert_obs[expert_inds + 1]), dim=1
+            )
 
         with torch.no_grad():
             # SAIL reward: difference between W-critic score of policy and expert
-            rewards = (self.disc(feats) - self.disc(expert_feats).mean()) 
+            rewards = self.disc(feats) - self.disc(expert_feats).mean()
 
             # Avoid negative rewards when running with termination
             if self.min_reward is None:
                 self.min_reward = rewards.min().item()
 
-            rewards = rewards #- self.min_reward
+            rewards = rewards  # - self.min_reward
             rewards = (rewards - rewards.mean()) / rewards.std()
             rewards = rewards + 1
 
@@ -108,23 +123,23 @@ class SAIL(Rewarder):
 
     def get_model_dict(self):
         data = {
-            'disc_state_dict': self.disc.state_dict(),
-            'disc_optim_state_dict': self.disc_opt.state_dict(),
-            'g_inv_state_dict': self.g_inv.state_dict(),
-            'g_inv_optim_state_dict': self.g_inv_optim.state_dict(),
-            'dynamics_state_dict': self.dynamics.state_dict(),
-            'dynamics_optim_state_dict': self.dynamics_optim.state_dict(),
+            "disc_state_dict": self.disc.state_dict(),
+            "disc_optim_state_dict": self.disc_opt.state_dict(),
+            "g_inv_state_dict": self.g_inv.state_dict(),
+            "g_inv_optim_state_dict": self.g_inv_optim.state_dict(),
+            "dynamics_state_dict": self.dynamics.state_dict(),
+            "dynamics_optim_state_dict": self.dynamics_optim.state_dict(),
         }
         return data
 
     def load(self, model):
-        self.disc.load_state_dict(model['disc_state_dict'])
-        self.disc_opt.load_state_dict(model['disc_optim_state_dict'])
+        self.disc.load_state_dict(model["disc_state_dict"])
+        self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
         if "dynamics_state_dict" in model:
-            self.dynamics.load_state_dict(model['dynamics_state_dict'])
-            self.dynamics_optim.load_state_dict(model['dynamics_optim_state_dict'])
-            self.g_inv.load_state_dict(model['g_inv_state_dict'])
-            self.g_inv_optim.load_state_dict(model['g_inv_optim_state_dict'])
+            self.dynamics.load_state_dict(model["dynamics_state_dict"])
+            self.dynamics_optim.load_state_dict(model["dynamics_optim_state_dict"])
+            self.g_inv.load_state_dict(model["g_inv_state_dict"])
+            self.g_inv_optim.load_state_dict(model["g_inv_optim_state_dict"])
         else:
             return False
         return True
@@ -136,30 +151,32 @@ class SAIL(Rewarder):
         self.g_inv.load_state_dict(torch.load(file_name))
 
     def pretrain_vae(self, batch_size: int, epochs=100):
-        print('Pretraining VAE')
-        file_name = f'pretrained_models/vae.pt'
-        
-        if not os.path.exists('./pretrained_models'):
-            os.makedirs('pretrained_models')
+        print("Pretraining VAE")
+        file_name = f"pretrained_models/vae.pt"
+
+        if not os.path.exists("./pretrained_models"):
+            os.makedirs("pretrained_models")
 
         if os.path.exists(file_name):
-            print('Loading pretrained VAE from disk')
+            print("Loading pretrained VAE from disk")
             self.dynamics.load_state_dict(torch.load(file_name))
             return 0
-        
-        loss = self.dynamics.train(self.expert_obs, epochs, self.dynamics_optim, batch_size=batch_size)
+
+        loss = self.dynamics.train(
+            self.expert_obs, epochs, self.dynamics_optim, batch_size=batch_size
+        )
         torch.save(self.dynamics.state_dict(), file_name)
 
         return loss
 
     def pretrain_g_inv(self, memory: ReplayMemory, batch_size: int, n_epochs=30):
-        print('Pretraining inverse dynamics')
+        print("Pretraining inverse dynamics")
 
         g_inv_optim_state_dict = self.g_inv_optim.state_dict()
 
         n_samples = len(memory)
         n_batches = n_samples // batch_size
-        
+
         mean_loss = 0
         for e in range(n_epochs):
             mean_loss = 0
@@ -169,7 +186,7 @@ class SAIL(Rewarder):
 
             mean_loss /= n_batches
 
-            print(f'Epoch {e} loss {mean_loss:.4f}')
+            print(f"Epoch {e} loss {mean_loss:.4f}")
 
         self.g_inv_optim.load_state_dict(g_inv_optim_state_dict)
 
@@ -195,13 +212,17 @@ class SAIL(Rewarder):
 
         self.g_inv_optim.step()
 
-        return loss.item() 
+        return loss.item()
 
     def get_vae_loss(self, state_batch, marker_batch, policy_mean):
         morpho_params = state_batch[..., self.morpho_slice]
-        prior_mean = self.g_inv(marker_batch, self.dynamics.get_next_states(marker_batch), morpho_params)
+        prior_mean = self.g_inv(
+            marker_batch, self.dynamics.get_next_states(marker_batch), morpho_params
+        )
         vae_loss = (prior_mean - policy_mean).pow(2).mean()
         return self.vae_scaler * vae_loss
 
     def get_prior_mean(self, marker_batch, morpho_params):
-        return self.g_inv(marker_batch, self.dynamics.get_next_states(marker_batch), morpho_params)
+        return self.g_inv(
+            marker_batch, self.dynamics.get_next_states(marker_batch), morpho_params
+        )

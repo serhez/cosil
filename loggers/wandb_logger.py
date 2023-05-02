@@ -1,13 +1,16 @@
-from .logger import Logger
-from typing import Any, Dict
+import argparse
+from typing import Any, Dict, Union
+
 import wandb
+
+from .logger import Logger
 
 
 class WandbLogger(Logger):
     """Logs to Weights & Biases."""
 
     def __init__(
-        self, project: str, experiment: str, group: str, config: Dict[str, Any]
+        self, project: str, experiment: str, group: str, config: argparse.Namespace
     ):
         """
         Initializes a Weights & Biases logger.
@@ -20,17 +23,17 @@ class WandbLogger(Logger):
         config -> the configuration of the experiment.
         """
 
-        wandb.init(project=project, name=experiment, group=group, config=config)
+        wandb.init(project=project, name=experiment, group=group, config=vars(config))
 
-    def log(self, message: Dict[str, Any], *_) -> bool:
+    def log(self, message: Union[str, Dict[str, Any]], level: str = "INFO", *_) -> bool:
         """
         Logs a message to Weights & Biases.
 
         Parameters
         ----------
         message -> the message to log.
+        level -> the level of the message (e.g., INFO, WARNING, ERROR, etc.); not used for messages of type dictionary.
         [UNUSED] mask
-        [UNUSED] level
 
         Returns
         -------
@@ -38,8 +41,13 @@ class WandbLogger(Logger):
         """
 
         try:
-            wandb.log(message)
-        except:
+            if isinstance(message, str):
+                log = {level: message}
+            else:
+                log = message
+            wandb.log(log)
+        except Exception as e:
+            print(f"[ERROR] Error while logging to wandb: {e}")
             return False
 
         return True

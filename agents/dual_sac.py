@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 
 import torch
 import torch.nn.functional as F
@@ -12,6 +12,7 @@ from common.models import (
     MorphoValueFunction,
 )
 from common.replay_memory import ReplayMemory
+from normalizers import RangeNormalizer, ZScoreNormalizer
 from rewarders import SAIL, DualRewarder, Rewarder
 from utils.rl import hard_update, soft_update
 
@@ -28,98 +29,123 @@ class DualSAC(Agent):
         num_morpho_obs: int,
         num_morpho_parameters: int,
         dual_rewarder: DualRewarder,
-        omega_update_fn: Callable[[float], float] | None = None,
+        omega_update_fn: Optional[Callable[[float], float]] = None,
     ):
-        self.gamma = config.gamma
-        self.tau = config.tau
-        self.alpha = config.alpha
+        """
+        Initialize the Dual SAC agent.
+
+        Parameters
+        ----------
+        config -> the configuration object.
+        action_space -> the action space.
+        num_morpho_obs -> the number of morphology observations.
+        num_morpho_parameters -> the number of morphology parameters.
+        dual_rewarder -> the dual rewarder.
+        omega_update_fn -> the function to update omega.
+        """
+
+        self._gamma = config.gamma
+        self._tau = config.tau
+        self._alpha = config.alpha
         self._omega = config.omega
         self._omega_init = config.omega
         self._omega_update_fn = omega_update_fn
-        self.num_morpho_obs = num_morpho_obs
-        self.num_inputs = num_inputs
-        self.learn_disc_transitions = config.learn_disc_transitions
-        self.device = torch.device("cuda" if config.cuda else "cpu")
+        self._learn_disc_transitions = config.learn_disc_transitions
+        self._device = torch.device(config.device)
 
-        self.policy_type = config.policy
-        self.target_update_interval = config.target_update_interval
-        self.automatic_entropy_tuning = config.automatic_entropy_tuning
+        self._target_update_interval = config.target_update_interval
+        self._automatic_entropy_tuning = config.automatic_entropy_tuning
 
-        self.dual_rewarder = dual_rewarder
+        self._dual_rewarder = dual_rewarder
 
-        self.morpho_slice = slice(-self.num_morpho_obs, None)
+        self._morpho_slice = slice(-num_morpho_obs, None)
         if config.absorbing_state:
-            self.morpho_slice = slice(-self.num_morpho_obs - 1, -1)
+            self._morpho_slice = slice(-num_morpho_obs - 1, -1)
 
-        # TODO: Do affine=True and create an optimizer for each of them
-        # TODO: Make these a final layer of the EnsembleQNetwork (i.e., the critics)
-        self.norm_1 = torch.nn.BatchNorm1d(
-            1, affine=False, track_running_stats=True
-        ).to(self.device)
-        self.norm_2 = torch.nn.BatchNorm1d(
-            1, affine=False, track_running_stats=True
-        ).to(self.device)
+        assert config.dual_normalization_mode in [
+            "min",
+            "mean",
+        ], f"Invalid dual normalization mode: {config.dual_normalization_mode}"
+        if config.dual_normalization == "none":
+            self._norm_1 = None
+            self._norm_2 = None
+        elif config.dual_normalization == "range":
+            self._norm_1 = RangeNormalizer(mode=config.dual_normalization_mode)
+            self._norm_2 = RangeNormalizer(mode=config.dual_normalization_mode)
+        elif config.dual_normalization == "z-score":
+            self._norm_1 = ZScoreNormalizer(
+                mode=config.dual_normalization_mode,
+                low_clip=config.dual_normalization_low_clip,
+                high_clip=config.dual_normalization_high_clip,
+            )
+            self._norm_2 = ZScoreNormalizer(
+                mode=config.dual_normalization_mode,
+                low_clip=config.dual_normalization_low_clip,
+                high_clip=config.dual_normalization_high_clip,
+            )
+        else:
+            raise ValueError(f"Invalid dual normalization: {config.dual_normalization}")
 
-        self.critic_1 = EnsembleQNetwork(
+        self._critic_1 = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
-        ).to(device=self.device)
-        self.critic_1_optim = Adam(
-            self.critic_1.parameters(), lr=config.lr, weight_decay=config.q_weight_decay
+        ).to(device=self._device)
+        self._critic_1_optim = Adam(
+            self._critic_1.parameters(),
+            lr=config.lr,
+            weight_decay=config.q_weight_decay,
         )
-        self.critic_2 = EnsembleQNetwork(
+        self._critic_2 = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
-        ).to(device=self.device)
-        self.critic_2_optim = Adam(
-            self.critic_2.parameters(), lr=config.lr, weight_decay=config.q_weight_decay
+        ).to(device=self._device)
+        self._critic_2_optim = Adam(
+            self._critic_2.parameters(),
+            lr=config.lr,
+            weight_decay=config.q_weight_decay,
         )
 
-        self.critic_1_target = EnsembleQNetwork(
+        self._critic_1_target = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
-        ).to(self.device)
-        hard_update(self.critic_1_target, self.critic_1)
-        self.critic_2_target = EnsembleQNetwork(
+        ).to(self._device)
+        hard_update(self._critic_1_target, self._critic_1)
+        self._critic_2_target = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
-        ).to(self.device)
-        hard_update(self.critic_2_target, self.critic_2)
+        ).to(self._device)
+        hard_update(self._critic_2_target, self._critic_2)
 
-        self.morpho_value = MorphoValueFunction(num_morpho_parameters).to(self.device)
-        self.morpho_value_optim = Adam(self.morpho_value.parameters(), lr=1e-2)
+        # TODO: Get these values out of here
+        #       They are only used by code in co_adaptation.py
+        #       They should be passed individually and not as part of the agent object
+        self._morpho_value = MorphoValueFunction(num_morpho_parameters).to(self._device)
+        self._morpho_value_optim = Adam(self._morpho_value.parameters(), lr=1e-2)
+        self._num_inputs = num_inputs
+        self._num_morpho_obs = num_morpho_obs
 
-        self.expert_env_name = config.expert_env_name
-
-        if self.expert_env_name is None:
-            self.expert_env_name = "CmuData"
-
-        self.env_name = config.env_name
-
-        self.min_reward = None
-
-        if self.policy_type == "Gaussian":
+        if config.policy == "Gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
-            if self.automatic_entropy_tuning is True:
-                self.target_entropy = -torch.prod(
-                    torch.Tensor(action_space.shape).to(self.device)
+            if self._automatic_entropy_tuning is True:
+                self._target_entropy = -torch.prod(
+                    torch.Tensor(action_space.shape).to(self._device)
                 ).item()
-                self.log_alpha = torch.tensor(
-                    -2.0, requires_grad=True, device=self.device
+                self._log_alpha = torch.tensor(
+                    -2.0, requires_grad=True, device=self._device
                 )
-                self.alpha_optim = Adam([self.log_alpha], lr=config.lr)
+                self._alpha_optim = Adam([self._log_alpha], lr=config.lr)
 
-            self.policy = GaussianPolicy(
+            self._policy = GaussianPolicy(
                 num_inputs + num_morpho_obs,
                 action_space.shape[0],
                 config.hidden_size,
                 action_space,
-            ).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=config.lr)
+            ).to(self._device)
+            self._policy_optim = Adam(self._policy.parameters(), lr=config.lr)
 
         else:
-            self.alpha = 0
-            self.automatic_entropy_tuning = False
-            self.policy = DeterministicPolicy(
+            self._alpha = 0
+            self._automatic_entropy_tuning = False
+            self._policy = DeterministicPolicy(
                 num_inputs, action_space.shape[0], config.hidden_size, action_space
-            ).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=config.lr)
+            ).to(self._device)
+            self._policy_optim = Adam(self._policy.parameters(), lr=config.lr)
 
     @property
     def omega(self) -> float:
@@ -155,12 +181,14 @@ class DualSAC(Agent):
         self._omega = self._omega_init
         return self._omega
 
+    # FIX: Make this function work with batches, make the shape transformations be a responsibility of the caller
+    #      and replace ever call to self._policy.sample() with a call to this function
     def select_action(self, state, evaluate=False):
-        state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+        state = torch.FloatTensor(state).to(self._device).unsqueeze(0)
         if evaluate is False:
-            action, _, _, _ = self.policy.sample(state)
+            action, _, _, _ = self._policy.sample(state)
         else:
-            _, _, action, _ = self.policy.sample(state)
+            _, _, action, _ = self._policy.sample(state)
         return action.detach().cpu().numpy()[0]
 
     def pretrain_policy(
@@ -179,25 +207,25 @@ class DualSAC(Agent):
         n_samples = len(memory)
         n_batches = n_samples // batch_size
 
-        policy_optim_state_dict = self.policy_optim.state_dict()
+        policy_optim_state_dict = self._policy_optim.state_dict()
 
         mean_loss = 0
         for e in range(n_epochs):
             mean_loss = 0
             for _ in range(n_batches):
-                self.policy_optim.zero_grad()
+                self._policy_optim.zero_grad()
 
                 state_batch, action_batch, _, _, _, _, marker_batch, _ = memory.sample(
                     batch_size=batch_size
                 )
 
-                state_batch = torch.FloatTensor(state_batch).to(self.device)
-                marker_batch = torch.FloatTensor(marker_batch).to(self.device)
-                action_batch = torch.FloatTensor(action_batch).to(self.device)
+                state_batch = torch.FloatTensor(state_batch).to(self._device)
+                marker_batch = torch.FloatTensor(marker_batch).to(self._device)
+                action_batch = torch.FloatTensor(action_batch).to(self._device)
 
-                morpho_params = state_batch[..., self.morpho_slice]
+                morpho_params = state_batch[..., self._morpho_slice]
                 prior_mean = rewarder.get_prior_mean(marker_batch, morpho_params)
-                _, _, policy_mean, _ = self.policy.sample(state_batch)
+                _, _, policy_mean, _ = self._policy.sample(state_batch)
 
                 loss = loss_fn(policy_mean, prior_mean)
 
@@ -205,21 +233,29 @@ class DualSAC(Agent):
 
                 loss.backward()
 
-                self.policy_optim.step()
+                self._policy_optim.step()
 
             mean_loss /= n_batches
             print(f"Epoch {e} loss {mean_loss:.5f}")
 
-        self.policy_optim.load_state_dict(policy_optim_state_dict)
+        self._policy_optim.load_state_dict(policy_optim_state_dict)
 
         return mean_loss
 
-    def pretrain_value(self, rewarder: Rewarder, memory: ReplayMemory, batch_size: int):
+    def pretrain_value(self, memory: ReplayMemory, batch_size: int):
         for i in range(3000):
             batch = memory.sample(batch_size)
-            loss = self.update_parameters(batch, rewarder, i, update_value_only=True)[0]
+            loss = self.update_parameters(batch, i, True)[0]
             if i % 100 == 0:
                 print(f"loss {loss:.3f}")
+
+    def get_value(self, state, action) -> float:
+        value_1 = self._critic_1.min(state, action)
+        value_2 = self._critic_2.min(state, action)
+        if self._norm_1 is not None and self._norm_2 is not None:
+            value_1 = self._norm_1(value_1)
+            value_2 = self._norm_2(value_2)
+        return self._omega * value_1 + (1 - self._omega) * value_2
 
     # TODO: Normalize the Q-values
     def update_parameters(
@@ -260,52 +296,50 @@ class DualSAC(Agent):
             next_marker_batch,
         ) = batch
 
-        state_batch = torch.FloatTensor(state_batch).to(self.device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
-        action_batch = torch.FloatTensor(action_batch).to(self.device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
+        state_batch = torch.FloatTensor(state_batch).to(self._device)
+        next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
+        action_batch = torch.FloatTensor(action_batch).to(self._device)
+        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
         terminated_batch = (
-            torch.FloatTensor(terminated_batch).to(self.device).unsqueeze(1)
+            torch.FloatTensor(terminated_batch).to(self._device).unsqueeze(1)
         )
         truncated_batch = (
-            torch.FloatTensor(truncated_batch).to(self.device).unsqueeze(1)
+            torch.FloatTensor(truncated_batch).to(self._device).unsqueeze(1)
         )
-        marker_batch = torch.FloatTensor(marker_batch).to(self.device)
-        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self.device)
+        marker_batch = torch.FloatTensor(marker_batch).to(self._device)
+        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
 
-        dones = torch.logical_or(
-            terminated_batch,
-            truncated_batch,
-            out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype),
-        )
-
-        rewards_1 = self.dual_rewarder.rewarder_1.compute_rewards(batch)
-        rewards_2 = self.dual_rewarder.rewarder_2.compute_rewards(batch)
+        rewards_1 = self._dual_rewarder.rewarder_1.compute_rewards(batch)
+        rewards_2 = self._dual_rewarder.rewarder_2.compute_rewards(batch)
         assert reward_batch.shape == rewards_1.shape
         assert reward_batch.shape == rewards_2.shape
 
         # Compute the next Q-values
         with torch.no_grad():
-            next_state_action, next_state_log_pi, _, _ = self.policy.sample(
+            next_state_action, next_state_log_pi, _, _ = self._policy.sample(
                 next_state_batch
             )
-            ent = self.alpha * next_state_log_pi
+            ent = self._alpha * next_state_log_pi
 
-            # Compute the next Q_1-value
-            q_next_target_1 = self.critic_1_target.min(
+            q_next_target_1 = self._critic_1_target.min(
                 next_state_batch, next_state_action
             )
             min_qf_next_target_1 = q_next_target_1 - ent
-            next_q_value_1 = rewards_1 + dones * self.gamma * min_qf_next_target_1
+            dones = torch.logical_or(
+                terminated_batch,
+                truncated_batch,
+                out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype),
+            )
+            next_q_value_1 = rewards_1 + dones * self._gamma * min_qf_next_target_1
 
-            # Compute the next Q_2-value
-            q_next_target_2 = self.critic_2_target.min(
+            q_next_target_2 = self._critic_2_target.min(
                 next_state_batch, next_state_action
             )
             min_qf_next_target_2 = q_next_target_2 - ent
-            next_q_value_2 = rewards_2 + dones * self.gamma * min_qf_next_target_2
+            next_q_value_2 = rewards_2 + dones * self._gamma * min_qf_next_target_2
 
         # The overall reward, used only for logging
+        # FIX: Report each reward individually, instead of this combination
         mean_modified_reward_1 = rewards_1.mean()
         mean_modified_reward_2 = rewards_2.mean()
         mean_modified_reward = (
@@ -315,27 +349,27 @@ class DualSAC(Agent):
 
         # Plot absorbing rewards
         marker_feats = next_marker_batch
-        if self.learn_disc_transitions:
+        if self._learn_disc_transitions:
             marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
         absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
         # Critics losses
-        qfs_1 = self.critic_1(state_batch, action_batch)
+        qfs_1 = self._critic_1(state_batch, action_batch)
         qf_1_loss = sum([F.mse_loss(q_value, next_q_value_1) for q_value in qfs_1])
-        qfs_2 = self.critic_2(state_batch, action_batch)
+        qfs_2 = self._critic_2(state_batch, action_batch)
         qf_2_loss = sum([F.mse_loss(q_value, next_q_value_2) for q_value in qfs_2])
 
         # Update the critics
-        self.critic_1_optim.zero_grad()
+        self._critic_1_optim.zero_grad()
         qf_1_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self.critic_1.parameters(), 10)
-        self.critic_1_optim.step()
-        self.critic_2_optim.zero_grad()
+        torch.nn.utils.clip_grad.clip_grad_norm_(self._critic_1.parameters(), 10)
+        self._critic_1_optim.step()
+        self._critic_2_optim.zero_grad()
         qf_2_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self.critic_2.parameters(), 10)
-        self.critic_2_optim.step()
+        torch.nn.utils.clip_grad.clip_grad_norm_(self._critic_2.parameters(), 10)
+        self._critic_2_optim.step()
 
-        pi, log_pi, policy_mean, dist = self.policy.sample(state_batch)
+        pi, log_pi, policy_mean, dist = self._policy.sample(state_batch)
 
         # Metrics
         std = (
@@ -345,51 +379,49 @@ class DualSAC(Agent):
         )
         entropy = -log_pi.mean().item()
 
-        # FIX: Do we subtract alpha * log_pi both times?
-        min_qf_1_pi = self.critic_1.min(state_batch, pi)
-        policy_losses_1 = self.norm_1((self.alpha * log_pi) - min_qf_1_pi)
-        policy_loss_1 = policy_losses_1.mean()
-        min_qf_2_pi = self.critic_2.min(state_batch, pi)
-        policy_losses_2 = self.norm_2((self.alpha * log_pi) - min_qf_2_pi)
-        policy_loss_2 = policy_losses_2.mean()
-        policy_loss = self._omega * policy_loss_1 + (1 - self._omega) * policy_loss_2
+        q_value = self.get_value(state_batch, pi)
+        policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
         vae_loss = torch.tensor(0.0)
 
-        for rewarder in [self.dual_rewarder.rewarder_1, self.dual_rewarder.rewarder_2]:
+        for rewarder in [
+            self._dual_rewarder.rewarder_1,
+            self._dual_rewarder.rewarder_2,
+        ]:
             if isinstance(rewarder, SAIL):
                 vae_loss = rewarder.get_vae_loss(state_batch, marker_batch, policy_mean)
                 policy_loss += vae_loss
 
-        self.policy_optim.zero_grad()
+        self._policy_optim.zero_grad()
         policy_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self.policy.parameters(), 10)
+        torch.nn.utils.clip_grad.clip_grad_norm_(self._policy.parameters(), 10)
         if not update_value_only:
-            self.policy_optim.step()
+            self._policy_optim.step()
 
-        if self.automatic_entropy_tuning:
+        if self._automatic_entropy_tuning:
             alpha_loss = -(
-                self.log_alpha.exp() * (log_pi + self.target_entropy).detach()
+                self._log_alpha.exp() * (log_pi + self._target_entropy).detach()
             ).mean()
 
-            self.alpha_optim.zero_grad()
+            self._alpha_optim.zero_grad()
             alpha_loss.backward()
-            self.alpha_optim.step()
+            self._alpha_optim.step()
 
-            self.alpha = self.log_alpha.exp()
-            alpha_tlogs = self.alpha.clone()  # For TensorboardX logs
+            self._alpha = self._log_alpha.exp()
+            alpha_tlogs = self._alpha.clone()  # For TensorboardX logs
         else:
-            alpha_loss = torch.tensor(0.0).to(self.device)
-            alpha_tlogs = torch.tensor(self.alpha)  # For TensorboardX logs
+            alpha_loss = torch.tensor(0.0).to(self._device)
+            alpha_tlogs = torch.tensor(self._alpha)  # For TensorboardX logs
 
-        if updates % self.target_update_interval == 0:
-            soft_update(self.critic_1_target, self.critic_1, self.tau)
-            soft_update(self.critic_2_target, self.critic_2, self.tau)
+        if updates % self._target_update_interval == 0:
+            soft_update(self._critic_1_target, self._critic_1, self._tau)
+            soft_update(self._critic_2_target, self._critic_2, self._tau)
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
+        # TODO: Report omega and each Q-value individually
         return {
-            "loss/critic_1_loss": qf_1_loss,
-            "loss/critic_2_loss": qf_2_loss,
+            "loss/critic_1_loss": qf_1_loss.item(),
+            "loss/critic_2_loss": qf_2_loss.item(),
             "loss/policy": policy_loss.item(),
             "loss/entropy_loss": alpha_loss.item(),
             "entropy_temperature/alpha": alpha_tlogs.item(),
@@ -403,50 +435,50 @@ class DualSAC(Agent):
     # Return a dictionary containing the model state for saving
     def get_model_dict(self) -> Dict[str, Any]:
         data = {
-            "policy_state_dict": self.policy.state_dict(),
-            "critic_1_state_dict": self.critic_1.state_dict(),
-            "critic_1_target_state_dict": self.critic_1_target.state_dict(),
-            "critic_1_optimizer_state_dict": self.critic_1_optim.state_dict(),
-            "critic_2_state_dict": self.critic_2.state_dict(),
-            "critic_2_target_state_dict": self.critic_2_target.state_dict(),
-            "critic_2_optimizer_state_dict": self.critic_2_optim.state_dict(),
-            "policy_optimizer_state_dict": self.policy_optim.state_dict(),
+            "policy_state_dict": self._policy.state_dict(),
+            "critic_1_state_dict": self._critic_1.state_dict(),
+            "critic_1_target_state_dict": self._critic_1_target.state_dict(),
+            "critic_1_optimizer_state_dict": self._critic_1_optim.state_dict(),
+            "critic_2_state_dict": self._critic_2.state_dict(),
+            "critic_2_target_state_dict": self._critic_2_target.state_dict(),
+            "critic_2_optimizer_state_dict": self._critic_2_optim.state_dict(),
+            "policy_optimizer_state_dict": self._policy_optim.state_dict(),
         }
-        if self.automatic_entropy_tuning:
-            data["log_alpha"] = self.log_alpha
-            data["log_alpha_optim_state_dict"] = self.alpha_optim.state_dict()
+        if self._automatic_entropy_tuning:
+            data["log_alpha"] = self._log_alpha
+            data["log_alpha_optim_state_dict"] = self._alpha_optim.state_dict()
 
         return data
 
     # Load model parameters
     def load(self, model: Dict[str, Any], evaluate=False):
-        self.policy.load_state_dict(model["policy_state_dict"])
-        self.critic_1.load_state_dict(model["critic_1_state_dict"])
-        self.critic_1_target.load_state_dict(model["critic_1_target_state_dict"])
-        self.critic_1_optim.load_state_dict(model["critic_1_optimizer_state_dict"])
-        self.critic_2.load_state_dict(model["critic_2_state_dict"])
-        self.critic_2_target.load_state_dict(model["critic_2_target_state_dict"])
-        self.critic_2_optim.load_state_dict(model["critic_2_optimizer_state_dict"])
-        self.policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
+        self._policy.load_state_dict(model["policy_state_dict"])
+        self._critic_1.load_state_dict(model["critic_1_state_dict"])
+        self._critic_1_target.load_state_dict(model["critic_1_target_state_dict"])
+        self._critic_1_optim.load_state_dict(model["critic_1_optimizer_state_dict"])
+        self._critic_2.load_state_dict(model["critic_2_state_dict"])
+        self._critic_2_target.load_state_dict(model["critic_2_target_state_dict"])
+        self._critic_2_optim.load_state_dict(model["critic_2_optimizer_state_dict"])
+        self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if (
             "log_alpha" in model and "log_alpha_optim_state_dict" in model
         ):  # the model was trained with automatic entropy tuning
-            self.log_alpha = model["log_alpha"]
-            self.alpha = self.log_alpha.exp()
-            self.alpha_optim.load_state_dict(model["log_alpha_optim_state_dict"])
+            self._log_alpha = model["log_alpha"]
+            self._alpha = self._log_alpha.exp()
+            self._alpha_optim.load_state_dict(model["log_alpha_optim_state_dict"])
 
         if evaluate:
-            self.policy.eval()
-            self.critic_1.eval()
-            self.critic_1_target.eval()
-            self.critic_2.eval()
-            self.critic_2_target.eval()
+            self._policy.eval()
+            self._critic_1.eval()
+            self._critic_1_target.eval()
+            self._critic_2.eval()
+            self._critic_2_target.eval()
         else:
-            self.policy.train()
-            self.critic_1.train()
-            self.critic_1_target.train()
-            self.critic_2.train()
-            self.critic_2_target.train()
+            self._policy.train()
+            self._critic_1.train()
+            self._critic_1_target.train()
+            self._critic_2.train()
+            self._critic_2_target.train()
 
         return True

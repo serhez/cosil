@@ -1,4 +1,5 @@
 wandb/
 models/
+logs/
 imitator.pt
 metrics.pt

@@ -1,12 +1,14 @@
-from abc import abstractmethod, ABC
-from typing import Any, Tuple, Dict
+from abc import ABC, abstractmethod
+from typing import Any, Dict, Tuple
+
 import torch
+
 
 class Rewarder(ABC):
     """
     This class describes an interface for rewarder objects.
     """
-    
+
     @abstractmethod
     def train(self, batch) -> Tuple[float, float, float]:
         """
@@ -15,7 +17,7 @@ class Rewarder(ABC):
         Parameters
         ----------
         batch -> a batch of data
-        
+
         Returns
         -------
         The loss
@@ -32,7 +34,7 @@ class Rewarder(ABC):
         Parameters
         ----------
         batch -> a batch of data
-        
+
         Returns
         -------
         The rewards

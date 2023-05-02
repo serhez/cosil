@@ -2,22 +2,18 @@ import itertools
 import time
 from types import SimpleNamespace
 
+import GPyOpt
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import ot
 import pyswarms as ps
 import torch
+from bo_mat.models.bo_gpymodel import GPDext
+from bo_mat.models.build_gpy_model import get_kernel_module, get_mean_module
 from sklearn.decomposition import PCA
 
 matplotlib.use("agg")
-import GPyOpt
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-from bo_mat.models.bo_gpymodel import GPDext
-from bo_mat.models.build_gpy_model import get_kernel_module, get_mean_module
-from sklearn.preprocessing import MinMaxScaler
 
 
 def create_GPBO_model(args, X, Y):
@@ -227,10 +223,8 @@ def obj(
         morpho_params = morpho_params.view(len(morpho_params), 1, -1)
     states_torch[..., agent.morpho_slice] = morpho_params
 
-    _, _, action, _ = agent.policy.sample(states_torch)
-
-    q_val = agent.critic.min(states_torch, action)
-
+    _, _, action, _ = agent._policy.sample(states_torch)
+    q_val = agent.get_value(states_torch, action)
     loss = -q_val.mean(-1).mean(-1)
 
     if evaluate_grads:
@@ -248,10 +242,11 @@ def obj_morpho_value(
 ):
     if not type(morpho_params) == torch.Tensor:
         morpho_params = torch.as_tensor(
-            morpho_params, device=agent.device, dtype=torch.float32
+            morpho_params, device=agent._device, dtype=torch.float32
         )
 
-    loss = agent.morpho_value(morpho_params).mean(-1)
+    # TODO: morpho_value should not be part of the agent
+    loss = agent._morpho_value(morpho_params).mean(-1)
 
     return loss
 
@@ -305,7 +300,7 @@ def optimize_morpho_params_pso(
                 .numpy()
             )
         else:
-            losses = obj(x, None, initial_states_torch, agent).cpu().numpy()
+            losses = obj(x, initial_states_torch, agent).cpu().numpy()
 
         assert losses.shape == (x.shape[0],)
         torch.cuda.synchronize()
@@ -325,7 +320,7 @@ def optimize_morpho_params_pso(
     cost, pos = optimizer.optimize(fn, iters=250)
 
     # print gradients. They should be zero-ish if we are at local optimum
-    # _, grads_abs_sum = obj(pos, None, initial_states_torch, policy, q_function, evaluate_grads=True)
+    # _, grads_abs_sum = obj(pos, initial_states_torch, policy, q_function, evaluate_grads=True)
 
     fig = plot_full_q_fn(fn, bounds, pos)
     morpho_params = torch.tensor(pos)
@@ -456,7 +451,7 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
                         mask,
                         marker_obs,
                         next_marker_obs,
-                        agent.num_inputs + agent.num_morpho_obs,
+                        agent._num_inputs + agent._num_morpho_obs,
                     )
                 )
             else:

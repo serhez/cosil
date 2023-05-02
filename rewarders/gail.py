@@ -1,5 +1,6 @@
 import torch
 from torch import optim
+
 from common.models import Discriminator
 from utils.imitation import train_disc
 
@@ -8,7 +9,7 @@ from .rewarder import Rewarder
 
 class GAIL(Rewarder):
     def __init__(self, expert_obs, args):
-        self.device = torch.device("cuda" if args.cuda else "cpu")
+        self.device = torch.device(args.device)
         self.learn_disc_transitions = args.learn_disc_transitions
         self.log_scale_rewards = args.log_scale_rewards
 
