@@ -12,8 +12,9 @@ from common.models import (
     MorphoValueFunction,
 )
 from common.replay_memory import ReplayMemory
+from loggers import Logger
 from normalizers import RangeNormalizer, ZScoreNormalizer
-from rewarders import SAIL, DualRewarder, Rewarder
+from rewarders import SAIL, EnvReward, Rewarder
 from utils.rl import hard_update, soft_update
 
 from .agent import Agent
@@ -24,11 +25,13 @@ class DualSAC(Agent):
     def __init__(
         self,
         config,
+        logger: Logger,
         num_inputs: int,
         action_space,
         num_morpho_obs: int,
         num_morpho_parameters: int,
-        dual_rewarder: DualRewarder,
+        imitation_rewarder: Rewarder,
+        reinforcement_rewarder: EnvReward,
         omega_update_fn: Optional[Callable[[float], float]] = None,
     ):
         """
@@ -37,13 +40,16 @@ class DualSAC(Agent):
         Parameters
         ----------
         config -> the configuration object.
+        logger -> the logger object.
         action_space -> the action space.
         num_morpho_obs -> the number of morphology observations.
         num_morpho_parameters -> the number of morphology parameters.
-        dual_rewarder -> the dual rewarder.
+        imitation_rewarder -> the imitation rewarder.
+        reinforcement_rewarder -> the reinforcement rewarder.
         omega_update_fn -> the function to update omega.
         """
 
+        self._logger = logger
         self._gamma = config.gamma
         self._tau = config.tau
         self._alpha = config.alpha
@@ -56,7 +62,8 @@ class DualSAC(Agent):
         self._target_update_interval = config.target_update_interval
         self._automatic_entropy_tuning = config.automatic_entropy_tuning
 
-        self._dual_rewarder = dual_rewarder
+        self._imitation_rewarder = imitation_rewarder
+        self._reinforcement_rewarder = reinforcement_rewarder
 
         self._morpho_slice = slice(-num_morpho_obs, None)
         if config.absorbing_state:
@@ -67,50 +74,62 @@ class DualSAC(Agent):
             "mean",
         ], f"Invalid dual normalization mode: {config.dual_normalization_mode}"
         if config.dual_normalization == "none":
-            self._norm_1 = None
-            self._norm_2 = None
+            self._imitation_norm = None
+            self._reinforcement_norm = None
         elif config.dual_normalization == "range":
-            self._norm_1 = RangeNormalizer(mode=config.dual_normalization_mode)
-            self._norm_2 = RangeNormalizer(mode=config.dual_normalization_mode)
-        elif config.dual_normalization == "z-score":
-            self._norm_1 = ZScoreNormalizer(
+            self._imitation_norm = RangeNormalizer(
                 mode=config.dual_normalization_mode,
+                gamma=config.dual_normalization_gamma,
+                beta=config.dual_normalization_beta,
+            )
+            self._reinforcement_norm = RangeNormalizer(
+                mode=config.dual_normalization_mode,
+                gamma=config.dual_normalization_gamma,
+                beta=config.dual_normalization_beta,
+            )
+        elif config.dual_normalization == "z-score":
+            self._imitation_norm = ZScoreNormalizer(
+                mode=config.dual_normalization_mode,
+                gamma=config.dual_normalization_gamma,
+                beta=config.dual_normalization_beta,
                 low_clip=config.dual_normalization_low_clip,
                 high_clip=config.dual_normalization_high_clip,
             )
-            self._norm_2 = ZScoreNormalizer(
+            self._reinforcement_norm = ZScoreNormalizer(
                 mode=config.dual_normalization_mode,
+                gamma=config.dual_normalization_gamma,
+                beta=config.dual_normalization_beta,
                 low_clip=config.dual_normalization_low_clip,
                 high_clip=config.dual_normalization_high_clip,
             )
         else:
             raise ValueError(f"Invalid dual normalization: {config.dual_normalization}")
 
-        self._critic_1 = EnsembleQNetwork(
+        self._imitation_critic = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
         ).to(device=self._device)
-        self._critic_1_optim = Adam(
-            self._critic_1.parameters(),
+        self._imitation_critic_optim = Adam(
+            self._imitation_critic.parameters(),
             lr=config.lr,
             weight_decay=config.q_weight_decay,
         )
-        self._critic_2 = EnsembleQNetwork(
+        self._reinforcement_critic = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
         ).to(device=self._device)
-        self._critic_2_optim = Adam(
-            self._critic_2.parameters(),
+        self._reinforcement_critic_optim = Adam(
+            self._reinforcement_critic.parameters(),
             lr=config.lr,
             weight_decay=config.q_weight_decay,
         )
 
-        self._critic_1_target = EnsembleQNetwork(
+        self._imitation_critic_target = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
         ).to(self._device)
-        hard_update(self._critic_1_target, self._critic_1)
-        self._critic_2_target = EnsembleQNetwork(
+        hard_update(self._imitation_critic_target, self._imitation_critic)
+        self._reinforcement_critic_target = EnsembleQNetwork(
             num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
         ).to(self._device)
-        hard_update(self._critic_2_target, self._critic_2)
+        hard_update(self._reinforcement_critic_target, self._reinforcement_critic)
 
         # TODO: Get these values out of here
         #       They are only used by code in co_adaptation.py
@@ -182,7 +201,7 @@ class DualSAC(Agent):
         return self._omega
 
     # FIX: Make this function work with batches, make the shape transformations be a responsibility of the caller
-    #      and replace ever call to self._policy.sample() with a call to this function
+    #      and replace every call to self._policy.sample() with a call to this function
     def select_action(self, state, evaluate=False):
         state = torch.FloatTensor(state).to(self._device).unsqueeze(0)
         if evaluate is False:
@@ -193,16 +212,12 @@ class DualSAC(Agent):
 
     def pretrain_policy(
         self,
-        rewarder: Rewarder,
+        rewarder: SAIL,
         memory: ReplayMemory,
         batch_size: int,
         n_epochs: int = 200,
     ):
-        assert isinstance(
-            rewarder, SAIL
-        ), "Pretraining the policy is only supported for SAIL"
-
-        print("Pretraining policy to match policy prior")
+        self._logger("Pretraining policy to match policy prior", "INFO", ["wandb"])
         loss_fn = torch.nn.MSELoss()
         n_samples = len(memory)
         n_batches = n_samples // batch_size
@@ -236,26 +251,27 @@ class DualSAC(Agent):
                 self._policy_optim.step()
 
             mean_loss /= n_batches
-            print(f"Epoch {e} loss {mean_loss:.5f}")
+            self._logger({"Epoch": e, "Loss": mean_loss}, "INFO", ["wandb"])
 
         self._policy_optim.load_state_dict(policy_optim_state_dict)
 
         return mean_loss
 
     def pretrain_value(self, memory: ReplayMemory, batch_size: int):
+        self._logger("Pretraining value", "INFO", ["wandb"])
         for i in range(3000):
             batch = memory.sample(batch_size)
             loss = self.update_parameters(batch, i, True)[0]
             if i % 100 == 0:
-                print(f"loss {loss:.3f}")
+                self._logger({"Epoch": i, "Loss": loss}, "INFO", ["wandb"])
 
     def get_value(self, state, action) -> float:
-        value_1 = self._critic_1.min(state, action)
-        value_2 = self._critic_2.min(state, action)
-        if self._norm_1 is not None and self._norm_2 is not None:
-            value_1 = self._norm_1(value_1)
-            value_2 = self._norm_2(value_2)
-        return self._omega * value_1 + (1 - self._omega) * value_2
+        imitation_value = self._imitation_critic.min(state, action)
+        reinforcement_value = self._reinforcement_critic.min(state, action)
+        if self._imitation_norm is not None and self._reinforcement_norm is not None:
+            imitation_value = self._imitation_norm(imitation_value)
+            reinforcement_value = self._reinforcement_norm(reinforcement_value)
+        return self._omega * imitation_value + (1 - self._omega) * reinforcement_value
 
     # TODO: Normalize the Q-values
     def update_parameters(
@@ -309,43 +325,43 @@ class DualSAC(Agent):
         marker_batch = torch.FloatTensor(marker_batch).to(self._device)
         next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
 
-        rewards_1 = self._dual_rewarder.rewarder_1.compute_rewards(batch)
-        rewards_2 = self._dual_rewarder.rewarder_2.compute_rewards(batch)
-        assert reward_batch.shape == rewards_1.shape
-        assert reward_batch.shape == rewards_2.shape
+        imitation_rewards = self._imitation_rewarder.compute_rewards(batch)
+        reinforcement_rewards = self._reinforcement_rewarder.compute_rewards(batch)
+        assert reward_batch.shape == imitation_rewards.shape
+        assert reward_batch.shape == reinforcement_rewards.shape
 
         # Compute the next Q-values
         with torch.no_grad():
-            next_state_action, next_state_log_pi, _, _ = self._policy.sample(
-                next_state_batch
-            )
-            ent = self._alpha * next_state_log_pi
-
-            q_next_target_1 = self._critic_1_target.min(
-                next_state_batch, next_state_action
-            )
-            min_qf_next_target_1 = q_next_target_1 - ent
             dones = torch.logical_or(
                 terminated_batch,
                 truncated_batch,
                 out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype),
             )
-            next_q_value_1 = rewards_1 + dones * self._gamma * min_qf_next_target_1
 
-            q_next_target_2 = self._critic_2_target.min(
+            next_state_action, next_state_log_pi, _, _ = self._policy.sample(
+                next_state_batch
+            )
+            ent = self._alpha * next_state_log_pi
+
+            imit_q_next_target = self._imitation_critic_target.min(
                 next_state_batch, next_state_action
             )
-            min_qf_next_target_2 = q_next_target_2 - ent
-            next_q_value_2 = rewards_2 + dones * self._gamma * min_qf_next_target_2
+            imit_min_qf_next_target = imit_q_next_target - ent
+            imit_next_q_value = (
+                imitation_rewards + dones * self._gamma * imit_min_qf_next_target
+            )
 
-        # The overall reward, used only for logging
-        # FIX: Report each reward individually, instead of this combination
-        mean_modified_reward_1 = rewards_1.mean()
-        mean_modified_reward_2 = rewards_2.mean()
-        mean_modified_reward = (
-            self._omega * mean_modified_reward_1
-            + (1 - self._omega) * mean_modified_reward_2
-        )
+            reinf_q_next_target = self._reinforcement_critic_target.min(
+                next_state_batch, next_state_action
+            )
+            reinf_min_qf_next_target = reinf_q_next_target - ent
+            reinf_next_q_value = (
+                reinforcement_rewards + dones * self._gamma * reinf_min_qf_next_target
+            )
+
+        # The mean rewards, used only for logging
+        imitation_mean_reward = imitation_rewards.mean()
+        reinforcement_mean_reward = reinforcement_rewards.mean()
 
         # Plot absorbing rewards
         marker_feats = next_marker_batch
@@ -354,20 +370,28 @@ class DualSAC(Agent):
         absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
         # Critics losses
-        qfs_1 = self._critic_1(state_batch, action_batch)
-        qf_1_loss = sum([F.mse_loss(q_value, next_q_value_1) for q_value in qfs_1])
-        qfs_2 = self._critic_2(state_batch, action_batch)
-        qf_2_loss = sum([F.mse_loss(q_value, next_q_value_2) for q_value in qfs_2])
+        imitation_qfs = self._imitation_critic(state_batch, action_batch)
+        imitation_qf_loss = sum(
+            [F.mse_loss(q_value, imit_next_q_value) for q_value in imitation_qfs]
+        )
+        reinforcement_qfs = self._reinforcement_critic(state_batch, action_batch)
+        reinforcement_qf_loss = sum(
+            [F.mse_loss(q_value, reinf_next_q_value) for q_value in reinforcement_qfs]
+        )
 
         # Update the critics
-        self._critic_1_optim.zero_grad()
-        qf_1_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self._critic_1.parameters(), 10)
-        self._critic_1_optim.step()
-        self._critic_2_optim.zero_grad()
-        qf_2_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self._critic_2.parameters(), 10)
-        self._critic_2_optim.step()
+        self._imitation_critic_optim.zero_grad()
+        imitation_qf_loss.backward()
+        torch.nn.utils.clip_grad.clip_grad_norm_(
+            self._imitation_critic.parameters(), 10
+        )
+        self._imitation_critic_optim.step()
+        self._reinforcement_critic_optim.zero_grad()
+        reinforcement_qf_loss.backward()
+        torch.nn.utils.clip_grad.clip_grad_norm_(
+            self._reinforcement_critic.parameters(), 10
+        )
+        self._reinforcement_critic_optim.step()
 
         pi, log_pi, policy_mean, dist = self._policy.sample(state_batch)
 
@@ -384,13 +408,11 @@ class DualSAC(Agent):
 
         vae_loss = torch.tensor(0.0)
 
-        for rewarder in [
-            self._dual_rewarder.rewarder_1,
-            self._dual_rewarder.rewarder_2,
-        ]:
-            if isinstance(rewarder, SAIL):
-                vae_loss = rewarder.get_vae_loss(state_batch, marker_batch, policy_mean)
-                policy_loss += vae_loss
+        if isinstance(self._imitation_rewarder, SAIL):
+            vae_loss = self._imitation_rewarder.get_vae_loss(
+                state_batch, marker_batch, policy_mean
+            )
+            policy_loss += vae_loss
 
         self._policy_optim.zero_grad()
         policy_loss.backward()
@@ -414,19 +436,24 @@ class DualSAC(Agent):
             alpha_tlogs = torch.tensor(self._alpha)  # For TensorboardX logs
 
         if updates % self._target_update_interval == 0:
-            soft_update(self._critic_1_target, self._critic_1, self._tau)
-            soft_update(self._critic_2_target, self._critic_2, self._tau)
+            soft_update(
+                self._imitation_critic_target, self._imitation_critic, self._tau
+            )
+            soft_update(
+                self._reinforcement_critic_target, self._reinforcement_critic, self._tau
+            )
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
-        # TODO: Report omega and each Q-value individually
         return {
-            "loss/critic_1_loss": qf_1_loss.item(),
-            "loss/critic_2_loss": qf_2_loss.item(),
+            "loss/imitation_critic_loss": imitation_qf_loss.item(),
+            "loss/reinforcement_critic_loss": reinforcement_qf_loss.item(),
             "loss/policy": policy_loss.item(),
             "loss/entropy_loss": alpha_loss.item(),
             "entropy_temperature/alpha": alpha_tlogs.item(),
+            "omega": self._omega,
             "action_std": std,
-            "weighted_reward": mean_modified_reward.item(),
+            "imitation_reward": imitation_mean_reward.item(),
+            "reinforcement_reward": reinforcement_mean_reward.item(),
             "entropy_temperature/entropy": entropy,
             "loss/policy_prior_loss": vae_loss.item(),
             "absorbing_reward": absorbing_rewards.item(),
@@ -436,12 +463,12 @@ class DualSAC(Agent):
     def get_model_dict(self) -> Dict[str, Any]:
         data = {
             "policy_state_dict": self._policy.state_dict(),
-            "critic_1_state_dict": self._critic_1.state_dict(),
-            "critic_1_target_state_dict": self._critic_1_target.state_dict(),
-            "critic_1_optimizer_state_dict": self._critic_1_optim.state_dict(),
-            "critic_2_state_dict": self._critic_2.state_dict(),
-            "critic_2_target_state_dict": self._critic_2_target.state_dict(),
-            "critic_2_optimizer_state_dict": self._critic_2_optim.state_dict(),
+            "critic_1_state_dict": self._imitation_critic.state_dict(),
+            "critic_1_target_state_dict": self._imitation_critic_target.state_dict(),
+            "critic_1_optimizer_state_dict": self._imitation_critic_optim.state_dict(),
+            "critic_2_state_dict": self._reinforcement_critic.state_dict(),
+            "critic_2_target_state_dict": self._reinforcement_critic_target.state_dict(),
+            "critic_2_optimizer_state_dict": self._reinforcement_critic_optim.state_dict(),
             "policy_optimizer_state_dict": self._policy_optim.state_dict(),
         }
         if self._automatic_entropy_tuning:
@@ -453,12 +480,20 @@ class DualSAC(Agent):
     # Load model parameters
     def load(self, model: Dict[str, Any], evaluate=False):
         self._policy.load_state_dict(model["policy_state_dict"])
-        self._critic_1.load_state_dict(model["critic_1_state_dict"])
-        self._critic_1_target.load_state_dict(model["critic_1_target_state_dict"])
-        self._critic_1_optim.load_state_dict(model["critic_1_optimizer_state_dict"])
-        self._critic_2.load_state_dict(model["critic_2_state_dict"])
-        self._critic_2_target.load_state_dict(model["critic_2_target_state_dict"])
-        self._critic_2_optim.load_state_dict(model["critic_2_optimizer_state_dict"])
+        self._imitation_critic.load_state_dict(model["critic_1_state_dict"])
+        self._imitation_critic_target.load_state_dict(
+            model["critic_1_target_state_dict"]
+        )
+        self._imitation_critic_optim.load_state_dict(
+            model["critic_1_optimizer_state_dict"]
+        )
+        self._reinforcement_critic.load_state_dict(model["critic_2_state_dict"])
+        self._reinforcement_critic_target.load_state_dict(
+            model["critic_2_target_state_dict"]
+        )
+        self._reinforcement_critic_optim.load_state_dict(
+            model["critic_2_optimizer_state_dict"]
+        )
         self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if (
@@ -470,15 +505,15 @@ class DualSAC(Agent):
 
         if evaluate:
             self._policy.eval()
-            self._critic_1.eval()
-            self._critic_1_target.eval()
-            self._critic_2.eval()
-            self._critic_2_target.eval()
+            self._imitation_critic.eval()
+            self._imitation_critic_target.eval()
+            self._reinforcement_critic.eval()
+            self._reinforcement_critic_target.eval()
         else:
             self._policy.train()
-            self._critic_1.train()
-            self._critic_1_target.train()
-            self._critic_2.train()
-            self._critic_2_target.train()
+            self._imitation_critic.train()
+            self._imitation_critic_target.train()
+            self._reinforcement_critic.train()
+            self._reinforcement_critic_target.train()
 
         return True

@@ -12,6 +12,7 @@ from common.models import (
     MorphoValueFunction,
 )
 from common.replay_memory import ReplayMemory
+from loggers import Logger
 from rewarders import SAIL, Rewarder
 from utils.rl import hard_update, soft_update
 
@@ -24,12 +25,14 @@ class SAC(Agent):
     def __init__(
         self,
         config,
+        logger: Logger,
         num_inputs: int,
         action_space,
         num_morpho_obs: int,
         num_morpho_parameters: int,
         rewarder: Rewarder,
     ):
+        self._logger = logger
         self._gamma = config.gamma
         self._tau = config.tau
         self._alpha = config.alpha
@@ -103,16 +106,12 @@ class SAC(Agent):
 
     def pretrain_policy(
         self,
-        rewarder: Rewarder,
+        rewarder: SAIL,
         memory: ReplayMemory,
         batch_size: int,
         n_epochs: int = 200,
     ):
-        assert isinstance(
-            rewarder, SAIL
-        ), "Pretraining the policy is only supported for SAIL"
-
-        print("Pretraining policy to match policy prior")
+        self._logger("Pretraining policy to match policy prior", "INFO", ["wandb"])
         loss_fn = torch.nn.MSELoss()
         n_samples = len(memory)
         n_batches = n_samples // batch_size
@@ -146,18 +145,19 @@ class SAC(Agent):
                 self._policy_optim.step()
 
             mean_loss /= n_batches
-            print(f"Epoch {e} loss {mean_loss:.5f}")
+            self._logger({"Epoch": e, "Loss": mean_loss}, "INFO", ["wandb"])
 
         self._policy_optim.load_state_dict(policy_optim_state_dict)
 
         return mean_loss
 
     def pretrain_value(self, rewarder: Rewarder, memory: ReplayMemory, batch_size: int):
+        self._logger("Pretraining value", "INFO", ["wandb"])
         for i in range(3000):
             batch = memory.sample(batch_size)
             loss = self.update_parameters(batch, i, True)[0]
             if i % 100 == 0:
-                print(f"loss {loss:.3f}")
+                self._logger({"Epoch": i, "Loss": loss}, "INFO", ["wandb"])
 
     def get_value(self, state, action) -> float:
         return self._critic.min(state, action)

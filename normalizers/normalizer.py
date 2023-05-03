@@ -9,6 +9,23 @@ class Normalizer(ABC):
     This class describes an interface for normalizer objects.
     """
 
+    def __init__(self, gamma: float, beta: float):
+        """
+        Initialize the normalizer.
+
+        Parameters
+        ----------
+        gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
+        beta -> the beta scaling parameter, which is added to the normalized values.
+
+        Returns
+        -------
+        None.
+        """
+
+        self._gamma = gamma
+        self._beta = beta
+
     @abstractmethod
     def normalize(self, tensor: torch.Tensor) -> torch.Tensor:
         """
@@ -29,7 +46,6 @@ class Normalizer(ABC):
 
     __call__: Callable[..., Any] = _call_impl
 
-    @abstractmethod
     def get_model_dict(self) -> Dict[str, Any]:
         """
         Get the normalizer's parameters.
@@ -42,9 +58,14 @@ class Normalizer(ABC):
         -------
         A dictionary of the normalizer's parameters.
         """
-        pass
 
-    @abstractmethod
+        model_dict = {
+            "gamma": self._gamma,
+            "beta": self._beta,
+        }
+
+        return model_dict
+
     def load(self, model: Dict[str, Any]):
         """
         Load the normalizer's parameters from a model.
@@ -57,4 +78,9 @@ class Normalizer(ABC):
         -------
         None.
         """
-        pass
+
+        try:
+            self._gamma = model["gamma"]
+            self._beta = model["beta"]
+        except KeyError as e:
+            raise ValueError(f"Invalid model: {model}") from e

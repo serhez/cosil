@@ -10,7 +10,7 @@ class WandbLogger(Logger):
     """Logs to Weights & Biases."""
 
     def __init__(
-        self, project: str, experiment: str, group: str, config: argparse.Namespace
+        self, project: str, group: str, experiment: str, config: argparse.Namespace
     ):
         """
         Initializes a Weights & Biases logger.
@@ -18,12 +18,12 @@ class WandbLogger(Logger):
         Parameters
         ----------
         project -> the name of the project to log to.
-        name -> the name of the experiment to log to.
         group -> the name of the group to log to.
+        experiment -> the ID of the experiment to log to.
         config -> the configuration of the experiment.
         """
 
-        wandb.init(project=project, name=experiment, group=group, config=vars(config))
+        wandb.init(project=project, group=group, name=experiment, config=vars(config))
 
     def log(self, message: Union[str, Dict[str, Any]], level: str = "INFO", *_) -> bool:
         """

@@ -13,7 +13,8 @@ from .rewarder import Rewarder
 
 
 class SAIL(Rewarder):
-    def __init__(self, env, expert_obs, args) -> None:
+    def __init__(self, logger, env, expert_obs, args) -> None:
+        self.logger = logger
         self.device = torch.device(args.device)
         self.expert_obs = expert_obs
         self.num_inputs = env.observation_space.shape[0]
@@ -151,14 +152,14 @@ class SAIL(Rewarder):
         self.g_inv.load_state_dict(torch.load(file_name))
 
     def pretrain_vae(self, batch_size: int, epochs=100):
-        print("Pretraining VAE")
-        file_name = f"pretrained_models/vae.pt"
+        self.logger("Pretraining VAE", "INFO", ["wandb"])
+        file_name = "pretrained_models/vae.pt"
 
         if not os.path.exists("./pretrained_models"):
             os.makedirs("pretrained_models")
 
         if os.path.exists(file_name):
-            print("Loading pretrained VAE from disk")
+            self.logger("Loading pretrained VAE from disk", "INFO", ["wandb"])
             self.dynamics.load_state_dict(torch.load(file_name))
             return 0
 
@@ -170,7 +171,7 @@ class SAIL(Rewarder):
         return loss
 
     def pretrain_g_inv(self, memory: ReplayMemory, batch_size: int, n_epochs=30):
-        print("Pretraining inverse dynamics")
+        self.logger("Pretraining inverse dynamics", "INFO", ["wandb"])
 
         g_inv_optim_state_dict = self.g_inv_optim.state_dict()
 
@@ -186,7 +187,14 @@ class SAIL(Rewarder):
 
             mean_loss /= n_batches
 
-            print(f"Epoch {e} loss {mean_loss:.4f}")
+            self.logger(
+                {
+                    "Epoch": e,
+                    "Loss": mean_loss,
+                },
+                "INFO",
+                ["wandb"],
+            )
 
         self.g_inv_optim.load_state_dict(g_inv_optim_state_dict)
 

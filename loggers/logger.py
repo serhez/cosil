@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
+from typing import Any, Callable, Dict, Union
 
 
 class Logger(ABC):
@@ -16,6 +16,10 @@ class Logger(ABC):
         Parameters
         ----------
         message -> the message to log.
+        - If a string, the message will be logged as-is.
+        - If a dictionary, the message will be logged as a JSON string.
+            - The dictionary must be JSON serializable.
+            - You can provide None dictionary values to mean that the key is a header or title of the message.
         level -> the level of the message (e.g., INFO, WARNING, ERROR, etc.).
         mask -> a list of logger names to not be used to log this message.
 
@@ -25,6 +29,11 @@ class Logger(ABC):
         """
 
         pass
+
+    def _call_impl(self, *args, **kwargs):
+        return self.log(*args, **kwargs)
+
+    __call__: Callable[..., Any] = _call_impl
 
     @abstractmethod
     def close(self) -> bool:

@@ -15,9 +15,11 @@ def main():
     config = parse_args()
 
     for _ in range(config.num_agents):
-        config.run_id = str(int(time.time()))
-        config.name = f"{config.experiment_name}-{config.env_name}-{str(config.seed)}-{config.run_id}"
-        config.dir_path = f"{config.experiment_name}/{config.env_name}/{config.seed}"
+        config.experiment_id = str(int(time.time()))
+        config.name = f"{config.env_name}-{str(config.seed)}-{config.experiment_id}"
+        config.dir_path = (
+            f"{config.project_name}/{config.group_name}/{config.env_name}/{config.seed}"
+        )
 
         # Set up environment
         register_env(config.env_name)
@@ -43,14 +45,13 @@ def main():
                 loggers["file"] = FileLogger(
                     config.project_name,
                     config.group_name,
-                    config.experiment_name,
-                    config.run_id,
+                    config.experiment_id,
                 )
             elif logger == "wandb":
                 loggers["wandb"] = WandbLogger(
                     config.project_name,
-                    config.experiment_name,
                     config.group_name,
+                    config.experiment_id,
                     config,
                 )
             else:
@@ -63,9 +64,6 @@ def main():
             method = CoIL(config, logger, env)
         elif config.method == "CoSIL":
             method = CoSIL(config, logger, env)
-        elif config.method == "CoAL":
-            # method = CoAL(env, config)
-            raise ValueError("WIP: CoAL not yet implemented")
         else:
             raise ValueError(f"Invalid training method: {config.method}")
         method.train()
@@ -73,7 +71,7 @@ def main():
         env.close()
 
         # Reset the seed for the next model
-        config.seed = np.random.randint(1)
+        config.seed = np.random.randint(low=1, high=np.iinfo(np.int32).max, size=1)[0]
 
 
 if __name__ == "__main__":

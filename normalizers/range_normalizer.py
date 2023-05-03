@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -9,31 +9,32 @@ from .normalizer import Normalizer
 class RangeNormalizer(Normalizer):
     """
     A normalizer which performs range normalization of a tensor.
-    The normalization is done by subtracting the minimum or mean value from the tensor and dividing over the range, i.e.: (value - min_or_mean) / (max - min).
+    The normalization is done by subtracting the minimum or mean value from the tensor and dividing over the range, i.e.: ((value - min_or_mean) / (max - min)) * gamma + beta.
     The mode of normalization can be set using the `mode` parameter, which determines if the minimum or the mean value will be subtracted.
-    Subtracting the minimum value will yield a range of values of [0, 1]; subtracting the mean value will yield a range of [-1, 1].
+    Subtracting the minimum value will yield a range of values of [beta, gamma + beta]; subtracting the mean value will yield a range of [-gamma + beta, gamma + beta].
     """
 
-    def __init__(self, mode: str = "min"):
+    def __init__(self, mode: str = "min", gamma: float = 1.0, beta: float = 0.0):
         """
         Parameters
         ----------
         mode -> the mode to use for normalization, with possible values:
         - "min" -> subtract the minimum value.
         - "mean" -> subtract the mean value.
+        gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
+        beta -> the beta scaling parameter, which is added to the normalized values.
         """
+        super().__init__(gamma, beta)
 
+        # Running statistical measures
         self._max = -np.inf
         self._min = np.inf
         self._sum = 0.0
         self._count = 0
 
-        if mode == "min":
-            self._mode = "min"
-        elif mode == "mean":
-            self._mode = "mean"
-        else:
+        if mode not in ["min", "mean"]:
             raise ValueError(f"Invalid mode: {mode}")
+        self._mode = mode
 
     def normalize(self, tensor: torch.Tensor) -> torch.Tensor:
         # Update the statistical measures
@@ -60,17 +61,27 @@ class RangeNormalizer(Normalizer):
         Returns
         -------
         A dictionary of the normalizer's parameters, containing the following keys:
+        - mode -> the mode to use for normalization, with possible values:
+          - "min" -> subtract the minimum value.
+          - "mean" -> subtract the mean value.
+        - gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
+        - beta -> the beta scaling parameter, which is added to the normalized values.
         - max -> the maximum value.
         - min -> the minimum value.
         - sum -> the sum of all values.
         - count -> the number of values.
         """
-        model_dict = {
-            "max": self._max,
-            "min": self._min,
-            "sum": self._sum,
-            "count": self._count,
-        }
+        model_dict = super().get_model_dict()
+
+        model_dict.update(
+            {
+                "mode": self._mode,
+                "max": self._max,
+                "min": self._min,
+                "sum": self._sum,
+                "count": self._count,
+            }
+        )
 
         return model_dict
 
@@ -81,6 +92,11 @@ class RangeNormalizer(Normalizer):
         Parameters
         ----------
         model -> the model dictionary, containing the following keys:
+        - mode -> the mode to use for normalization, with possible values:
+          - "min" -> subtract the minimum value.
+          - "mean" -> subtract the mean value.
+        - gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
+        - beta -> the beta scaling parameter, which is added to the normalized values.
         - max -> the maximum value.
         - min -> the minimum value.
         - sum -> the sum of all values.
@@ -94,7 +110,10 @@ class RangeNormalizer(Normalizer):
         ------
         ValueError -> if the model is invalid.
         """
+        super().load(model)
+
         try:
+            self._mode = model["mode"]
             self._max = model["max"]
             self._min = model["min"]
             self._sum = model["sum"]

@@ -34,9 +34,21 @@ class ConsoleLogger(Logger):
             printed_level = level + " " if level != "INFO" else ""
             print(f"{printed_level}[{time}] {message}")
         else:
+            first = True
             for key, value in message.items():
                 printed_level = level + " " if level != "INFO" else ""
-                print(f"{level} [{time}] {key}: {value}")
+
+                if not first:
+                    time = " " * len(time)
+
+                if isinstance(value, float):
+                    print(f"{printed_level}[{time}] {key}: {value:.5f}")
+                elif value is None:  # Used for headers, titles, etc.
+                    print(f"{printed_level}[{time}] {key}")
+                else:
+                    print(f"{printed_level}[{time}] {key}: {value}")
+
+                first = False
 
         return True
 

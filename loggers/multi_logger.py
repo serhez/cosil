@@ -44,7 +44,7 @@ class MultiLogger(Logger):
             for logger_name, logger in self._loggers.items()
             if logger_name not in mask
         ]:
-            success = success and logger.log(message, level, mask)
+            success = success and logger(message, level, mask)
 
         return success
 

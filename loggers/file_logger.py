@@ -10,22 +10,24 @@ from .logger import Logger
 class FileLogger(Logger):
     """Logs to a file."""
 
-    def __init__(self, project: str, group: str, experiment: str, run_id: str):
+    def __init__(self, project: str, group: str, experiment: str):
         """
         Initializes a file logger.
 
         Parameters
         ----------
-        file_path -> the path to the file to log to, it must be a json file.
+        project -> the name of the project.
+        group -> the name of the group.
+        experiment -> the ID of the experiment.
         """
 
         TRIES = 10
 
         # Define file path and name
-        dir_path = f"logs/{project}/{group}/{experiment}/"
+        dir_path = f"logs/{project}/{group}/"
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
-        file_path = dir_path + run_id + ".json"
+        file_path = dir_path + experiment + ".json"
 
         # Use a random uuid if the file name is already taken
         while os.path.exists(file_path) and TRIES > 0:
