@@ -3,12 +3,14 @@ import random
 import time
 
 import gym
+import hydra
 import numpy as np
 import torch
 from gait_track_envs import register_env
+from omegaconf import DictConfig
 
 from agents import SAC
-from config import parse_config
+from config import setup_config
 from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
 from rewarders import EnvReward
 from utils.model import load_model
@@ -56,7 +58,7 @@ def gen_obs(config, logger, env):
     load_model(config.resume, env, agent, co_adapt=False, evaluate=True)
 
     # Generate observations
-    for episode in range(config.num_episodes):
+    for episode in range(config.method.num_episodes):
         state, _ = env.reset()
         feat = np.concatenate([state, env.morpho_params])
         if config.absorbing_state:
@@ -107,14 +109,10 @@ def save(obs_list: dict, path: str):
     torch.save(obs_list, path)
 
 
-def main():
-    config = parse_config()
-
-    config.experiment_id = str(int(time.time()))
-    config.name = f"{config.env_name}-{str(config.seed)}-{config.experiment_id}"
-    config.dir_path = (
-        f"{config.project_name}/{config.group_name}/{config.env_name}/{config.seed}"
-    )
+@hydra.main(version_base=None, config_path="configs", config_name="config")
+def main(config: DictConfig):
+    config.logger.experiment_id = str(int(time.time()))
+    config.models_dir_path = f"{config.logger.project_name}/{config.logger.group_name}/{config.env_name}/{config.seed}"
 
     # Set up environment
     register_env(config.env_name)
@@ -138,15 +136,15 @@ def main():
             loggers["console"] = ConsoleLogger()
         elif logger == "file":
             loggers["file"] = FileLogger(
-                config.project_name,
-                config.group_name,
-                config.experiment_id,
+                config.logger.project_name,
+                config.logger.group_name,
+                config.logger.experiment_id,
             )
         elif logger == "wandb":
             loggers["wandb"] = WandbLogger(
-                config.project_name,
-                config.group_name,
-                config.experiment_id,
+                config.logger.project_name,
+                config.logger.group_name,
+                config.logger.experiment_id,
                 config,
             )
         else:
@@ -160,4 +158,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_config()
     main()

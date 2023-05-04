@@ -13,19 +13,19 @@ from .rewarder import Rewarder
 
 
 class SAIL(Rewarder):
-    def __init__(self, logger, env, expert_obs, args) -> None:
+    def __init__(self, logger, env, expert_obs, config) -> None:
         self.logger = logger
-        self.device = torch.device(args.device)
+        self.device = torch.device(config.device)
         self.expert_obs = expert_obs
         self.num_inputs = env.observation_space.shape[0]
-        self.learn_disc_transitions = args.learn_disc_transitions
-        self.vae_scaler = args.vae_scaler
-        self.absorbing_state = args.absorbing_state
+        self.learn_disc_transitions = config.learn_disc_transitions
+        self.vae_scaler = config.vae_scaler
+        self.absorbing_state = config.absorbing_state
 
         num_morpho_obs = env.morpho_params.shape[0]
         num_marker_obs = self.expert_obs[0].shape[-1]
         self.morpho_slice = slice(-num_morpho_obs, None)
-        if args.absorbing_state:
+        if config.absorbing_state:
             self.morpho_slice = slice(-num_morpho_obs - 1, -1)
 
         self.g_inv = InverseDynamics(
@@ -34,11 +34,14 @@ class SAIL(Rewarder):
             action_space=env.action_space,
         ).to(self.device)
         self.g_inv_optim = Adam(
-            self.g_inv.parameters(), lr=3e-4, betas=(0.5, 0.9), weight_decay=1e-5
+            self.g_inv.parameters(),
+            lr=3e-4,
+            betas=(0.5, 0.9),
+            weight_decay=config.g_inv_weight_decay,
         )
 
         self.dynamics = VAE(num_marker_obs).to(self.device)
-        self.dynamics_optim = Adam(self.dynamics.parameters(), lr=args.lr)
+        self.dynamics_optim = Adam(self.dynamics.parameters(), lr=config.lr)
 
         (
             self.disc_loss,
@@ -47,7 +50,7 @@ class SAIL(Rewarder):
         ) = (0, 0, 0)
 
         normalizers = None
-        if args.normalize_obs:
+        if config.normalize_obs:
             normalizers = (
                 torch.cat(self.expert_obs).mean(0, keepdim=True),
                 torch.cat(self.expert_obs).std(0, keepdim=True),
@@ -59,7 +62,7 @@ class SAIL(Rewarder):
             self.disc.parameters(),
             lr=3e-4,
             betas=(0.5, 0.9),
-            weight_decay=args.disc_weight_decay,
+            weight_decay=config.method.rewarder.disc_weight_decay,
         )
 
     def train(self, batch):

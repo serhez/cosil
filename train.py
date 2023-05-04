@@ -2,24 +2,22 @@ import random
 import time
 
 import gym
+import hydra
 import numpy as np
 import torch
 from gait_track_envs import register_env
+from omegaconf import DictConfig
 
-from config import parse_args
+from config import setup_config
 from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
 from methods import CoIL, CoSIL
 
 
-def main():
-    config = parse_args()
-
+@hydra.main(version_base=None, config_path="configs", config_name="config")
+def main(config: DictConfig) -> None:
     for _ in range(config.num_agents):
-        config.experiment_id = str(int(time.time()))
-        config.name = f"{config.env_name}-{str(config.seed)}-{config.experiment_id}"
-        config.dir_path = (
-            f"{config.project_name}/{config.group_name}/{config.env_name}/{config.seed}"
-        )
+        config.logger.experiment_id = str(int(time.time()))
+        config.models_dir_path = f"{config.logger.project_name}/{config.logger.group_name}/{config.env_name}/{config.seed}"
 
         # Set up environment
         register_env(config.env_name)
@@ -36,22 +34,22 @@ def main():
             torch.cuda.manual_seed_all(config.seed)
 
         # Set up the logger
-        loggers_list = config.loggers.split(",")
+        loggers_list = config.logger.loggers.split(",")
         loggers = {}
         for logger in loggers_list:
             if logger == "console":
                 loggers["console"] = ConsoleLogger()
             elif logger == "file":
                 loggers["file"] = FileLogger(
-                    config.project_name,
-                    config.group_name,
-                    config.experiment_id,
+                    config.logger.project_name,
+                    config.logger.group_name,
+                    config.logger.experiment_id,
                 )
             elif logger == "wandb":
                 loggers["wandb"] = WandbLogger(
-                    config.project_name,
-                    config.group_name,
-                    config.experiment_id,
+                    config.logger.project_name,
+                    config.logger.group_name,
+                    config.logger.experiment_id,
                     config,
                 )
             else:
@@ -59,13 +57,13 @@ def main():
         logger = MultiLogger(loggers)
 
         # Train a model using the selected training method
-        print(f"Training using method {config.method}")
-        if config.method == "CoIL":
+        logger(f"Training using method {config.method.name}", "INFO", ["wandb"])
+        if config.method.name == "coil":
             method = CoIL(config, logger, env)
-        elif config.method == "CoSIL":
+        elif config.method.name == "cosil":
             method = CoSIL(config, logger, env)
         else:
-            raise ValueError(f"Invalid training method: {config.method}")
+            raise ValueError(f"Invalid training method: {config.method.name}")
         method.train()
 
         env.close()
@@ -75,4 +73,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_config()
     main()

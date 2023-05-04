@@ -4,8 +4,8 @@ from .rewarder import Rewarder
 
 
 class EnvReward(Rewarder):
-    def __init__(self, args):
-        self._device = torch.device(args.device)
+    def __init__(self, config):
+        self._device = torch.device(config.device)
 
     def train(self, _):
         return 0.0, 0.0, 0.0

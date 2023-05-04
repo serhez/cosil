@@ -33,14 +33,14 @@ class SAC(Agent):
         rewarder: Rewarder,
     ):
         self._logger = logger
-        self._gamma = config.gamma
-        self._tau = config.tau
-        self._alpha = config.alpha
+        self._gamma = config.method.agent.gamma
+        self._tau = config.method.agent.tau
+        self._alpha = config.method.agent.alpha
         self._learn_disc_transitions = config.learn_disc_transitions
         self._device = torch.device(config.device)
 
-        self._target_update_interval = config.target_update_interval
-        self._automatic_entropy_tuning = config.automatic_entropy_tuning
+        self._target_update_interval = config.method.agent.target_update_interval
+        self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
 
         self._morpho_slice = slice(-num_morpho_obs, None)
         if config.absorbing_state:
@@ -49,13 +49,15 @@ class SAC(Agent):
         self._rewarder = rewarder
 
         self._critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
         ).to(device=self._device)
         self._critic_optim = Adam(
-            self._critic.parameters(), lr=config.lr, weight_decay=config.q_weight_decay
+            self._critic.parameters(),
+            lr=config.method.agent.lr,
+            weight_decay=config.method.agent.q_weight_decay,
         )
         self._critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
         ).to(self._device)
         hard_update(self._critic_target, self._critic)
 
@@ -67,7 +69,7 @@ class SAC(Agent):
         self._num_inputs = num_inputs
         self._num_morpho_obs = num_morpho_obs
 
-        if config.policy == "Gaussian":
+        if config.method.agent.policy_type == "gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self._automatic_entropy_tuning is True:
                 self._target_entropy = -torch.prod(
@@ -76,23 +78,27 @@ class SAC(Agent):
                 self._log_alpha = torch.tensor(
                     -2.0, requires_grad=True, device=self._device
                 )
-                self._alpha_optim = Adam([self._log_alpha], lr=config.lr)
+                self._alpha_optim = Adam([self._log_alpha], lr=config.method.agent.lr)
 
             self._policy = GaussianPolicy(
                 num_inputs + num_morpho_obs,
                 action_space.shape[0],
-                config.hidden_size,
+                config.method.agent.hidden_size,
                 action_space,
             ).to(self._device)
-            self._policy_optim = Adam(self._policy.parameters(), lr=config.lr)
+            self._policy_optim = Adam(
+                self._policy.parameters(), lr=config.method.agent.lr
+            )
 
         else:
             self._alpha = 0
             self._automatic_entropy_tuning = False
             self._policy = DeterministicPolicy(
-                num_inputs, action_space.shape[0], config.hidden_size, action_space
+                num_inputs, action_space.shape[0], config.method.agent.hidden_size, action_space
             ).to(self._device)
-            self._policy_optim = Adam(self._policy.parameters(), lr=config.lr)
+            self._policy_optim = Adam(
+                self._policy.parameters(), lr=config.method.agent.lr
+            )
 
     # FIX: Make this function work with batches, make the shape transformations be a responsibility of the caller
     #      and replace ever call to self._policy.sample() with a call to this function

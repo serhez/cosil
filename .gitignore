@@ -1,5 +1,6 @@
 wandb/
 models/
 logs/
+outputs/
 imitator.pt
 metrics.pt

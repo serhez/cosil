@@ -16,16 +16,18 @@ from sklearn.decomposition import PCA
 matplotlib.use("agg")
 
 
-def create_GPBO_model(args, X, Y):
+def create_GPBO_model(config, X, Y):
     # Create a specific mean function - linear mean function
-    mean_module = get_mean_module(args.mean, X, Y)
+    mean_module = get_mean_module(config.mean, X, Y)
 
     # Create a specific kernel function - rbf + linear
-    covar_module = get_kernel_module(args.kernel, X, args.add_bias, args.add_linear)
+    covar_module = get_kernel_module(
+        config.kernel, X, config.add_bias, config.add_linear
+    )
 
     # Create the GP-BO model
     model = GPDext(
-        kernel=covar_module, mean_function=mean_module, optimizer=args.optimizer
+        kernel=covar_module, mean_function=mean_module, optimizer=config.optimizer
     )
 
     return model
@@ -477,39 +479,39 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
     return to_push
 
 
-def bo_step(args, morphos, num_morpho, pos_train_distances, env):
-    bo_args = SimpleNamespace()
-    bo_args.mean = args.bo_gp_mean
-    bo_args.kernel = "Matern52"
-    bo_args.optimizer = "lbfgsb"
-    bo_args.gp_type = "GPR"
-    bo_args.acq_type = "LCB"
-    bo_args.add_bias = 0
-    bo_args.add_linear = 0
+def bo_step(config, morphos, num_morpho, pos_train_distances, env):
+    bo_config = SimpleNamespace()
+    bo_config.mean = config.bo_gp_mean
+    bo_config.kernel = "Matern52"
+    bo_config.optimizer = "lbfgsb"
+    bo_config.gp_type = "GPR"
+    bo_config.acq_type = "LCB"
+    bo_config.add_bias = 0
+    bo_config.add_linear = 0
 
     # TODO change when resuming from pretrained
     prev_morphos_to_consider = 200
-    if args.env_name == "GaitTrackHalfCheetah-v0":
+    if config.env_name == "GaitTrackHalfCheetah-v0":
         prev_morphos_to_consider = 200
 
-    X = np.array(morphos).reshape(-1, args.episodes_per_morpho, num_morpho)[:, 0][
+    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[:, 0][
         -prev_morphos_to_consider:
     ]
     Y = (
         np.array(pos_train_distances)
-        .reshape(-1, args.episodes_per_morpho)
+        .reshape(-1, config.method.episodes_per_morpho)
         .mean(1, keepdims=True)[-prev_morphos_to_consider:]
     )
 
-    model = create_GPBO_model(bo_args, X, Y)
+    model = create_GPBO_model(bo_config, X, Y)
     x_next, x_exploit_next, _ = get_new_candidates_BO(
         model,
         X,
         Y,
-        args.env_name,
+        config.env_name,
         env.min_task,
         env.max_task,
-        args.acq_weight,
+        config.acq_weight,
         None,
         acq_type="LCB",
     )
@@ -520,12 +522,12 @@ def bo_step(args, morphos, num_morpho, pos_train_distances, env):
     return morpho_params_np, optimized_morpho_params
 
 
-def rs_step(args, num_morpho, morphos, pos_train_distances, min_task, max_task):
+def rs_step(config, num_morpho, morphos, pos_train_distances, min_task, max_task):
     # Average over same morphologies
-    X = np.array(morphos).reshape(-1, args.episodes_per_morpho, num_morpho)[:, 0]
+    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[:, 0]
     Y = (
         np.array(pos_train_distances)
-        .reshape(-1, args.episodes_per_morpho)
+        .reshape(-1, config.method.episodes_per_morpho)
         .mean(1, keepdims=True)
     )
 

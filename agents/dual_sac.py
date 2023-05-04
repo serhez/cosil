@@ -50,17 +50,17 @@ class DualSAC(Agent):
         """
 
         self._logger = logger
-        self._gamma = config.gamma
-        self._tau = config.tau
-        self._alpha = config.alpha
-        self._omega = config.omega
-        self._omega_init = config.omega
+        self._gamma = config.method.agent.gamma
+        self._tau = config.method.agent.tau
+        self._alpha = config.method.agent.alpha
+        self._omega = config.method.omega_init
+        self._omega_init = config.method.omega_init
         self._omega_update_fn = omega_update_fn
         self._learn_disc_transitions = config.learn_disc_transitions
         self._device = torch.device(config.device)
 
-        self._target_update_interval = config.target_update_interval
-        self._automatic_entropy_tuning = config.automatic_entropy_tuning
+        self._target_update_interval = config.method.agent.target_update_interval
+        self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
 
         self._imitation_rewarder = imitation_rewarder
         self._reinforcement_rewarder = reinforcement_rewarder
@@ -69,65 +69,65 @@ class DualSAC(Agent):
         if config.absorbing_state:
             self._morpho_slice = slice(-num_morpho_obs - 1, -1)
 
-        assert config.dual_normalization_mode in [
+        assert config.method.normalization_mode in [
             "min",
             "mean",
-        ], f"Invalid dual normalization mode: {config.dual_normalization_mode}"
-        if config.dual_normalization == "none":
+        ], f"Invalid dual normalization mode: {config.method.normalization_mode}"
+        if config.method.normalization_type == "none":
             self._imitation_norm = None
             self._reinforcement_norm = None
-        elif config.dual_normalization == "range":
+        elif config.method.normalization_type == "range":
             self._imitation_norm = RangeNormalizer(
-                mode=config.dual_normalization_mode,
-                gamma=config.dual_normalization_gamma,
-                beta=config.dual_normalization_beta,
+                mode=config.method.normalization_mode,
+                gamma=config.method.normalization_gamma,
+                beta=config.method.normalization_beta,
             )
             self._reinforcement_norm = RangeNormalizer(
-                mode=config.dual_normalization_mode,
-                gamma=config.dual_normalization_gamma,
-                beta=config.dual_normalization_beta,
+                mode=config.method.normalization_mode,
+                gamma=config.method.normalization_gamma,
+                beta=config.method.normalization_beta,
             )
-        elif config.dual_normalization == "z-score":
+        elif config.method.normalization_type == "z_score":
             self._imitation_norm = ZScoreNormalizer(
-                mode=config.dual_normalization_mode,
-                gamma=config.dual_normalization_gamma,
-                beta=config.dual_normalization_beta,
-                low_clip=config.dual_normalization_low_clip,
-                high_clip=config.dual_normalization_high_clip,
+                mode=config.method.normalization_mode,
+                gamma=config.method.normalization_gamma,
+                beta=config.method.normalization_beta,
+                low_clip=config.method.normalization_low_clip,
+                high_clip=config.method.normalization_high_clip,
             )
             self._reinforcement_norm = ZScoreNormalizer(
-                mode=config.dual_normalization_mode,
-                gamma=config.dual_normalization_gamma,
-                beta=config.dual_normalization_beta,
-                low_clip=config.dual_normalization_low_clip,
-                high_clip=config.dual_normalization_high_clip,
+                mode=config.method.normalization_mode,
+                gamma=config.method.normalization_gamma,
+                beta=config.method.normalization_beta,
+                low_clip=config.method.normalization_low_clip,
+                high_clip=config.method.normalization_high_clip,
             )
         else:
-            raise ValueError(f"Invalid dual normalization: {config.dual_normalization}")
+            raise ValueError(f"Invalid dual normalization: {config.method.normalization_type}")
 
         self._imitation_critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
         ).to(device=self._device)
         self._imitation_critic_optim = Adam(
             self._imitation_critic.parameters(),
-            lr=config.lr,
-            weight_decay=config.q_weight_decay,
+            lr=config.method.agent.lr,
+            weight_decay=config.method.agent.q_weight_decay,
         )
         self._reinforcement_critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
         ).to(device=self._device)
         self._reinforcement_critic_optim = Adam(
             self._reinforcement_critic.parameters(),
-            lr=config.lr,
-            weight_decay=config.q_weight_decay,
+            lr=config.method.agent.lr,
+            weight_decay=config.method.agent.q_weight_decay,
         )
 
         self._imitation_critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
         ).to(self._device)
         hard_update(self._imitation_critic_target, self._imitation_critic)
         self._reinforcement_critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.hidden_size
+            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
         ).to(self._device)
         hard_update(self._reinforcement_critic_target, self._reinforcement_critic)
 
@@ -139,7 +139,7 @@ class DualSAC(Agent):
         self._num_inputs = num_inputs
         self._num_morpho_obs = num_morpho_obs
 
-        if config.policy == "Gaussian":
+        if config.method.agent.policy_type == "gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
             if self._automatic_entropy_tuning is True:
                 self._target_entropy = -torch.prod(
@@ -148,23 +148,27 @@ class DualSAC(Agent):
                 self._log_alpha = torch.tensor(
                     -2.0, requires_grad=True, device=self._device
                 )
-                self._alpha_optim = Adam([self._log_alpha], lr=config.lr)
+                self._alpha_optim = Adam([self._log_alpha], lr=config.method.agent.lr)
 
             self._policy = GaussianPolicy(
                 num_inputs + num_morpho_obs,
                 action_space.shape[0],
-                config.hidden_size,
+                config.method.agent.hidden_size,
                 action_space,
             ).to(self._device)
-            self._policy_optim = Adam(self._policy.parameters(), lr=config.lr)
+            self._policy_optim = Adam(
+                self._policy.parameters(), lr=config.method.agent.lr
+            )
 
         else:
             self._alpha = 0
             self._automatic_entropy_tuning = False
             self._policy = DeterministicPolicy(
-                num_inputs, action_space.shape[0], config.hidden_size, action_space
+                num_inputs, action_space.shape[0], config.method.agent.hidden_size, action_space
             ).to(self._device)
-            self._policy_optim = Adam(self._policy.parameters(), lr=config.lr)
+            self._policy_optim = Adam(
+                self._policy.parameters(), lr=config.method.agent.lr
+            )
 
     @property
     def omega(self) -> float:

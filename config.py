@@ -1,917 +1,525 @@
-import argparse
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, List, Optional
+
+from hydra.core.config_store import ConfigStore
+from omegaconf import MISSING
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="(Dual) Co-Imitation Learning")
-
-    parser.add_argument(
-        "--num-agents",
-        type=int,
-        default=1,
-        help="Number of agents to train",
-    )
-    parser.add_argument(
-        "--env-name",
-        default="GaitTrackHalfCheetah-v0",  # NOTE: Testing, original value was "GaitTrackHalfCheetahOriginal-v0"
-        help="The Gym environment",
-    )
-    parser.add_argument(
-        "--method",
-        default="CoSIL",
-        choices=["CoIL", "CoSIL"],
-        help="Learning method",
-    )
-    parser.add_argument(
-        "--agent",
-        default="SAC",
-        choices=["SAC"],
-        help="Reinforcement learning agent algorithm",
-    )
-    parser.add_argument(
-        "--rewarder",
-        default="GAIL",
-        choices=["env", "GAIL", "SAIL", "PWIL"],
-        help="Reward function; if using a dual learner, this will be the imitation reward function",
-    )
-    parser.add_argument(
-        "--rewarder-batch-size",
-        type=int,
-        default=64,
-        help="The batch size used to train the rewarders",
-    )
-    parser.add_argument(
-        "--expert-demos",
-        type=str,
-        # default="data/demonstrator/GaitTrackHalfCheetahOriginal-v0/expert.pt",
-        default="data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt",
-        help="Path to the expert demonstration file",
-    )
-    parser.add_argument(
-        "--policy",
-        default="Gaussian",
-        choices=["Gaussian", "Deterministic"],
-        help="Policy type",
-    )
-    parser.add_argument(
-        "--eval",
-        type=bool,
-        default=True,
-        help="Evaluates a policy every eval_per_episodes",
-    )
-    parser.add_argument(
-        "--gamma",
-        type=float,
-        default=0.99,
-        help="Discount factor for reward",
-    )
-    parser.add_argument(
-        "--target-entropy",
-        type=str,
-        default="auto",
-        help="Target value for entropy",
-    )
-    parser.add_argument(
-        "--tau",
-        type=float,
-        default=0.005,
-        help="Target smoothing coefficient(τ)",
-    )
-    parser.add_argument(
-        "--lr",
-        type=float,
-        default=0.0003,
-        help="Learning rate",
-    )
-    parser.add_argument(
-        "--alpha",
-        type=float,
-        default=0.2,
-        help="Temperature parameter α determines the relative importance of the entropy\
-                                term against the reward",
-    )
-    parser.add_argument(
-        "--omega",
-        type=float,
-        default=1.0,
-        help="The reward / Q-value weighting parameter, e.g.: omega * Q_value_1 + (1 - omega) * Q_value_2",
-    )
-    parser.add_argument(
-        "--dual-mode",
-        type=str,
-        default="q",
-        choices=["q", "reward"],
-        help="Mode for dual learning",
-    )
-    parser.add_argument(
-        "--dual-normalization",
-        type=str,
-        default="range",
-        choices=["range", "z-score", "none"],
-        help="Normalization for dual learning",
-    )
-    parser.add_argument(
-        "--dual-normalization-mode",
-        type=str,
-        default="min",
-        choices=["min", "mean"],
-        help="Normalization mode for dual learning",
-    )
-    parser.add_argument(
-        "--dual-normalization-gamma",
-        type=float,
-        default=100.0,
-        help="The gamma parameter for the dual normalization.",
-    )
-    parser.add_argument(
-        "--dual-normalization-beta",
-        type=float,
-        default=0.0,
-        help="The beta parameter for the dual normalization.",
-    )
-    parser.add_argument(
-        "--dual-normalization-low-clip",
-        type=float,
-        default=None,
-        help="The clipping lower bound used when normalizing in dual learning",
-    )
-    parser.add_argument(
-        "--dual-normalization-high-clip",
-        type=float,
-        default=None,
-        help="The clipping higher bound used when normalizing in dual learning",
-    )
-    parser.add_argument(
-        "--automatic-entropy-tuning",
-        type=bool,
-        default=True,
-        help="Automaically adjust α",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=123456,
-        help="Random seed",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=256,
-        help="Batch size",
-    )
-    parser.add_argument(
-        "--num-episodes",
-        type=int,
-        default=501,
-        help="Maximum number of episodes",
-    )
-    parser.add_argument(
-        "--hidden-size",
-        type=int,
-        default=256,
-        help="hidden size",
-    )
-    parser.add_argument(
-        "--updates-per-step",
-        type=int,
-        default=1,
-        help="model updates per simulator step",
-    )
-    parser.add_argument(
-        "--start-steps",
-        type=int,
-        default=10000,
-        help="Steps sampling random actions",
-    )
-    parser.add_argument(
-        "--target-update-interval",
-        type=int,
-        default=1,
-        help="Value target update per no. of updates per step",
-    )
-    parser.add_argument(
-        "--replay-size",
-        type=int,
-        default=2000000,
-        help="size of replay buffer",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        choices=["cpu", "cuda", "mps"],
-        default="cpu",
-        help="Device used for PyTorch",
-    )
-    parser.add_argument(
-        "--experiment-id",
-        default="generic-ID",
-        help="Replace this ID by an auto-generated one in your code (logging only)",
-    )
-    parser.add_argument(
-        "--group-name", default="Group", help="Group name (logging only)"
-    )
-    parser.add_argument(
-        "--project-name", default="CoSIL", help="Project name (logging only)"
-    )
-    parser.add_argument(
-        "--log-scale-rewards",
-        type=bool,
-        default=False,
-        help="Use sigmoid directly as reward or log of sigmoid",
-    )
-    parser.add_argument(
-        "--reward-style",
-        type=str,
-        default="GAIL",
-        choices=["GAIL", "AIRL"],
-        help="Reward style",
-    )
-    parser.add_argument(
-        "--train-every", type=int, default=1, help="Train every N timesteps"
-    )
-    parser.add_argument(
-        "--explore-morpho-episodes",
-        type=int,
-        default=800,
-        help="Episodes to run morphology exploration for",
-    )
-    parser.add_argument(
-        "--morpho-warmup",
-        type=int,
-        default=60000,
-        help="Steps before starting to optimize for morphology",
-    )
-    parser.add_argument(
-        "--episodes-per-morpho",
-        type=int,
-        default=50,
-        help="Episodes to run of each morphology",
-    )
-    parser.add_argument(
-        "--disc-warmup",
-        type=int,
-        default=20000,
-        help="Steps before starting to train SAC",
-    )
-    parser.add_argument(
-        "--record-test", type=bool, default=False, help="Record tests (may be slow)"
-    )
-    parser.add_argument(
-        "--load-warmup",
-        type=bool,
-        default=False,
-        help="Load previously saved warmup data",
-    )
-    parser.add_argument(
-        "--q-weight-decay", type=float, default=1e-5, help="Q-function weight decay"
-    )
-    parser.add_argument(
-        "--disc-weight-decay",
-        type=float,
-        default=1e-5,
-        help="Discriminator weight decay",
-    )
-    parser.add_argument(
-        "--vae-scaler",
-        type=float,
-        default=1.0,
-        help="Scaling term for VAE loss in SAIL",
-    )
-    parser.add_argument(
-        "--pos-type",
-        type=str,
-        default="norm",
-        choices=["abs", "rel", "norm", "skip"],
-        help="Which position marker coordinate to use (absolute, relative, normalized-relative, or skip to omit it)",
-    )
-    parser.add_argument(
-        "--vel-type",
-        type=str,
-        default="rel",
-        choices=["abs", "rel", "norm", "skip"],
-        help="Which velocity marker coordinate to use (absolute, relative, normalized-relative, or skip to omit it)",
-    )
-    parser.add_argument(
-        "--expert-legs",
-        type=int,
-        nargs="+",
-        default=[0, 1],
-        help="Which legs to use for marker matching on the demonstrator side",
-    )
-    parser.add_argument(
-        "--policy-legs",
-        type=int,
-        nargs="+",
-        default=[0, 1],
-        help="Which legs to use for marker matching on the imitator side",
-    )
-    parser.add_argument(
-        "--expert-markers",
-        type=int,
-        nargs="+",
-        default=[1, 2, 3],
-        help="Which markers to use for matching on the demonstrator side",
-    )
-    parser.add_argument(
-        "--policy-markers",
-        type=int,
-        nargs="+",
-        default=[1, 2, 3],
-        help="Which markers to use for matching on the imitator side",
-    )
-    parser.add_argument(
-        "--learn-disc-transitions",
-        type=bool,
-        default=False,
-        help="Learn discriminator using s, s' transitions",
-    )
-    parser.add_argument(
-        "--train-distance-value",
-        type=bool,
-        default=False,
-        help="Learn a separate distance value which is used to optimize morphology",
-    )
-    parser.add_argument(
-        "--co-adapt",
-        type=bool,
-        default=True,  # NOTE: Testing; original value was False
-        help="Adapt morphology as well as behaviour",
-    )
-    parser.add_argument(
-        "--expert-env-name", type=str, default=None, help="Expert env name"
-    )
-    parser.add_argument(
-        "--subject-id",
-        type=int,
-        default=8,
-        help="Expert subject name when using CMU dataset",
-    )
-    parser.add_argument(
-        "--expert-episode-length",
-        type=int,
-        default=300,
-        help="Episode length for non-mocap expert data",
-    )
-    parser.add_argument(
-        "--obs-save-path",
-        type=str,
-        default=None,
-        help="Path to which to save the observations (gen_obs)",
-    )
-    parser.add_argument(
-        "--resume",
-        type=str,
-        default=None,
-        help="Resume from given policy; specify the path + name of the .pt file to resume from",
-    )
-    parser.add_argument(
-        "--torso-type",
-        type=str,
-        default=None,
-        nargs="+",
-        help="Use torso velocity, position or skip",
-    )
-    parser.add_argument(
-        "--head-type",
-        type=str,
-        default=None,
-        nargs="+",
-        help="Use head velocity, position or skip",
-    )
-    parser.add_argument(
-        "--head-wrt",
-        type=str,
-        default=None,
-        nargs="+",
-        help="Use head with respect to body part (torso, butt)",
-    )
-    parser.add_argument(
-        "--absorbing-state",
-        type=bool,
-        default=False,
-        help="Replace terminal states with special absorbing states",
-    )
-    parser.add_argument(
-        "--omit-done",
-        type=bool,
-        default=False,
-        help="Simply set done=False always for learning purposes. Alternative to absorbing states.",
-    )
-    parser.add_argument(
-        "--save-morphos",
-        type=bool,
-        default=False,
-        help="Save morphology parameters and corresponding Wasserstein distances for later",
-    )
-    parser.add_argument(
-        "--dist-optimizer",
-        default="PSO",
-        choices=["BO", "CMA", "RS", "PSO"],
-        help="Co-adapt for Wasserstein distance, and optimize using algo.",
-    )
-    parser.add_argument(
-        "--bo-gp-mean", choices=["Zero", "Constant", "Linear"], default="Zero"
-    )
-    parser.add_argument(
-        "--acq-weight",
-        type=float,
-        default=2.0,
-        help="BO LCB acquisition function exploration weight",
-    )
-    parser.add_argument("--fixed-morpho", nargs="+", default=None, type=float)
-    parser.add_argument(
-        "--normalize-obs",
-        type=bool,
-        default=False,
-        help="Normalize observations for critic",
-    )
-    parser.add_argument(
-        "--save-checkpoints",
-        type=bool,
-        default=False,
-        help="Save checkpoints for buffer and models",
-    )
-    parser.add_argument(
-        "--save-optimal",
-        type=bool,
-        default=False,
-        help="Save optimal buffer and models",
-    )
-    parser.add_argument(
-        "--save-final",
-        type=bool,
-        default=True,
-        help="Save the final buffer and models",
-    )
-    parser.add_argument(
-        "--loggers",
-        type=str,
-        default="console,file",
-        help="Loggers to report to, separated by commas",
-    )
-    parser.add_argument(
-        "--eval-episodes",
-        type=int,
-        default=10,
-        help="Number of episodes to evaluate on",
-    )
-    parser.add_argument(
-        "--eval-per-episodes",
-        type=int,
-        default=20,
-        help="Number of episodes until a round of evaluation happens",
-    )
-
-    return parser.parse_args()
+# NOTE: When https://github.com/omry/omegaconf/issues/422 is done, we could
+#       use typing.Literal instead of this aberration
+class StrEnum(str, Enum):
+    def __str__(self) -> str:
+        return self.value
 
 
-# NOTE: These are the args used originally by CoIL
-# def parse_args():
-#     parser = argparse.ArgumentParser(description="GAIL + SAC + co-adaptation")
-#
-#     parser.add_argument(
-#         "--num-agents",
-#         type=int,
-#         default=1,
-#         metavar="N",
-#         help="number of agents to train",
-#     )
-#     parser.add_argument(
-#         "--env-name",
-#         default="GaitTrackHalfCheetahOriginal-v0",
-#         help="Mujoco Gym environment",
-#     )
-#     parser.add_argument(
-#         "--method",
-#         default="CoIL",
-#         help="Algorithm: CoIL or CoSIL or RL",
-#     )
-#     parser.add_argument("--agent", default="SAC", help="Algorithm: SAC")
-#     parser.add_argument(
-#         "--rewarder",
-#         default="GAIL",
-#         help="Reward function, either env or GAIL or SAIL or PWIL",
-#     )
-#     parser.add_argument(
-#         "--rewarder-batch-size",
-#         type=int,
-#         default=64,
-#         help="The batch size used to train the rewarders",
-#     )
-#     parser.add_argument(
-#         "--expert-demos",
-#         type=str,
-#         # default="data/demonstrator/GaitTrackHalfCheetahOriginal-v0/expert.pt",
-#         default="data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt",
-#         help="Path to the expert demonstration file",
-#     )
-#     parser.add_argument(
-#         "--policy",
-#         default="Gaussian",
-#         help="Policy Type: Gaussian | Deterministic",
-#     )
-#     parser.add_argument(
-#         "--eval",
-#         type=bool,
-#         default=True,
-#         help="Evaluates a policy every eval_per_episodes",
-#     )
-#     parser.add_argument(
-#         "--gamma",
-#         type=float,
-#         default=0.99,
-#         metavar="G",
-#         help="Discount factor for reward",
-#     )
-#     parser.add_argument(
-#         "--target_entropy",
-#         type=str,
-#         default="auto",
-#         metavar="G",
-#         help="Target value for entropy",
-#     )
-#     parser.add_argument(
-#         "--tau",
-#         type=float,
-#         default=0.005,
-#         metavar="G",
-#         help="Target smoothing coefficient(τ)",
-#     )
-#     parser.add_argument(
-#         "--lr",
-#         type=float,
-#         default=0.0003,
-#         metavar="G",
-#         help="Learning rate",
-#     )
-#     parser.add_argument(
-#         "--alpha",
-#         type=float,
-#         default=0.2,
-#         metavar="G",
-#         help="Temperature parameter α determines the relative importance of the entropy\
-#                                 term against the reward",
-#     )
-#     parser.add_argument(
-#         "--omega",
-#         type=float,
-#         default=1.0,
-#         metavar="G",
-#         help="The reward / Q-value weighting parameter, e.g.: omega * Q_value_1 + (1 - omega) * Q_value_2",
-#     )
-#     parser.add_argument(
-#         "--dual-mode",
-#         type=str,
-#         default="q",
-#         metavar="G",
-#         help="Mode for dual learning: 'q' (for q-value) or 'reward'",
-#     )
-#     parser.add_argument(
-#         "--dual-normalization",
-#         type=str,
-#         default="range",
-#         metavar="G",
-#         help="Normalization for dual learning: 'range', 'z-score', or 'none'",
-#     )
-#     parser.add_argument(
-#         "--dual-normalization-mode",
-#         type=str,
-#         default="min",
-#         metavar="G",
-#         help="Normalization mode for dual learning: 'min' or 'mean'",
-#     )
-#     parser.add_argument(
-#         "--dual-normalization-low-clip",
-#         type=float,
-#         default=None,
-#         metavar="G",
-#         help="The clipping lower bound used when normalizing in dual learning",
-#     )
-#     parser.add_argument(
-#         "--dual-normalization-high-clip",
-#         type=float,
-#         default=None,
-#         metavar="G",
-#         help="The clipping higher bound used when normalizing in dual learning",
-#     )
-#     parser.add_argument(
-#         "--automatic_entropy_tuning",
-#         type=bool,
-#         default=True,
-#         metavar="G",
-#         help="Automaically adjust α",
-#     )
-#     parser.add_argument(
-#         "--seed",
-#         type=int,
-#         default=123456,
-#         metavar="N",
-#         help="Random seed",
-#     )
-#     parser.add_argument(
-#         "--batch-size",
-#         type=int,
-#         default=256,
-#         metavar="N",
-#         help="Batch size",
-#     )
-#     parser.add_argument(
-#         "--num_steps",
-#         type=int,
-#         default=1000001,
-#         metavar="N",
-#         help="Maximum number of steps",
-#     )
-#     parser.add_argument(
-#         "--hidden_size",
-#         type=int,
-#         default=256,
-#         metavar="N",
-#         help="hidden size",
-#     )
-#     parser.add_argument(
-#         "--updates_per_step",
-#         type=int,
-#         default=1,
-#         metavar="N",
-#         help="model updates per simulator step",
-#     )
-#     parser.add_argument(
-#         "--start_steps",
-#         type=int,
-#         default=10000,
-#         metavar="N",
-#         help="Steps sampling random actions",
-#     )
-#     parser.add_argument(
-#         "--target_update_interval",
-#         type=int,
-#         default=1,
-#         metavar="N",
-#         help="Value target update per no. of updates per step",
-#     )
-#     parser.add_argument(
-#         "--replay_size",
-#         type=int,
-#         default=2000000,
-#         metavar="N",
-#         help="size of replay buffer",
-#     )
-#     parser.add_argument(
-#         "--device",
-#         type=str,
-#         choices=["cpu", "cuda", "mps"],
-#         default="cpu",
-#         help="Device used for PyTorch: cpu, cuda (CUDA-based GPU acceleration) or mps (Apple's Metal GPU acceleration)",
-#     )
-#     parser.add_argument(
-#         "--experiment-name", default="Experiment", help="Experiment name (logging only)"
-#     )
-#     parser.add_argument(
-#         "--group-name", default="Group", help="Group name (logging only)"
-#     )
-#     parser.add_argument(
-#         "--project-name", default="CoSIL", help="Project name (logging only)"
-#     )
-#     parser.add_argument(
-#         "--log-scale-rewards",
-#         type=bool,
-#         default=False,
-#         help="Use sigmoid directly as reward or log of sigmoid",
-#     )
-#     parser.add_argument(
-#         "--train-every", type=int, default=1, help="Train every N timesteps"
-#     )
-#     parser.add_argument(
-#         "--explore-morpho-episodes",
-#         type=int,
-#         default=800,
-#         help="Episodes to run morphology exploration for",
-#     )
-#     parser.add_argument(
-#         "--morpho-warmup",
-#         type=int,
-#         default=60000,
-#         help="Steps before starting to optimize for morphology",
-#     )
-#     parser.add_argument(
-#         "--episodes-per-morpho",
-#         type=int,
-#         default=5,
-#         help="Episodes to run of each morphology",
-#     )
-#     parser.add_argument(
-#         "--disc-warmup",
-#         type=int,
-#         default=20000,
-#         help="Steps before starting to train SAC",
-#     )
-#     parser.add_argument(
-#         "--record-test", type=bool, default=False, help="Record tests (may be slow)"
-#     )
-#     parser.add_argument(
-#         "--load-warmup",
-#         type=bool,
-#         default=False,
-#         help="Load previously saved warmup data",
-#     )
-#     parser.add_argument(
-#         "--q-weight-decay", type=float, default=1e-5, help="Q-function weight decay"
-#     )
-#     parser.add_argument(
-#         "--disc-weight-decay",
-#         type=float,
-#         default=1e-5,
-#         help="Discriminator weight decay",
-#     )
-#     parser.add_argument(
-#         "--vae-scaler",
-#         type=float,
-#         default=1.0,
-#         help="Scaling term for VAE loss in SAIL",
-#     )
-#     parser.add_argument(
-#         "--pos-type",
-#         type=str,
-#         default="norm",
-#         choices=["abs", "rel", "norm", "skip"],
-#         help="Which position marker coordinate to use (absolute, relative, normalized-relative, or skip to omit it)",
-#     )
-#     parser.add_argument(
-#         "--vel-type",
-#         type=str,
-#         default="rel",
-#         choices=["abs", "rel", "norm", "skip"],
-#         help="Which velocity marker coordinate to use (absolute, relative, normalized-relative, or skip to omit it)",
-#     )
-#     parser.add_argument(
-#         "--expert-legs",
-#         type=int,
-#         nargs="+",
-#         default=[0, 1],
-#         help="Which legs to use for marker matching on the demonstrator side",
-#     )
-#     parser.add_argument(
-#         "--policy-legs",
-#         type=int,
-#         nargs="+",
-#         default=[0, 1],
-#         help="Which legs to use for marker matching on the imitator side",
-#     )
-#     parser.add_argument(
-#         "--expert-markers",
-#         type=int,
-#         nargs="+",
-#         default=[1, 2, 3],
-#         help="Which markers to use for matching on the demonstrator side",
-#     )
-#     parser.add_argument(
-#         "--policy-markers",
-#         type=int,
-#         nargs="+",
-#         default=[1, 2, 3],
-#         help="Which markers to use for matching on the imitator side",
-#     )
-#     parser.add_argument(
-#         "--learn-disc-transitions",
-#         type=bool,
-#         default=False,
-#         help="Learn discriminator using s, s' transitions",
-#     )
-#     parser.add_argument(
-#         "--train-distance-value",
-#         type=bool,
-#         default=False,
-#         help="Learn a separate distance value which is used to optimize morphology",
-#     )
-#     parser.add_argument(
-#         "--co-adapt",
-#         type=bool,
-#         default=False,
-#         help="Adapt morphology as well as behaviour",
-#     )
-#     parser.add_argument(
-#         "--expert-env-name", type=str, default=None, help="Expert env name"
-#     )
-#     parser.add_argument(
-#         "--subject-id",
-#         type=int,
-#         default=8,
-#         help="Expert subject name when using CMU dataset",
-#     )
-#     parser.add_argument(
-#         "--expert-episode-length",
-#         type=int,
-#         default=300,
-#         help="Episode length for non-mocap expert data",
-#     )
-#     parser.add_argument(
-#         "--obs-save-path",
-#         type=str,
-#         default=None,
-#         help="Path to which to save the observations (gen_obs)",
-#     )
-#     parser.add_argument(
-#         "--resume",
-#         type=str,
-#         default=None,
-#         help="Resume from given policy; specify the path + name of the .pt file to resume from",
-#     )
-#     parser.add_argument(
-#         "--torso-type",
-#         type=str,
-#         default=None,
-#         nargs="+",
-#         help="Use torso velocity, position or skip",
-#     )
-#     parser.add_argument(
-#         "--head-type",
-#         type=str,
-#         default=None,
-#         nargs="+",
-#         help="Use head velocity, position or skip",
-#     )
-#     parser.add_argument(
-#         "--head-wrt",
-#         type=str,
-#         default=None,
-#         nargs="+",
-#         help="Use head with respect to body part (torso, butt)",
-#     )
-#     parser.add_argument(
-#         "--absorbing-state",
-#         type=bool,
-#         default=False,
-#         help="Replace terminal states with special absorbing states",
-#     )
-#     parser.add_argument(
-#         "--omit-done",
-#         type=bool,
-#         default=False,
-#         help="Simply set done=False always for learning purposes. Alternative to absorbing states.",
-#     )
-#     parser.add_argument(
-#         "--save-morphos",
-#         type=bool,
-#         default=False,
-#         help="Save morphology parameters and corresponding Wasserstein distances for later",
-#     )
-#     parser.add_argument(
-#         "--dist-optimizer",
-#         default="PSO",
-#         choices=["BO", "CMA", "RS", "PSO"],
-#         help="Co-adapt for Wasserstein distance, and optimize using algo.",
-#     )
-#     parser.add_argument(
-#         "--bo-gp-mean", choices=["Zero", "Constant", "Linear"], default="Zero"
-#     )
-#     parser.add_argument(
-#         "--acq-weight",
-#         type=float,
-#         default=2.0,
-#         help="BO LCB acquisition function exploration weight",
-#     )
-#     parser.add_argument("--fixed-morpho", nargs="+", default=None, type=float)
-#     parser.add_argument(
-#         "--normalize-obs",
-#         type=bool,
-#         default=False,
-#         help="Normalize observations for critic",
-#     )
-#     parser.add_argument(
-#         "--save-checkpoints",
-#         type=bool,
-#         default=False,
-#         help="Save checkpoints for buffer and models",
-#     )
-#     parser.add_argument(
-#         "--save-optimal",
-#         type=bool,
-#         default=False,
-#         help="Save optimal buffer and models",
-#     )
-#     parser.add_argument(
-#         "--save-final",
-#         type=bool,
-#         default=True,
-#         help="Save the final buffer and models",
-#     )
-#     parser.add_argument(
-#         "--loggers",
-#         type=str,
-#         default="console",
-#         help="Loggers to report to, separated by commas",
-#     )
-#     parser.add_argument(
-#         "--eval-episodes",
-#         type=int,
-#         default=10,
-#         help="Number of episodes to evaluate on",
-#     )
-#     parser.add_argument(
-#         "--eval-per-episodes",
-#         type=int,
-#         default=20,
-#         help="Number of episodes until a round of evaluation happens",
-#     )
-#
-#     return parser.parse_args()
+class Devices(StrEnum):
+    cpu = "cpu"
+    cuda = "cuda"
+    mps = "mps"
+
+
+class PolicyTypes(StrEnum):
+    gaussian = "gaussian"
+    deterministic = "deterministic"
+
+
+class DistOptimizers(StrEnum):
+    bo = "bo"
+    cma = "cma"
+    rs = "rs"
+    pso = "pso"
+
+
+class BOGPMeans(StrEnum):
+    Zero = "Zero"
+    Constant = "Constant"
+    Linear = "Linear"
+
+
+class PosVelTypes(StrEnum):
+    abs = "abs"
+    rel = "rel"
+    norm = "norm"
+
+
+class TorsoHeadTypes(StrEnum):
+    velocity = "velocity"
+    position = "position"
+
+
+class HeadWrtTypes(StrEnum):
+    torso = "torso"
+    butt = "butt"
+
+
+class DualModes(StrEnum):
+    q = "q"
+    reward = "reward"
+
+
+class NormalizationTypes(StrEnum):
+    range = "range"
+    z_score = "z_score"
+    none = "none"
+
+
+class NormalizationModes(StrEnum):
+    min = "min"
+    mean = "mean"
+
+
+@dataclass(kw_only=True)
+class LoggerConfig:
+    """
+    Configuration for the logger.
+    """
+
+    project_name: str = "Project"
+    """Name of the project."""
+
+    group_name: str = "Group"
+    """Name of the group."""
+
+    experiment_id: str = "generic-ID"
+    """ID of the experiment."""
+
+    loggers: str = "console,file"
+    """List of loggers to use. Possible values: console, file, wandb."""
+
+
+@dataclass(kw_only=True)
+class RewarderConfig:
+    """
+    Configuration for the rewarder.
+    """
+
+    name: str = MISSING
+    """Name of the rewarder."""
+
+    batch_size: int = 64
+    """Batch size for training."""
+
+
+@dataclass(kw_only=True)
+class EnvRewarderConfig(RewarderConfig):
+    """
+    Configuration for the environment rewarder.
+    """
+
+    name: str = "env"
+    """Name of the rewarder."""
+
+
+@dataclass(kw_only=True)
+class GAILConfig(RewarderConfig):
+    """
+    Configuration for the GAIL rewarder.
+    """
+
+    name: str = "gail"
+    """Name of the rewarder."""
+
+    log_scale_rewards: bool = False
+    """Whether to log scale the rewards."""
+
+    disc_weight_decay: float = 1
+    """Weight decay for the discriminator."""
+
+
+@dataclass(kw_only=True)
+class SAILConfig(RewarderConfig):
+    """
+    Configuration for the SAIL rewarder.
+    """
+
+    name: str = "sail"
+    """Name of the rewarder."""
+
+    lr: float = 0.0003
+    """Learning rate for the rewarder."""
+
+    hidden_size: int = 256
+    """Hidden size for the rewarder."""
+
+    disc_weight_decay: float = 1e-5
+    """Weight decay for the discriminator."""
+
+    g_inv_weight_decay: float = 1e-5
+    """Weight decay for the inverse dynamics model."""
+
+    vae_scaler: float = 1.0
+    """Scaler for the VAE loss."""
+
+    normalize_obs: bool = False
+    """Whether to normalize the observations."""
+
+
+@dataclass(kw_only=True)
+class PWILConfig(RewarderConfig):
+    """
+    Configuration for the PWIL rewarder.
+    """
+
+    name: str = "pwil"
+    """Name of the rewarder."""
+
+
+@dataclass(kw_only=True)
+class AgentConfig:
+    """
+    Configuration for the agent.
+    """
+
+    name: str = MISSING
+    """Name of the agent."""
+
+    gamma: float = 0.99
+    """Discount factor."""
+
+    tau: float = 0.005
+    """Soft update factor."""
+
+    lr: float = 0.0003
+    """Learning rate."""
+
+    q_weight_decay: float = 1e-5
+    """Weight decay for the Q networks."""
+
+
+@dataclass(kw_only=True)
+class SACConfig(AgentConfig):
+    """
+    Configuration for the SAC agent.
+    """
+
+    name: str = "sac"
+    """Name of the agent."""
+
+    policy_type: PolicyTypes = "gaussian"  # pyright: ignore[reportGeneralTypeIssues]
+    """Type of policy."""
+
+    target_entropy: str = "auto"
+    """Target entropy."""
+
+    alpha: float = 0.2
+    """Entropy regularization factor."""
+
+    automatic_entropy_tuning: bool = True
+    """Whether to automatically tune the entropy."""
+
+    hidden_size: int = 256
+    """Hidden size for the networks."""
+
+    target_update_interval: int = 1
+    """Interval for updating the target networks."""
+
+
+@dataclass(kw_only=True)
+class DualSACConfig(SACConfig):
+    """
+    Configuration for the Dual SAC agent.
+    """
+
+    name: str = "dual_sac"
+    """Name of the agent."""
+
+
+@dataclass(kw_only=True)
+class CoAdaptationConfig:
+    """
+    Configuration for co-adaptation.
+    """
+
+    dist_optimizer: DistOptimizers = "bo"  # pyright: ignore[reportGeneralTypeIssues]
+    """
+    Optimizer for the distributional distance, either:
+    - bo -> Bayesian optimization
+    - cma -> CMA (Hansen and Ostermeier 2001)
+    - rs -> Random search (Bergstra and Bengio 2012)
+    - pso -> Particle Swarm Optimization (Eberhart and Kennedy 1995)
+    """
+
+    bo_gp_mean: BOGPMeans = "Zero"  # pyright: ignore[reportGeneralTypeIssues]
+    """The type of Gaussian process mean for Bayesian optimization."""
+
+    acq_weight: float = 2.0
+    """Bayesian optimization LCB acquisition function exploration weight."""
+
+
+@dataclass(kw_only=True)
+class MethodConfig:
+    """
+    Configuration for the method.
+    """
+
+    name: str = MISSING
+    """Name of the method."""
+
+    agent: AgentConfig = MISSING
+    """Configuration for the agent."""
+
+    rewarder: RewarderConfig = MISSING
+    """Configuration for the rewarder."""
+
+    eval: bool = True
+    """Whether to evaluate the agent."""
+
+    eval_episodes: int = 10
+    """Number of episodes to evaluate the agent."""
+
+    eval_per_episodes: int = 20
+    """Number of episodes between evaluations."""
+
+    batch_size: int = 256
+    """Batch size for training."""
+
+    num_episodes: int = 500
+    """Number of episodes to train the agent."""
+
+    updates_per_step: int = 1
+    """Number of updates per environment step."""
+
+    start_steps: int = 10000
+    """Number of steps to take before training."""
+
+    replay_size: int = 2000000
+    """Size of the replay buffer."""
+
+    train_every: int = 1
+    """Number of steps between training."""
+
+    record_test: bool = False
+    """Whether to record the test episodes."""
+
+    save_checkpoints: bool = False
+    """Whether to save the checkpoints."""
+
+    save_optimal: bool = False
+    """Whether to save the optimal policy."""
+
+    save_final: bool = True
+    """Whether to save the final policy."""
+
+
+@dataclass(kw_only=True)
+class CoILConfig(MethodConfig):
+    """
+    Configuration for CoIL.
+    """
+
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            {
+                "agent": "sac",
+            },
+            {
+                "rewarder": "env_rewarder",
+            },
+        ]
+    )
+
+    name: str = "coil"
+    """Name of the method."""
+
+    co_adaptation: CoAdaptationConfig = field(default_factory=CoAdaptationConfig)
+    """Configuration for co-adaptation."""
+
+    expert_demos: str = MISSING
+    """Path to the expert demonstrations."""
+
+    morpho_warmup: int = 60000
+    """Steps before starting to optimize for morphology"""
+
+    episodes_per_morpho: int = 50
+    """Number of episodes per morphology."""
+
+    disc_warmup: int = 20000
+    """Steps before starting to train the agent."""
+
+    pos_type: Optional[PosVelTypes] = "norm"  # pyright: ignore[reportGeneralTypeIssues]
+    """Which position marker coordinate to use."""
+
+    vel_type: Optional[PosVelTypes] = "rel"  # pyright: ignore[reportGeneralTypeIssues]
+    """Which velocity marker coordinate to use."""
+
+    expert_legs: List[int] = field(default_factory=lambda: [0, 1])
+    """Which legs to use for marker matching on the demonstrator side."""
+
+    policy_legs: List[int] = field(default_factory=lambda: [0, 1])
+    """Which legs to use for marker matching on the imitator side."""
+
+    expert_markers: List[int] = field(default_factory=lambda: [1, 2, 3])
+    """Which markers to use for matching on the demonstrator side."""
+
+    policy_markers: List[int] = field(default_factory=lambda: [1, 2, 3])
+    """Which markers to use for matching on the imitator side."""
+
+    train_distance_value: bool = False
+    """Learn a separate distance value which is used to optimize morphology."""
+
+    co_adapt: bool = True
+    """Whether to co-adapt the morphology as well as the behavior."""
+
+    subject_id: int = 8
+    """Expert subject name when using CMU dataset."""
+
+    torso_type: Optional[
+        TorsoHeadTypes  # pyright: ignore[reportGeneralTypeIssues]
+    ] = None
+    """Use torso velocity, position or None."""
+
+    head_type: Optional[
+        TorsoHeadTypes  # pyright: ignore[reportGeneralTypeIssues]
+    ] = None
+    """Use head velocity, position or None."""
+
+    head_wrt: Optional[HeadWrtTypes] = None  # pyright: ignore[reportGeneralTypeIssues]
+    """Use head with respect to body part."""
+
+    omit_done: bool = False
+    """Whether to omit the done signal."""
+
+    fixed_morpho: Optional[float] = None
+    """Fixed morphology to use."""
+
+
+@dataclass(kw_only=True)
+class CoSILConfig(CoILConfig):
+    """
+    Configuration for the CoSIL method.
+    """
+
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            {
+                "agent": "dual_sac",
+            },
+            {
+                "rewarder": "gail",
+            },
+        ]
+    )
+
+    name: str = "cosil"
+    """Name of the method."""
+
+    omega_init: float = 1.0
+    """Initial value for omega."""
+
+    dual_mode: DualModes = "q"  # pyright: ignore[reportGeneralTypeIssues]
+    """The dual mode, either a duality of Q-values or of reward signals."""
+
+    normalization_type: NormalizationTypes = (  # pyright: ignore[reportGeneralTypeIssues]
+        "range"
+    )
+    """Normalization type for the reward or Q-values."""
+
+    normalization_mode: NormalizationModes = (  # pyright: ignore[reportGeneralTypeIssues]
+        "min"
+    )
+    """Normalization mode for the reward or Q-values."""
+
+    normalization_gamma: float = 100.0
+    """Normalization gamma for the reward or Q-values."""
+
+    normalization_beta: float = 0.0
+    """Normalization beta for the reward or Q-values."""
+
+    normalization_low_clip: Optional[float] = None
+    """Normalization lower bound for the clipping of the reward or Q-values."""
+
+    normalization_high_clip: Optional[float] = None
+    """Normalization upper bound for the clipping of the reward or Q-values."""
+
+
+@dataclass(kw_only=True)
+class Config:
+    """
+    Base configuration.
+    """
+
+    task: str = MISSING
+    """Name of the task."""
+
+    logger: LoggerConfig = field(default_factory=LoggerConfig)
+    """Configuration for the logger."""
+
+    seed: int = 1
+    """Random seed."""
+
+    device: Devices = "cpu"  # pyright: ignore[reportGeneralTypeIssues]
+    """Device to use."""
+
+    env_name: str = MISSING
+    """Name of the environment."""
+
+    models_dir_path: str = "models"
+    """Path to the directory where to save the models."""
+
+    learn_disc_transitions: bool = False  # FIX: We are gonna have a problem with this
+    """Learn discriminator using (s, s') transitions."""
+
+    absorbing_state: bool = False  # FIX: We are gonna have a problem with this
+    """Whether to use absorbing states."""
+
+    resume: Optional[str] = None
+    """Resume from given policy; specify the path + name of the .pt file to resume from."""
+
+
+@dataclass(kw_only=True)
+class TrainConfig(Config):
+    """
+    Configuration for training.
+    """
+
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            "_self_",
+            {"method": "cosil"},
+        ]
+    )
+
+    task: str = "train"
+    """Name of the task."""
+
+    method: MethodConfig = MISSING
+    """Configuration for the method."""
+
+    num_agents: int = 1
+    """Number of agents to train."""
+
+
+@dataclass(kw_only=True)
+class GenObsConfig(Config):
+    """
+    Configuration for generating observations.
+    """
+
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            "_self_",
+        ]
+    )
+
+    task: str = "gen_obs"
+    """Name of the task."""
+
+    obs_save_path: str = MISSING
+    """Path to save the observations."""
+
+
+def setup_config() -> None:
+    cs = ConfigStore.instance()
+    cs.store(name="base_train", node=TrainConfig)
+    cs.store(name="base_gen_obs", node=GenObsConfig)
+    cs.store(name="base_logger", node=LoggerConfig)
+    cs.store(name="base_co_adaptation", node=CoAdaptationConfig)
+    cs.store(group="method", name="base_coil", node=CoILConfig)
+    cs.store(group="method", name="base_cosil", node=CoSILConfig)
+    cs.store(group="method/agent", name="base_sac", node=SACConfig)
+    cs.store(group="method/agent", name="base_dual_sac", node=DualSACConfig)
+    cs.store(group="method/rewarder", name="base_env_rewarder", node=EnvRewarderConfig)
+    cs.store(group="method/rewarder", name="base_gail", node=GAILConfig)
+    cs.store(group="method/rewarder", name="base_sail", node=SAILConfig)
+    cs.store(group="method/rewarder", name="base_pwil", node=PWILConfig)

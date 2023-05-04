@@ -1,6 +1,4 @@
-import argparse
 import glob
-import itertools
 import os
 import random
 import time
@@ -12,6 +10,7 @@ import gym
 import numpy as np
 import torch
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
+from omegaconf import DictConfig
 
 import wandb
 from agents import SAC
@@ -33,17 +32,12 @@ from utils.co_adaptation import (
 # TODO: Move much of the code (e.g., the main loop) to main.py to avoid
 #       code repetition in other methods
 class CoIL(object):
-    def __init__(
-        self,
-        args: argparse.Namespace,
-        logger: Logger,
-        env: gym.Env,
-    ):
-        self.args = args
+    def __init__(self, config: DictConfig, logger: Logger, env: gym.Env):
+        self.config = config
         self.env = env
-        self.absorbing_state = args.absorbing_state
+        self.absorbing_state = config.absorbing_state
 
-        self.device = args.device
+        self.device = config.device
 
         self.logger = logger
 
@@ -57,13 +51,15 @@ class CoIL(object):
 
         # Is the current morpho optimized or random?
         self.optimized_morpho = True
-        if self.args.fixed_morpho is not None:
+        if self.config.method.fixed_morpho is not None:
             self.logger(
-                f"Fixing morphology to {self.args.fixed_morpho}", "INFO", ["wandb"]
+                f"Fixing morphology to {self.config.method.fixed_morpho}",
+                "INFO",
+                ["wandb"],
             )
-            self.env.set_task(*self.args.fixed_morpho)
+            self.env.set_task(*self.config.method.fixed_morpho)
 
-        if self.args.co_adapt:
+        if self.config.method.co_adapt:
             morpho_params = self.morpho_dist.sample().numpy()
             self.env.set_task(*morpho_params)
             self.optimized_morpho = False
@@ -71,48 +67,48 @@ class CoIL(object):
         self.morpho_params_np = np.array(self.env.morpho_params)
         self.num_morpho = self.env.morpho_params.shape[0]
 
-        self.batch_size = self.args.batch_size
-        self.memory = ReplayMemory(self.args.replay_size, self.args.seed)
+        self.batch_size = self.config.method.batch_size
+        self.memory = ReplayMemory(self.config.method.replay_size, self.config.seed)
         self.initial_states_memory = []
 
         self.total_numsteps = 0
         self.updates = 0
 
-        expert_legs = self.args.expert_legs
-        self.policy_legs = self.args.policy_legs
-        expert_limb_indices = self.args.expert_markers
-        self.policy_limb_indices = self.args.policy_markers
+        expert_legs = self.config.method.expert_legs
+        self.policy_legs = self.config.method.policy_legs
+        expert_limb_indices = self.config.method.expert_markers
+        self.policy_limb_indices = self.config.method.policy_markers
 
         # Load CMU or mujoco-generated demos
-        if os.path.isdir(self.args.expert_demos):
+        if os.path.isdir(self.config.method.expert_demos):
             self.expert_obs = []
             for filepath in glob.iglob(
-                f"{self.args.expert_demos}/expert_cmu_{self.args.subject_id}*.pt"
+                f"{self.config.method.expert_demos}/expert_cmu_{self.config.method.subject_id}*.pt"
             ):
                 episode = torch.load(filepath)
                 episode_obs_np, self.to_match = get_marker_info(
                     episode,
                     expert_legs,
                     expert_limb_indices,
-                    pos_type=self.args.pos_type,
-                    vel_type=self.args.vel_type,
-                    torso_type=self.args.torso_type,
-                    head_type=self.args.head_type,
-                    head_wrt=self.args.head_wrt,
+                    pos_type=self.config.method.pos_type,
+                    vel_type=self.config.method.vel_type,
+                    torso_type=self.config.method.torso_type,
+                    head_type=self.config.method.head_type,
+                    head_wrt=self.config.method.head_wrt,
                 )
                 episode_obs = torch.from_numpy(episode_obs_np).float().to(self.device)
                 self.expert_obs.append(episode_obs)
         else:
-            self.expert_obs = torch.load(self.args.expert_demos)
+            self.expert_obs = torch.load(self.config.method.expert_demos)
             expert_obs_np, self.to_match = get_marker_info(
                 self.expert_obs,
                 expert_legs,
                 expert_limb_indices,
-                pos_type=self.args.pos_type,
-                vel_type=self.args.vel_type,
-                torso_type=self.args.torso_type,
-                head_type=self.args.head_type,
-                head_wrt=self.args.head_wrt,
+                pos_type=self.config.method.pos_type,
+                vel_type=self.config.method.vel_type,
+                torso_type=self.config.method.torso_type,
+                head_type=self.config.method.head_type,
+                head_wrt=self.config.method.head_wrt,
             )
 
             self.expert_obs = [
@@ -139,7 +135,7 @@ class CoIL(object):
         self.demo_dim = self.expert_obs[0].shape[-1]
 
         # If training the discriminator on transitions, it becomes (s, s')
-        if self.args.learn_disc_transitions:
+        if self.config.learn_disc_transitions:
             self.demo_dim *= 2
 
         self.logger({"Keys to match": self.to_match}, "INFO", ["wandb"])
@@ -150,32 +146,36 @@ class CoIL(object):
         )
 
         self.logger(
-            f"Training using imitation rewarder {args.rewarder}", "INFO", ["wandb"]
+            f"Training using imitation rewarder {config.method.rewarder.name}",
+            "INFO",
+            ["wandb"],
         )
-        if args.rewarder == "GAIL":
-            self.rewarder = GAIL(self.expert_obs, args)
+        if config.method.rewarder.name == "gail":
+            self.rewarder = GAIL(self.expert_obs, config)
         elif (
-            args.rewarder == "SAIL"
+            config.method.rewarder.name == "sail"
         ):  # SAIL includes a pretraining step for the VAE and inverse dynamics
-            self.rewarder = SAIL(self.logger, self.env, self.expert_obs, args)
+            self.rewarder = SAIL(self.logger, self.env, self.expert_obs, config)
             self.vae_loss = self.rewarder.pretrain_vae(10000)
-            if not self.args.resume:
+            if not self.config.resume:
                 self.rewarder.g_inv_loss = self._pretrain_sail(
-                    self.rewarder, co_adapt=self.args.co_adapt
+                    self.rewarder, co_adapt=self.config.method.co_adapt
                 )
-        elif args.rewarder == "PWIL":
+        elif config.method.rewarder.name == "pwil":
             # TODO: add PWIL
             pass
-        elif args.rewarder == "env":
-            self.rewarder = EnvReward(args)
+        elif config.method.rewarder.name == "env":
+            self.rewarder = EnvReward(config)
         else:
             raise NotImplementedError
-        self.rewarder_batch_size = self.args.rewarder_batch_size
+        self.rewarder_batch_size = self.config.method.rewarder.batch_size
 
-        self.logger(f"Training using agent {args.agent}", "INFO", ["wandb"])
-        if args.agent == "SAC":
+        self.logger(
+            f"Training using agent {config.method.agent.name}", "INFO", ["wandb"]
+        )
+        if config.method.agent.name == "sac":
             self.agent = SAC(
-                self.args,
+                self.config,
                 self.logger,
                 self.obs_size,
                 self.env.action_space,
@@ -186,19 +186,19 @@ class CoIL(object):
         else:
             raise ValueError("Invalid agent")
 
-        if args.resume is not None:
-            if self._load(self.args.resume):
+        if config.resume is not None:
+            if self._load(self.config.resume):
                 self.logger(
                     {
                         "Resumming CoIL": None,
-                        "File": self.args.resume,
+                        "File": self.config.resume,
                         "Num transitions": len(self.memory),
                     },
                     "INFO",
                     ["wandb"],
                 )
             else:
-                raise ValueError(f"Failed to load {self.args.resume}")
+                raise ValueError(f"Failed to load {self.config.resume}")
 
     def train(self):
         self.morphos = []
@@ -237,7 +237,7 @@ class CoIL(object):
         # We experimented with Primal wasserstein imitation learning (Dadaishi et al. 2020)
         # but did not include experiments in paper as it did not perform well
         pwil_rewarder = None
-        if self.args.rewarder == "PWIL":
+        if self.config.method.rewarder.name == "pwil":
             pwil_rewarder = PWIL(
                 self.expert_obs,
                 False,
@@ -250,7 +250,7 @@ class CoIL(object):
             )
 
         # Morphology optimization via distribution distance (for ablations, main results use BO)
-        if self.args.dist_optimizer == "CMA":
+        if self.config.method.co_adaptation.dist_optimizer == "cma":
             cma_options = cma.evolution_strategy.CMAOptions()
             cma_options["popsize"] = 5
             cma_options["bounds"] = [0, 1]
@@ -263,10 +263,10 @@ class CoIL(object):
             es_buffer = None
 
         # Main loop
-        for i_episode in range(1, self.args.num_episodes + 1):
+        for i_episode in range(1, self.config.method.num_episodes + 1):
             start = time.time()
 
-            if self.args.co_adapt:
+            if self.config.method.co_adapt:
                 self.env.set_task(*self.morpho_params_np)
 
             episode_reward = 0
@@ -279,11 +279,11 @@ class CoIL(object):
                 self.env.get_track_dict(),
                 self.policy_legs,
                 self.policy_limb_indices,
-                pos_type=self.args.pos_type,
-                vel_type=self.args.vel_type,
-                torso_type=self.args.torso_type,
-                head_type=self.args.head_type,
-                head_wrt=self.args.head_wrt,
+                pos_type=self.config.method.pos_type,
+                vel_type=self.config.method.vel_type,
+                torso_type=self.config.method.torso_type,
+                head_type=self.config.method.head_type,
+                head_wrt=self.config.method.head_wrt,
             )
 
             # Morphology parameters xi are included in state in the code
@@ -305,7 +305,9 @@ class CoIL(object):
 
             x_pos_history = None
             x_pos_index = None
-            if self.args.torso_type and self.args.torso_type != ["vel"]:
+            if self.config.method.torso_type and self.config.method.torso_type != [
+                "vel"
+            ]:
                 x_pos_history = []
                 x_pos_index = self.to_match.index("track/abs/pos/torso") * 3
 
@@ -315,7 +317,7 @@ class CoIL(object):
 
             while not done:
                 # Sample random action
-                if self.args.start_steps > self.total_numsteps:
+                if self.config.method.start_steps > self.total_numsteps:
                     action = self.env.action_space.sample()
 
                 # Sample action from policy
@@ -328,8 +330,8 @@ class CoIL(object):
 
                 if len(self.memory) > self.batch_size:
                     # Number of updates per step in environment
-                    for i in range(self.args.updates_per_step):
-                        if self.total_numsteps % self.args.train_every == 0:
+                    for i in range(self.config.method.updates_per_step):
+                        if self.total_numsteps % self.config.method.train_every == 0:
                             # Different algo variants discriminator update (pseudocode line 8-9)
                             batch = self.memory.sample(self.rewarder_batch_size)
                             disc_loss, expert_probs, policy_probs = self.rewarder.train(
@@ -338,9 +340,12 @@ class CoIL(object):
 
                         # Policy update (pseudocode line 10)
                         if (
-                            self.total_numsteps > self.args.disc_warmup
+                            self.total_numsteps > self.config.method.disc_warmup
                             and len(self.memory) > self.batch_size
-                            and (self.total_numsteps % self.args.train_every == 0)
+                            and (
+                                self.total_numsteps % self.config.method.train_every
+                                == 0
+                            )
                         ):
                             # Update parameters of all the networks
                             batch = self.memory.sample(self.batch_size)
@@ -369,11 +374,11 @@ class CoIL(object):
                     info,
                     self.policy_legs,
                     self.policy_limb_indices,  # NOTE: Do we need to get the markers for the next state?
-                    pos_type=self.args.pos_type,
-                    vel_type=self.args.vel_type,
-                    torso_type=self.args.torso_type,
-                    head_type=self.args.head_type,
-                    head_wrt=self.args.head_wrt,
+                    pos_type=self.config.method.pos_type,
+                    vel_type=self.config.method.vel_type,
+                    torso_type=self.config.method.torso_type,
+                    head_type=self.config.method.head_type,
+                    head_wrt=self.config.method.head_wrt,
                 )
 
                 if x_pos_history is not None:
@@ -400,7 +405,7 @@ class CoIL(object):
                     else float(not done)
                 )
 
-                if self.args.omit_done:
+                if self.config.method.omit_done:
                     mask = 1.0
 
                 feats = np.concatenate([state, self.env.morpho_params])
@@ -481,14 +486,16 @@ class CoIL(object):
 
             # Adapt the morphology
             optimized_morpho_params = None
-            if self.args.co_adapt and (i_episode % self.args.episodes_per_morpho == 0):
+            if self.config.method.co_adapt and (
+                i_episode % self.config.method.episodes_per_morpho == 0
+            ):
                 optimized_morpho_params = self._adapt_morphology(
                     epsilon, es, es_buffer, log_dict
                 )
 
             log_dict["reward_train"] = episode_reward
 
-            if self.args.save_optimal and episode_reward > prev_best_reward:
+            if self.config.method.save_optimal and episode_reward > prev_best_reward:
                 self._save("optimal")
                 prev_best_reward = episode_reward
                 self.logger(f"New best reward: {episode_reward}", "INFO", ["wandb"])
@@ -498,7 +505,7 @@ class CoIL(object):
 
             self.logger(
                 {
-                    "Episode:": i_episode,
+                    "Episode": i_episode,
                     "Total numsteps": self.total_numsteps,
                     "Episode steps": episode_steps,
                     "Reward": episode_reward,
@@ -510,7 +517,10 @@ class CoIL(object):
 
             # Evaluation episodes
             # Also used to make plots
-            if self.args.eval and i_episode % self.args.eval_per_episodes == 0:
+            if (
+                self.config.method.eval
+                and i_episode % self.config.method.eval_per_episodes == 0
+            ):
                 self._evaluate(i_episode, optimized_morpho_params, log_dict)
                 train_marker_obs_history = []
 
@@ -537,11 +547,11 @@ class CoIL(object):
             x,
             self.policy_legs,
             self.policy_limb_indices,
-            pos_type=self.args.pos_type,
-            vel_type=self.args.vel_type,
-            torso_type=self.args.torso_type,
-            head_type=self.args.head_type,
-            head_wrt=self.args.head_wrt,
+            pos_type=self.config.method.pos_type,
+            vel_type=self.config.method.vel_type,
+            torso_type=self.config.method.torso_type,
+            head_type=self.config.method.head_type,
+            head_wrt=self.config.method.head_wrt,
         )
 
         memory = ReplayMemory(steps + 1000, 42)
@@ -629,16 +639,16 @@ class CoIL(object):
     ):
         optimized_morpho_params = None
 
-        if self.total_numsteps < self.args.morpho_warmup:
+        if self.total_numsteps < self.config.method.morpho_warmup:
             self.logger("Sampling morphology", "INFO", ["wandb"])
             morpho_params = self.morpho_dist.sample()
             self.morpho_params_np = morpho_params.numpy()
 
         # Bayesian optimization (Algorithm 2)
-        elif self.args.dist_optimizer == "BO":
+        elif self.config.method.co_adaptation.dist_optimizer == "bo":
             start_t = time.time()
             self.morpho_params_np, optimized_morpho_params = bo_step(
-                self.args,
+                self.config,
                 self.morphos,
                 self.num_morpho,
                 self.pos_train_distances,
@@ -663,11 +673,11 @@ class CoIL(object):
             )
 
         # Ablation: Random search (Bergstra and Bengio 2012)
-        elif self.args.dist_optimizer == "RS":
+        elif self.config.method.co_adaptation.dist_optimizer == "rs":
             start_t = time.time()
             self.optimized_morpho = False
             self.morpho_params_np, optimized_morpho_params = rs_step(
-                self.args,
+                self.config,
                 self.num_morpho,
                 self.morphos,
                 self.pos_train_distances,
@@ -684,7 +694,7 @@ class CoIL(object):
             )
 
         # Ablation: CMA (Hansen and Ostermeier 2001)
-        elif self.args.dist_optimizer == "CMA":
+        elif self.config.method.co_adaptation.dist_optimizer == "cma":
             start_t = time.time()
 
             assert es is not None
@@ -694,11 +704,11 @@ class CoIL(object):
 
             # Average over same morphologies
             X = np.array(self.morphos).reshape(
-                -1, self.args.episodes_per_morpho, self.num_morpho
+                -1, self.config.method.episodes_per_morpho, self.num_morpho
             )[:, 0]
             Y = (
                 np.array(self.pos_train_distances)
-                .reshape(-1, self.args.episodes_per_morpho)
+                .reshape(-1, self.config.method.episodes_per_morpho)
                 .mean(1, keepdims=True)
             )
 
@@ -729,11 +739,11 @@ class CoIL(object):
             )
 
         # Particle Swarm Optimization (Eberhart and Kennedy 1995)
-        elif self.args.dist_optimizer == "PSO":
+        elif self.config.method.co_adaptation.dist_optimizer == "pso":
             start_t = time.time()
 
             self.optimized_morpho = (
-                self.total_numsteps > self.args.morpho_warmup
+                self.total_numsteps > self.config.method.morpho_warmup
                 and random.random() > epsilon
             )
             if self.optimized_morpho:
@@ -746,7 +756,7 @@ class CoIL(object):
                     self.agent,
                     self.initial_states_memory,
                     self.bounds,
-                    use_distance_value=self.args.train_distance_value,
+                    use_distance_value=self.config.method.train_distance_value,
                     device=self.device,
                 )
                 optimized_morpho_params = morpho_params.clone().numpy()
@@ -774,7 +784,9 @@ class CoIL(object):
             )
 
         else:
-            raise ValueError(f"Unknown morphology optimizer {self.args.dist_optimizer}")
+            raise ValueError(
+                f"Unknown morphology optimizer {self.config.method.co_adaptation.dist_optimizer}"
+            )
 
         self.optimized_or_not.append(self.optimized_morpho)
         # Set new morphology in environment
@@ -793,17 +805,17 @@ class CoIL(object):
         test_marker_obs_history = []
         avg_reward = 0.0
         avg_steps = 0
-        episodes = self.args.eval_episodes
+        episodes = self.config.method.eval_episodes
 
         recorder = None
         vid_path = None
-        if self.args.record_test:
+        if self.config.method.record_test:
             if not os.path.exists("videos"):
                 os.mkdir("videos")
             vid_path = f"videos/ep_{i_episode}.mp4"
             recorder = VideoRecorder(self.env, vid_path)
 
-        if self.args.co_adapt and optimized_morpho_params is not None:
+        if self.config.method.co_adapt and optimized_morpho_params is not None:
             self.env.set_task(*optimized_morpho_params)
 
         for test_ep in range(episodes):
@@ -830,11 +842,11 @@ class CoIL(object):
                     info,
                     self.policy_legs,
                     self.policy_limb_indices,
-                    pos_type=self.args.pos_type,
-                    vel_type=self.args.vel_type,
-                    torso_type=self.args.torso_type,
-                    head_type=self.args.head_type,
-                    head_wrt=self.args.head_wrt,
+                    pos_type=self.config.method.pos_type,
+                    vel_type=self.config.method.vel_type,
+                    torso_type=self.config.method.torso_type,
+                    head_type=self.config.method.head_type,
+                    head_wrt=self.config.method.head_wrt,
                 )
 
                 reward = info["reward_run"]
@@ -869,7 +881,7 @@ class CoIL(object):
             ["wandb"],
         )
 
-        if self.args.save_checkpoints:
+        if self.config.method.save_checkpoints:
             self._save("checkpoint")
 
         # Compute and log distribution distances
@@ -901,18 +913,18 @@ class CoIL(object):
 
     def _save(self, type="final"):
         if type == "final":
-            dir_path = "models/final/" + self.args.dir_path
+            dir_path = "models/final/" + self.config.models_dir_path
         elif type == "optimal":
-            dir_path = "models/optimal/" + self.args.dir_path
+            dir_path = "models/optimal/" + self.config.models_dir_path
         elif type == "checkpoint":
-            dir_path = "models/checkpoints/" + self.args.dir_path
+            dir_path = "models/checkpoints/" + self.config.models_dir_path
         else:
             raise ValueError("Invalid save type")
 
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
 
-        model_path = os.path.join(dir_path, self.args.experiment_id + ".pt")
+        model_path = os.path.join(dir_path, self.config.experiment_id + ".pt")
         self.logger(f"Saving model to {model_path}", "INFO", ["wandb"])
 
         data = {

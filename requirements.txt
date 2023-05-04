@@ -1,7 +1,7 @@
+absl-py==1.4.0
+antlr4-python3-runtime==4.9.3
 appdirs==1.4.4
 attrs==22.2.0
--e git+https://github.com/serhez/coil.git@d251d3fc93e00d54a4ce2d85d6c67e8c969a809e#egg=bo_mat&subdirectory=bo_mat
-certifi @ file:///private/var/folders/nz/j6p8yfhx1mv_0grj5xl4650h0000gp/T/abs_5d968ni_yn/croot/certifi_1671487774636/work/certifi
 cffi==1.15.1
 charset-normalizer==3.0.1
 click==8.1.3
@@ -12,11 +12,12 @@ cycler==0.11.0
 Cython==0.29.33
 debugpy==1.6.6
 decorator==4.4.2
+dm-env==1.6
+dm-tree==0.1.8
 docker-pycreds==0.4.0
 fasteners==0.18
 fonttools==4.38.0
 future==0.18.3
--e git+https://github.com/serhez/coil.git@d251d3fc93e00d54a4ce2d85d6c67e8c969a809e#egg=gait_track_envs&subdirectory=gait-track-envs
 gitdb==4.0.10
 GitPython==3.1.30
 glfw==2.5.6
@@ -24,6 +25,7 @@ GPy==1.10.0
 GPyOpt==1.2.6
 gym==0.26.2
 gym-notices==0.0.8
+hydra-core==1.3.2
 idna==3.4
 imageio==2.25.1
 imageio-ffmpeg==0.4.8
@@ -36,6 +38,7 @@ moviepy==1.0.3
 mujoco-py==2.1.2.14
 mypy-extensions==1.0.0
 numpy==1.24.2
+omegaconf==2.3.0
 packaging==23.0
 paramz==0.9.5
 pathspec==0.11.0
@@ -59,7 +62,6 @@ setproctitle==1.3.2
 six==1.16.0
 smmap==5.0.0
 threadpoolctl==3.1.0
-tomli==2.0.1
 torch==1.13.1
 torchvision==0.14.1
 tqdm==4.64.1

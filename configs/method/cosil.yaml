@@ -1,0 +1,5 @@
+---
+defaults:
+  - base_cosil
+
+expert_demos: "data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt"
