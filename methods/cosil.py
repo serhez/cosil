@@ -68,6 +68,7 @@ class CoSIL(object):
         self.replay_buffer = ObservationBuffer(
             self.config.method.replay_capacity,
             self.config.method.replay_dim_ratio,
+            self.config.seed,
         )
         self.initial_states_memory = []
 
@@ -83,6 +84,7 @@ class CoSIL(object):
         self.imitation_buffer = ObservationBuffer(
             self.config.method.imitation_capacity,
             self.config.method.imitation_dim_ratio,
+            self.config.seed,
         )
         if os.path.isdir(self.config.method.expert_demos):
             for filepath in glob.iglob(
@@ -113,7 +115,7 @@ class CoSIL(object):
                 head_type=self.config.method.head_type,
                 head_wrt=self.config.method.head_wrt,
             )
-            self.imitation_buffer.set(
+            self.imitation_buffer.replace(
                 [torch.from_numpy(x).float().to(self.device) for x in expert_obs_np]
             )
             self.logger.info(f"Demonstrator obs {len(expert_obs_np)} episodes loaded")
@@ -122,7 +124,7 @@ class CoSIL(object):
         # From paper Discriminator-actor-critic: Addressing sample inefficiency and reward bias in adversarial imitation learning
         if self.absorbing_state:
             self.logger.info("Adding absorbing states")
-            self.imitation_buffer.set(
+            self.imitation_buffer.replace(
                 [
                     torch.cat(
                         [ep, torch.zeros(ep.size(0), 1, device=self.device)], dim=-1
@@ -672,7 +674,7 @@ class CoSIL(object):
             head_wrt=self.config.method.head_wrt,
         )
 
-        memory = ObservationBuffer(steps + 1000)
+        memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
         start_t = time.time()
         step = 0
         while step < steps:
@@ -1049,7 +1051,7 @@ class CoSIL(object):
             model = torch.load(path_name)
 
             # TODO: These should be in the ObservationBuffer class
-            self.replay_buffer.set(model["buffer"])
+            self.replay_buffer.replace(model["buffer"])
             self.replay_buffer._position = (
                 len(self.replay_buffer._buffer) % self.replay_buffer.capacity
             )

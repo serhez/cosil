@@ -17,6 +17,15 @@
             "justMyCode": true
         },
         {
+            "name": "Experiment: replica original code",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=replica_original_code"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "Experiment: train expert",
             "type": "python",
             "request": "launch",

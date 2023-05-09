@@ -13,7 +13,9 @@ class ObservationBuffer:
     A simple FIFO observation buffer which can be used as a replay buffer or imitation buffer.
     """
 
-    def __init__(self, capacity: int, diminishing_ratio: float = 1.0):
+    def __init__(
+        self, capacity: int, diminishing_ratio: float = 1.0, seed: Optional[int] = None
+    ):
         """
         Initializes a replay buffer.
 
@@ -36,12 +38,13 @@ class ObservationBuffer:
             0.0 < diminishing_ratio <= 1.0
         ), "The diminishing ratio of an observation buffer must be a float between 0.0 and 1.0."
 
+        self._rng = np.random.default_rng(seed)
+
         self._capacity = capacity
         self._buffer = []
         self._position = 0
         self._age = np.array([], dtype=np.int64)
         self._diminishing_ratio = diminishing_ratio
-        self._rng = np.random.default_rng()
 
     def __len__(self) -> int:
         return len(self._buffer)
@@ -101,7 +104,7 @@ class ObservationBuffer:
         self._position = 0
         self._age = np.array([], dtype=np.int64)
 
-    def set(self, observations: List[Any]) -> None:
+    def replace(self, observations: List[Any]) -> None:
         """
         Sets the contents of the buffer to the given observations.
         If the length of the observations list is greater than the buffer's capacity, the oldest observations are discarded.

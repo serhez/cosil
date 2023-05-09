@@ -65,7 +65,9 @@ class CoIL(object):
 
         self.batch_size = self.config.method.batch_size
         self.replay_buffer = ObservationBuffer(
-            self.config.method.replay_capacity, self.config.method.replay_dim_ratio
+            self.config.method.replay_capacity,
+            self.config.method.replay_dim_ratio,
+            self.config.seed,
         )
         self.initial_states_memory = []
 
@@ -536,7 +538,7 @@ class CoIL(object):
             head_wrt=self.config.method.head_wrt,
         )
 
-        memory = ObservationBuffer(steps + 1000)
+        memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
         start_t = time.time()
         step = 0
         while step < steps:
@@ -913,7 +915,7 @@ class CoIL(object):
             model = torch.load(path_name)
 
             # TODO: These should be in the ObservationBuffer class
-            self.replay_buffer.set(model["buffer"])
+            self.replay_buffer.replace(model["buffer"])
             self.replay_buffer._position = (
                 len(self.replay_buffer._buffer) % self.replay_buffer.capacity
             )
