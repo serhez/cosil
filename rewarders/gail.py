@@ -8,29 +8,28 @@ from .rewarder import Rewarder
 
 
 class GAIL(Rewarder):
-    def __init__(self, expert_obs, config):
+    def __init__(self, demo_dim, config):
         self.device = torch.device(config.device)
         self.learn_disc_transitions = config.learn_disc_transitions
         self.log_scale_rewards = config.method.rewarder.log_scale_rewards
 
-        self.expert_obs = expert_obs
-        demo_dim = self.expert_obs[0].shape[-1]
-
         self.disc = Discriminator(demo_dim).to(self.device)
         self.disc_opt = optim.AdamW(
-            self.disc.parameters(), lr=1e-4, weight_decay=config.method.rewarder.disc_weight_decay
+            self.disc.parameters(),
+            lr=1e-4,
+            weight_decay=config.method.rewarder.disc_weight_decay,
         )
 
-    def train(self, batch):
+    def train(self, batch, expert_obs):
         return train_disc(
             self.disc_opt,
             self.disc,
-            self.expert_obs,
+            expert_obs,
             batch,
             use_transitions=self.learn_disc_transitions,
         )
 
-    def compute_rewards(self, batch):
+    def compute_rewards(self, batch, _):
         _, _, _, _, _, _, marker_batch, next_marker_batch = batch
         feats = torch.FloatTensor(next_marker_batch).to(self.device)
         if self.learn_disc_transitions:

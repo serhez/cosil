@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -94,6 +94,7 @@ class DualRewarder(Rewarder):
             torch.FloatTensor,
             torch.FloatTensor,
         ],
+        expert_obs: List[torch.Tensor],
     ) -> Tuple[float, float, float]:
         """
         Trains the rewarder using the given batch.
@@ -108,8 +109,12 @@ class DualRewarder(Rewarder):
         The loss, the expert probability, and the policy probability
         """
 
-        loss_1, expert_probs_1, policy_probs_1 = self.rewarder_1.train(batch)
-        loss_2, expert_probs_2, policy_probs_2 = self.rewarder_2.train(batch)
+        loss_1, expert_probs_1, policy_probs_1 = self.rewarder_1.train(
+            batch, expert_obs
+        )
+        loss_2, expert_probs_2, policy_probs_2 = self.rewarder_2.train(
+            batch, expert_obs
+        )
         return (
             float(np.mean([loss_1, loss_2], dtype=np.float32)),
             float(np.mean([expert_probs_1, expert_probs_2], dtype=np.float32)),
@@ -128,6 +133,7 @@ class DualRewarder(Rewarder):
             torch.FloatTensor,
             torch.FloatTensor,
         ],
+        expert_obs: List[torch.Tensor],
     ) -> torch.FloatTensor:
         """
         Computes the rewards using the given batch.
@@ -145,8 +151,8 @@ class DualRewarder(Rewarder):
         """
 
         # Calculate the rewards
-        rewards_1 = self.rewarder_1.compute_rewards(batch)
-        rewards_2 = self.rewarder_2.compute_rewards(batch)
+        rewards_1 = self.rewarder_1.compute_rewards(batch, expert_obs)
+        rewards_2 = self.rewarder_2.compute_rewards(batch, expert_obs)
 
         # Update the statistical measures
         self._rewarder_1_max = max(self._rewarder_1_max, rewards_1.max().item())

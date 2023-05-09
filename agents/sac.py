@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import torch
 import torch.nn.functional as F
@@ -11,7 +11,7 @@ from common.models import (
     GaussianPolicy,
     MorphoValueFunction,
 )
-from common.replay_memory import ReplayMemory
+from common.observation_buffer import ObservationBuffer
 from loggers import Logger
 from rewarders import SAIL, Rewarder
 from utils.rl import hard_update, soft_update
@@ -49,7 +49,9 @@ class SAC(Agent):
         self._rewarder = rewarder
 
         self._critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
+            num_inputs + num_morpho_obs,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
         ).to(device=self._device)
         self._critic_optim = Adam(
             self._critic.parameters(),
@@ -57,7 +59,9 @@ class SAC(Agent):
             weight_decay=config.method.agent.q_weight_decay,
         )
         self._critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
+            num_inputs + num_morpho_obs,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
         ).to(self._device)
         hard_update(self._critic_target, self._critic)
 
@@ -94,7 +98,10 @@ class SAC(Agent):
             self._alpha = 0
             self._automatic_entropy_tuning = False
             self._policy = DeterministicPolicy(
-                num_inputs, action_space.shape[0], config.method.agent.hidden_size, action_space
+                num_inputs,
+                action_space.shape[0],
+                config.method.agent.hidden_size,
+                action_space,
             ).to(self._device)
             self._policy_optim = Adam(
                 self._policy.parameters(), lr=config.method.agent.lr
@@ -113,11 +120,11 @@ class SAC(Agent):
     def pretrain_policy(
         self,
         rewarder: SAIL,
-        memory: ReplayMemory,
+        memory: ObservationBuffer,
         batch_size: int,
         n_epochs: int = 200,
     ):
-        self._logger("Pretraining policy to match policy prior", "INFO", ["wandb"])
+        self._logger.info("Pretraining policy to match policy prior")
         loss_fn = torch.nn.MSELoss()
         n_samples = len(memory)
         n_batches = n_samples // batch_size
@@ -131,7 +138,7 @@ class SAC(Agent):
                 self._policy_optim.zero_grad()
 
                 state_batch, action_batch, _, _, _, _, marker_batch, _ = memory.sample(
-                    batch_size=batch_size
+                    batch_size
                 )
 
                 state_batch = torch.FloatTensor(state_batch).to(self._device)
@@ -151,25 +158,30 @@ class SAC(Agent):
                 self._policy_optim.step()
 
             mean_loss /= n_batches
-            self._logger({"Epoch": e, "Loss": mean_loss}, "INFO", ["wandb"])
+            self._logger.info({"Epoch": e, "Loss": mean_loss})
 
         self._policy_optim.load_state_dict(policy_optim_state_dict)
 
         return mean_loss
 
-    def pretrain_value(self, rewarder: Rewarder, memory: ReplayMemory, batch_size: int):
-        self._logger("Pretraining value", "INFO", ["wandb"])
+    def pretrain_value(
+        self,
+        memory: ObservationBuffer,
+        expert_obs: List[torch.Tensor],
+        batch_size: int,
+    ):
+        self._logger.info("Pretraining value")
         for i in range(3000):
             batch = memory.sample(batch_size)
-            loss = self.update_parameters(batch, i, True)[0]
+            loss = self.update_parameters(batch, i, expert_obs, True)[0]
             if i % 100 == 0:
-                self._logger({"Epoch": i, "Loss": loss}, "INFO", ["wandb"])
+                self._logger.info({"Epoch": i, "Loss": loss})
 
     def get_value(self, state, action) -> float:
         return self._critic.min(state, action)
 
     def update_parameters(
-        self, batch, updates: int, update_value_only=False
+        self, batch, updates: int, expert_obs=[], update_value_only=False
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -218,7 +230,7 @@ class SAC(Agent):
         marker_batch = torch.FloatTensor(marker_batch).to(self._device)
         next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
 
-        new_rewards = self._rewarder.compute_rewards(batch)
+        new_rewards = self._rewarder.compute_rewards(batch, expert_obs)
 
         assert reward_batch.shape == new_rewards.shape
         reward_batch = new_rewards

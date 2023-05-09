@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
@@ -11,7 +11,7 @@ from common.models import (
     GaussianPolicy,
     MorphoValueFunction,
 )
-from common.replay_memory import ReplayMemory
+from common.observation_buffer import ObservationBuffer
 from loggers import Logger
 from normalizers import RangeNormalizer, ZScoreNormalizer
 from rewarders import SAIL, EnvReward, Rewarder
@@ -103,10 +103,14 @@ class DualSAC(Agent):
                 high_clip=config.method.normalization_high_clip,
             )
         else:
-            raise ValueError(f"Invalid dual normalization: {config.method.normalization_type}")
+            raise ValueError(
+                f"Invalid dual normalization: {config.method.normalization_type}"
+            )
 
         self._imitation_critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
+            num_inputs + num_morpho_obs,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
         ).to(device=self._device)
         self._imitation_critic_optim = Adam(
             self._imitation_critic.parameters(),
@@ -114,7 +118,9 @@ class DualSAC(Agent):
             weight_decay=config.method.agent.q_weight_decay,
         )
         self._reinforcement_critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
+            num_inputs + num_morpho_obs,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
         ).to(device=self._device)
         self._reinforcement_critic_optim = Adam(
             self._reinforcement_critic.parameters(),
@@ -123,11 +129,15 @@ class DualSAC(Agent):
         )
 
         self._imitation_critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
+            num_inputs + num_morpho_obs,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
         ).to(self._device)
         hard_update(self._imitation_critic_target, self._imitation_critic)
         self._reinforcement_critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], config.method.agent.hidden_size
+            num_inputs + num_morpho_obs,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
         ).to(self._device)
         hard_update(self._reinforcement_critic_target, self._reinforcement_critic)
 
@@ -164,7 +174,10 @@ class DualSAC(Agent):
             self._alpha = 0
             self._automatic_entropy_tuning = False
             self._policy = DeterministicPolicy(
-                num_inputs, action_space.shape[0], config.method.agent.hidden_size, action_space
+                num_inputs,
+                action_space.shape[0],
+                config.method.agent.hidden_size,
+                action_space,
             ).to(self._device)
             self._policy_optim = Adam(
                 self._policy.parameters(), lr=config.method.agent.lr
@@ -217,11 +230,11 @@ class DualSAC(Agent):
     def pretrain_policy(
         self,
         rewarder: SAIL,
-        memory: ReplayMemory,
+        memory: ObservationBuffer,
         batch_size: int,
         n_epochs: int = 200,
     ):
-        self._logger("Pretraining policy to match policy prior", "INFO", ["wandb"])
+        self._logger.info("Pretraining policy to match policy prior")
         loss_fn = torch.nn.MSELoss()
         n_samples = len(memory)
         n_batches = n_samples // batch_size
@@ -235,7 +248,7 @@ class DualSAC(Agent):
                 self._policy_optim.zero_grad()
 
                 state_batch, action_batch, _, _, _, _, marker_batch, _ = memory.sample(
-                    batch_size=batch_size
+                    batch_size
                 )
 
                 state_batch = torch.FloatTensor(state_batch).to(self._device)
@@ -255,19 +268,21 @@ class DualSAC(Agent):
                 self._policy_optim.step()
 
             mean_loss /= n_batches
-            self._logger({"Epoch": e, "Loss": mean_loss}, "INFO", ["wandb"])
+            self._logger.info({"Epoch": e, "Loss": mean_loss})
 
         self._policy_optim.load_state_dict(policy_optim_state_dict)
 
         return mean_loss
 
-    def pretrain_value(self, memory: ReplayMemory, batch_size: int):
-        self._logger("Pretraining value", "INFO", ["wandb"])
+    def pretrain_value(
+        self, memory: ObservationBuffer, expert_obs: List[torch.Tensor], batch_size: int
+    ):
+        self._logger.info("Pretraining value")
         for i in range(3000):
             batch = memory.sample(batch_size)
-            loss = self.update_parameters(batch, i, True)[0]
+            loss = self.update_parameters(batch, i, expert_obs, True)[0]
             if i % 100 == 0:
-                self._logger({"Epoch": i, "Loss": loss}, "INFO", ["wandb"])
+                self._logger.info({"Epoch": i, "Loss": loss})
 
     def get_value(self, state, action) -> float:
         imitation_value = self._imitation_critic.min(state, action)
@@ -277,32 +292,31 @@ class DualSAC(Agent):
             reinforcement_value = self._reinforcement_norm(reinforcement_value)
         return self._omega * imitation_value + (1 - self._omega) * reinforcement_value
 
-    # TODO: Normalize the Q-values
     def update_parameters(
-        self, batch, updates: int, update_value_only=False
+        self, batch, updates: int, expert_obs=[], update_value_only=False
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
 
         Parameters
         ----------
-        batch -> the batch of data
-        updates -> the number of updates
-        update_value_only -> whether to update the value function only
+        batch -> the batch of data.
+        updates -> the number of updates.
+        update_value_only -> whether to update the value function only.
 
         Returns
         -------
         A dict reporting:
-            - "loss/critic_1_loss"
-            - "loss/critic_2_loss"
-            - "loss/policy"
-            - "loss/policy_prior_loss"
-            - "loss/entropy_loss"
-            - "weighted_reward"
-            - "absorbing_reward"
-            - "action_std"
-            - "entropy_temperature/alpha"
-            - "entropy_temperature/entropy"
+        - "loss/critic_1_loss"
+        - "loss/critic_2_loss"
+        - "loss/policy"
+        - "loss/policy_prior_loss"
+        - "loss/entropy_loss"
+        - "weighted_reward"
+        - "absorbing_reward"
+        - "action_std"
+        - "entropy_temperature/alpha"
+        - "entropy_temperature/entropy"
         """
 
         (
@@ -329,8 +343,10 @@ class DualSAC(Agent):
         marker_batch = torch.FloatTensor(marker_batch).to(self._device)
         next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
 
-        imitation_rewards = self._imitation_rewarder.compute_rewards(batch)
-        reinforcement_rewards = self._reinforcement_rewarder.compute_rewards(batch)
+        imitation_rewards = self._imitation_rewarder.compute_rewards(batch, expert_obs)
+        reinforcement_rewards = self._reinforcement_rewarder.compute_rewards(
+            batch, None
+        )
         assert reward_batch.shape == imitation_rewards.shape
         assert reward_batch.shape == reinforcement_rewards.shape
 

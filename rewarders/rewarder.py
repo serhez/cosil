@@ -10,34 +10,36 @@ class Rewarder(ABC):
     """
 
     @abstractmethod
-    def train(self, batch) -> Tuple[float, float, float]:
+    def train(self, batch, expert_obs) -> Tuple[float, float, float]:
         """
         Train the rewarder and update the rewarder's parameters.
 
         Parameters
         ----------
-        batch -> a batch of data
+        batch -> a batch of data.
+        expert_obs -> the demonstrator's observations.
 
         Returns
         -------
-        The loss
-        The probability of the expert's action
-        The probability of the policy's action
+        The loss.
+        The probability of the expert's action.
+        The probability of the policy's action.
         """
         pass
 
     @abstractmethod
-    def compute_rewards(self, batch) -> torch.Tensor:
+    def compute_rewards(self, batch, expert_obs) -> torch.Tensor:
         """
         Compute the rewards for a batch of data.
 
         Parameters
         ----------
-        batch -> a batch of data
+        batch -> a batch of data.
+        expert_obs -> the demonstrator's observations.
 
         Returns
         -------
-        The rewards
+        The rewards.
         """
         pass
 
@@ -46,27 +48,19 @@ class Rewarder(ABC):
         """
         Get the rewarder's parameters.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
-        A dictionary of the rewarder's parameters
+        A dictionary of the rewarder's parameters.
         """
         pass
 
     @abstractmethod
-    def load(self, model: Dict[str, Any]):
+    def load(self, model: Dict[str, Any]) -> None:
         """
         Load the rewarder's parameters from a model.
 
         Parameters
         ----------
-        model -> a dictionary of the rewarder's parameters
-
-        Returns
-        -------
-        None
+        model -> a dictionary of the rewarder's parameters.
         """
         pass

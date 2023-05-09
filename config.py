@@ -151,9 +151,6 @@ class SAILConfig(RewarderConfig):
     vae_scaler: float = 1.0
     """Scaler for the VAE loss."""
 
-    normalize_obs: bool = False
-    """Whether to normalize the observations."""
-
 
 @dataclass(kw_only=True)
 class PWILConfig(RewarderConfig):
@@ -283,11 +280,11 @@ class MethodConfig:
     start_steps: int = 10000
     """Number of steps to take before training."""
 
-    replay_size: int = 2000000
+    replay_capacity: int = 2000000
     """Size of the replay buffer."""
 
-    train_every: int = 1
-    """Number of steps between training."""
+    replay_dim_ratio: float = 1.0
+    """The diminishing ratio for the replay buffer."""
 
     record_test: bool = False
     """Whether to record the test episodes."""
@@ -314,7 +311,7 @@ class CoILConfig(MethodConfig):
                 "agent": "sac",
             },
             {
-                "rewarder": "env_rewarder",
+                "rewarder": "env",
             },
         ]
     )
@@ -329,7 +326,7 @@ class CoILConfig(MethodConfig):
     """Path to the expert demonstrations."""
 
     morpho_warmup: int = 60000
-    """Steps before starting to optimize for morphology"""
+    """Steps before starting to optimize the morphology."""
 
     episodes_per_morpho: int = 50
     """Number of episodes per morphology."""
@@ -406,6 +403,39 @@ class CoSILConfig(CoILConfig):
 
     omega_init: float = 1.0
     """Initial value for omega."""
+
+    reset_omega: bool = True
+    """Whether to reset omega before each morphology change."""
+
+    imitation_capacity: int = 100000
+    """Capacity of the imitation buffer."""
+
+    imitation_dim_ratio: float = 0.5
+    """The diminishing ratio for the imitation buffer."""
+
+    imitate_prev_morpho: bool = True
+    """Whether to imitate the previous morphology by adding observations from its policy to the imitation buffer."""
+
+    clear_imitation: bool = True
+    """
+    Whether to clear the imitation buffer before adding the observations of a new morphology.
+    As a side effect, if this variable is True, all observations in the imitation buffer are used for training.
+    Otherwise (if False), an `obs_per_morpho` number of demonstrations are sampled from the imitation buffer.
+    """
+
+    obs_per_morpho: int = 10000
+    """
+    Number of observations per morphology to generate and add to the imitation buffer.
+    This variable is also used as the number of demonstrations to sample from the imitation buffer during training when `clear_imitation` is False.
+    """
+
+    morpho_policy_warmup: int = 1
+    """
+    Number of episodes during which we do not train the policy after a morphology change.
+    By doing this, we prevent the policy from being updated with an out-of-sync `imitation_critic` which is itself being updated with an out-of-sync `discriminator`.
+    This is due to the contents of the `imitation_buffer` being updated with the prev. morphology's demonstrations.
+    The warmup is used even when `clear_imitation` is False, since newer demonstrations may still have a higher weight when sampling from the imitation buffer.
+    """
 
     dual_mode: DualModes = "q"  # pyright: ignore[reportGeneralTypeIssues]
     """The dual mode, either a duality of Q-values or of reward signals."""
@@ -491,28 +521,37 @@ class TrainConfig(Config):
 
 
 @dataclass(kw_only=True)
-class GenObsConfig(Config):
+class GenTrajectoriesConfig(Config):
     """
-    Configuration for generating observations.
+    Configuration for generating trajectories as demonstrations.
     """
 
     defaults: List[Any] = field(
         default_factory=lambda: [
             "_self_",
+            {"method": "coil"},
         ]
     )
 
     task: str = "gen_obs"
     """Name of the task."""
 
-    obs_save_path: str = MISSING
-    """Path to save the observations."""
+    # FIX: This should not be here, we are not using any method nor their config
+    #      The only reason we need this is to have the agent's config
+    method: MethodConfig = MISSING
+    """Configuration for the method."""
+
+    save_path: str = MISSING
+    """Path to save the trajectories."""
+
+    num_obs: int = 10000
+    """Number of trajectories to generate."""
 
 
 def setup_config() -> None:
     cs = ConfigStore.instance()
     cs.store(name="base_train", node=TrainConfig)
-    cs.store(name="base_gen_obs", node=GenObsConfig)
+    cs.store(name="base_gen_obs", node=GenTrajectoriesConfig)
     cs.store(name="base_logger", node=LoggerConfig)
     cs.store(name="base_co_adaptation", node=CoAdaptationConfig)
     cs.store(group="method", name="base_coil", node=CoILConfig)

@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 import torch
 
-from common.replay_memory import ReplayMemory
+from common.observation_buffer import ObservationBuffer
 
 
 class Agent(ABC):
@@ -47,7 +47,7 @@ class Agent(ABC):
 
     @abstractmethod
     def pretrain_policy(
-        self, memory: ReplayMemory, batch_size: int, n_epochs: int = 200
+        self, memory: ObservationBuffer, batch_size: int, n_epochs: int = 200
     ) -> torch.Tensor:
         """
         Pretrain the policy to match the policy prior.
@@ -67,7 +67,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def pretrain_value(self, memory: ReplayMemory, batch_size: int):
+    def pretrain_value(self, memory: ObservationBuffer, batch_size: int):
         """
         Pretrain the value function to match the rewarder.
 

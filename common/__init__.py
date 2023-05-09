@@ -1,3 +1,3 @@
 from . import models
-from . import replay_memory
+from . import observation_buffer
 from . import vae

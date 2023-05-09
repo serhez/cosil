@@ -1,0 +1,6 @@
+---
+defaults:
+  - base_train
+  - _self_
+
+env_name: GaitTrackHalfCheetah-v0

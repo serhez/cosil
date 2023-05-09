@@ -16,8 +16,7 @@ method:
   eval_per_episodes: 20
   num_episodes: 1000
   start_steps: 10000
-  replay_size: 2000000
-  train_every: 1
+  replay_buffer_capacity: 2000000
   morpho_warmup: 60000
   disc_warmup: 20000
   episodes_per_morpho: 5

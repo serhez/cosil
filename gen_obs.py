@@ -1,6 +1,8 @@
+import itertools
 import os
 import random
 import time
+from typing import List
 
 import gym
 import hydra
@@ -11,34 +13,36 @@ from omegaconf import DictConfig
 
 from agents import SAC
 from config import setup_config
-from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
+from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
 from rewarders import EnvReward
 from utils.model import load_model
+from utils.rl import gen_obs
 
 
-def add_obs(obs_list, info, done):
-    obs_list["dones"] = np.append(
-        obs_list["dones"],
-        done,
-    )
+def gen_model_obs(
+    config: DictConfig, env: gym.Env, logger: Logger, logger_mask: List[str] = ["wandb"]
+) -> dict:
+    """
+    Generates observations using the trained model.
 
-    for key, val in info.items():
-        if key not in obs_list:
-            obs_list[key] = np.empty((0, *val.shape))
+    The result is a dictionary containing each dimension of the observations as keys and
+    a list of that dimension's values for each observation as values.
 
-        assert (
-            len(obs_list[key]) == len(obs_list["dones"]) - 1
-        ), "Observations must yield the same info"
+    Note that the trajectories are flattened, so that each dict item contains the total number of observations.
 
-        obs_list[key] = np.append(obs_list[key], np.array([val]), axis=0)
+    Parameters
+    ----------
+    config -> the configuration.
+    env -> the environment.
+    logger -> the logger.
+    logger_mask -> the loggers to mask when logging.
 
+    Returns
+    -------
+    obs_dict -> the dictionary containing the observations.
+    """
 
-def gen_obs(config, logger, env):
-    assert config.resume is not None, "Must provide model path to generate observations"
-
-    obs_list = {
-        "dones": np.array([]),
-    }
+    assert config.resume is not None, "Must provide model path to generate trajectories"
 
     obs_size = env.observation_space.shape[0]
     if config.absorbing_state:
@@ -57,62 +61,38 @@ def gen_obs(config, logger, env):
 
     load_model(config.resume, env, agent, co_adapt=False, evaluate=True)
 
-    # Generate observations
-    for episode in range(config.method.num_episodes):
-        state, _ = env.reset()
-        feat = np.concatenate([state, env.morpho_params])
-        if config.absorbing_state:
-            feat = np.concatenate([feat, np.zeros(1)])
-
-        tot_reward = 0
-        num_obs = 0
-        done = False
-        while not done:
-            action = agent.select_action(feat, evaluate=True)
-            next_state, reward, terminated, truncated, info = env.step(action)
-
-            next_feat = np.concatenate([next_state, env.morpho_params])
-            if config.absorbing_state:
-                next_feat = np.concatenate([next_feat, np.zeros(1)])
-
-            add_obs(obs_list, info, terminated or truncated)
-            num_obs += 1
-
-            feat = next_feat
-
-            tot_reward += reward
-            done = terminated or truncated
-
-        logger(
-            {
-                "Episode": episode,
-                "Reward": tot_reward,
-                "Generated observations": num_obs,
-            },
-            "INFO",
-            ["wandb"],
-        )
-
-    return obs_list
+    return gen_obs(
+        config.num_obs, env, agent, config.absorbing_state, logger, logger_mask
+    )
 
 
-def save(obs_list: dict, path: str):
+def save(obs: dict, path: str, experiment_id: str, logger: Logger):
     assert path is not None, "Must provide path to save observations"
     try:
-        split_path = os.path.split(path)
-        dir_path = split_path[0]
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
+        if not os.path.exists(path):
+            os.makedirs(path)
     except Exception:
         raise ValueError("Invalid path")
 
-    torch.save(obs_list, path)
+    if path[-1] != "/":
+        path += "/"
+
+    file_name = f"{path}demos_{experiment_id}.pt"
+
+    logger.info(f"Saving demonstrations to {file_name}")
+    torch.save(obs, file_name)
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="config")
+@hydra.main(version_base=None, config_path="configs", config_name="gen_obs")
 def main(config: DictConfig):
     config.logger.experiment_id = str(int(time.time()))
-    config.models_dir_path = f"{config.logger.project_name}/{config.logger.group_name}/{config.env_name}/{config.seed}"
+    config.models_dir_path = f"{config.env_name}/{config.seed}"
+    if config.logger.group_name != "":
+        config.models_dir_path = f"{config.logger.group_name}/" + config.models_dir_path
+    if config.logger.project_name != "":
+        config.models_dir_path = (
+            f"{config.logger.project_name}/" + config.models_dir_path
+        )
 
     # Set up environment
     register_env(config.env_name)
@@ -129,7 +109,7 @@ def main(config: DictConfig):
         torch.cuda.manual_seed_all(config.seed)
 
     # Set up the logger
-    loggers_list = config.loggers.split(",")
+    loggers_list = config.logger.loggers.split(",")
     loggers = {}
     for logger in loggers_list:
         if logger == "console":
@@ -151,10 +131,10 @@ def main(config: DictConfig):
             print(f'[WARNING] Logger "{logger}" is not supported')
     logger = MultiLogger(loggers)
 
-    obs = gen_obs(config, logger, env)
+    obs = gen_model_obs(config, env, logger)
     env.close()
 
-    save(obs, config.obs_save_path)
+    save(obs, config.save_path, config.logger.experiment_id, logger)
 
 
 if __name__ == "__main__":

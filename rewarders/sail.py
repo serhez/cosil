@@ -5,7 +5,7 @@ from torch import optim
 from torch.optim import Adam
 
 from common.models import InverseDynamics, WassersteinCritic
-from common.replay_memory import ReplayMemory
+from common.observation_buffer import ObservationBuffer
 from common.vae import VAE
 from utils.imitation import train_wgan_critic
 
@@ -13,23 +13,21 @@ from .rewarder import Rewarder
 
 
 class SAIL(Rewarder):
-    def __init__(self, logger, env, expert_obs, config) -> None:
+    def __init__(self, logger, env, demo_dim, config) -> None:
         self.logger = logger
         self.device = torch.device(config.device)
-        self.expert_obs = expert_obs
         self.num_inputs = env.observation_space.shape[0]
         self.learn_disc_transitions = config.learn_disc_transitions
         self.vae_scaler = config.vae_scaler
         self.absorbing_state = config.absorbing_state
 
         num_morpho_obs = env.morpho_params.shape[0]
-        num_marker_obs = self.expert_obs[0].shape[-1]
         self.morpho_slice = slice(-num_morpho_obs, None)
         if config.absorbing_state:
             self.morpho_slice = slice(-num_morpho_obs - 1, -1)
 
         self.g_inv = InverseDynamics(
-            num_marker_obs * 2 + num_morpho_obs,
+            demo_dim * 2 + num_morpho_obs,
             env.action_space.shape[0],
             action_space=env.action_space,
         ).to(self.device)
@@ -40,7 +38,7 @@ class SAIL(Rewarder):
             weight_decay=config.g_inv_weight_decay,
         )
 
-        self.dynamics = VAE(num_marker_obs).to(self.device)
+        self.dynamics = VAE(demo_dim).to(self.device)
         self.dynamics_optim = Adam(self.dynamics.parameters(), lr=config.lr)
 
         (
@@ -49,15 +47,7 @@ class SAIL(Rewarder):
             self.vae_loss,
         ) = (0, 0, 0)
 
-        normalizers = None
-        if config.normalize_obs:
-            normalizers = (
-                torch.cat(self.expert_obs).mean(0, keepdim=True),
-                torch.cat(self.expert_obs).std(0, keepdim=True),
-            )
-
-        demo_dim = self.expert_obs[0].shape[-1]
-        self.disc = WassersteinCritic(demo_dim, normalizers).to(self.device)
+        self.disc = WassersteinCritic(demo_dim, None).to(self.device)
         self.disc_opt = optim.Adam(
             self.disc.parameters(),
             lr=3e-4,
@@ -65,7 +55,7 @@ class SAIL(Rewarder):
             weight_decay=config.method.rewarder.disc_weight_decay,
         )
 
-    def train(self, batch):
+    def train(self, batch, expert_obs):
         (
             disc_loss,
             expert_probs,
@@ -74,7 +64,7 @@ class SAIL(Rewarder):
         ) = train_wgan_critic(
             self.disc_opt,
             self.disc,
-            self.expert_obs,
+            expert_obs,
             batch,
             use_transitions=self.learn_disc_transitions,
         )
@@ -83,14 +73,14 @@ class SAIL(Rewarder):
 
         return disc_loss, expert_probs, policy_probs
 
-    def compute_rewards(self, batch):
+    def compute_rewards(self, batch, expert_obs):
         _, _, _, _, _, _, marker_batch, next_marker_batch = batch
         feats = torch.FloatTensor(next_marker_batch).to(self.device)
         if self.learn_disc_transitions:
             feats = torch.cat((marker_batch, next_marker_batch), dim=1)
 
         # Sample expert data as reference for the reward
-        episode_lengths = [len(ep) for ep in self.expert_obs]
+        episode_lengths = [len(ep) for ep in expert_obs]
         correct_inds = []
         len_sum = 0
         for length in episode_lengths:
@@ -99,7 +89,7 @@ class SAIL(Rewarder):
 
         correct_inds = torch.cat(correct_inds)
 
-        expert_obs = torch.cat(self.expert_obs, dim=0)
+        expert_obs = torch.cat(expert_obs, dim=0)
         expert_inds = correct_inds[
             torch.randint(0, len(correct_inds), (len(feats[0]),))
         ]
@@ -119,7 +109,8 @@ class SAIL(Rewarder):
             if self.min_reward is None:
                 self.min_reward = rewards.min().item()
 
-            rewards = rewards  # - self.min_reward
+            # TODO: Remove all of this normalization? We may be normalizing twice otherwise
+            # rewards = rewards - self.min_reward
             rewards = (rewards - rewards.mean()) / rewards.std()
             rewards = rewards + 1
 
@@ -154,27 +145,27 @@ class SAIL(Rewarder):
     def load_g_inv(self, file_name):
         self.g_inv.load_state_dict(torch.load(file_name))
 
-    def pretrain_vae(self, batch_size: int, epochs=100):
-        self.logger("Pretraining VAE", "INFO", ["wandb"])
+    def pretrain_vae(self, expert_obs, batch_size: int, epochs=100):
+        self.logger.info("Pretraining VAE")
         file_name = "pretrained_models/vae.pt"
 
         if not os.path.exists("./pretrained_models"):
             os.makedirs("pretrained_models")
 
         if os.path.exists(file_name):
-            self.logger("Loading pretrained VAE from disk", "INFO", ["wandb"])
+            self.logger.info("Loading pretrained VAE from disk")
             self.dynamics.load_state_dict(torch.load(file_name))
             return 0
 
         loss = self.dynamics.train(
-            self.expert_obs, epochs, self.dynamics_optim, batch_size=batch_size
+            expert_obs, epochs, self.dynamics_optim, batch_size=batch_size
         )
         torch.save(self.dynamics.state_dict(), file_name)
 
         return loss
 
-    def pretrain_g_inv(self, memory: ReplayMemory, batch_size: int, n_epochs=30):
-        self.logger("Pretraining inverse dynamics", "INFO", ["wandb"])
+    def pretrain_g_inv(self, memory: ObservationBuffer, batch_size: int, n_epochs=30):
+        self.logger.info("Pretraining inverse dynamics")
 
         g_inv_optim_state_dict = self.g_inv_optim.state_dict()
 
@@ -190,13 +181,11 @@ class SAIL(Rewarder):
 
             mean_loss /= n_batches
 
-            self.logger(
+            self.logger.info(
                 {
                     "Epoch": e,
                     "Loss": mean_loss,
                 },
-                "INFO",
-                ["wandb"],
             )
 
         self.g_inv_optim.load_state_dict(g_inv_optim_state_dict)

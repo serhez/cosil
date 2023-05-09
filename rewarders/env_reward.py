@@ -7,10 +7,10 @@ class EnvReward(Rewarder):
     def __init__(self, config):
         self._device = torch.device(config.device)
 
-    def train(self, _):
+    def train(self, *_):
         return 0.0, 0.0, 0.0
 
-    def compute_rewards(self, batch):
+    def compute_rewards(self, batch, _):
         _, _, reward_batch, _, _, _, _, _ = batch
         reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
         return reward_batch

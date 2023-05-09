@@ -13,11 +13,19 @@ from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
 from methods import CoIL, CoSIL
 
 
-@hydra.main(version_base=None, config_path="configs", config_name="config")
+@hydra.main(version_base=None, config_path="configs", config_name="train")
 def main(config: DictConfig) -> None:
     for _ in range(config.num_agents):
         config.logger.experiment_id = str(int(time.time()))
-        config.models_dir_path = f"{config.logger.project_name}/{config.logger.group_name}/{config.env_name}/{config.seed}"
+        config.models_dir_path = f"{config.env_name}/{config.seed}"
+        if config.logger.group_name != "":
+            config.models_dir_path = (
+                f"{config.logger.group_name}/" + config.models_dir_path
+            )
+        if config.logger.project_name != "":
+            config.models_dir_path = (
+                f"{config.logger.project_name}/" + config.models_dir_path
+            )
 
         # Set up environment
         register_env(config.env_name)
@@ -57,7 +65,7 @@ def main(config: DictConfig) -> None:
         logger = MultiLogger(loggers)
 
         # Train a model using the selected training method
-        logger(f"Training using method {config.method.name}", "INFO", ["wandb"])
+        logger.info(f"Training using method {config.method.name}")
         if config.method.name == "coil":
             method = CoIL(config, logger, env)
         elif config.method.name == "cosil":

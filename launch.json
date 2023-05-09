@@ -1,0 +1,38 @@
+{
+    "configurations": [
+        {
+            "name": "Train",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Generate trajectories",
+            "type": "python",
+            "request": "launch",
+            "program": "gen_obs.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Experiment: train expert",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=train_expert"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Experiment: train with the new demos",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=train_with_new_demos"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
