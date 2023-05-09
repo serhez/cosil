@@ -41,6 +41,7 @@ class ObservationBuffer:
         self._position = 0
         self._age = np.array([], dtype=np.int64)
         self._diminishing_ratio = diminishing_ratio
+        self._rng = np.random.default_rng()
 
     def __len__(self) -> int:
         return len(self._buffer)
@@ -188,16 +189,23 @@ class ObservationBuffer:
         ValueError -> if the buffer is empty.
         """
 
-        if len(self._buffer) == 0:
+        buffer_len = len(self._buffer)
+        if buffer_len == 0:
             raise ValueError(
                 "Could not sample from the observation buffer because it is empty"
             )
 
-        replace = len(self._buffer) < n
+        replace = buffer_len < n
 
-        batch_list = np.random.choice(
-            self._buffer, size=n, replace=replace, p=self.distribution
+        chosen_idxs = self._rng.choice(
+            buffer_len,
+            size=n,
+            replace=replace,
+            p=self.distribution,
+            axis=0,
+            shuffle=True,
         )
+        batch_list = [self._buffer[idx] for idx in chosen_idxs]
 
         return tuple(map(np.stack, zip(*batch_list)))
 
