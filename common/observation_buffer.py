@@ -28,6 +28,7 @@ class ObservationBuffer:
         - If 1.0, all observations have equal probability of being sampled.
         - Observations are assigned weights in the order they are pushed into the buffer
         - If a list of observations is pushed into the buffer by the same `push()` operation, all such observations are assigned the same weight, regardless of their position in the list.
+        `seed` -> the seed for the random number generator used to sample observations from the buffer.
         """
 
         assert (
