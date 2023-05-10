@@ -10,7 +10,10 @@ import torch
 
 class ObservationBuffer:
     """
-    A simple FIFO observation buffer which can be used as a replay buffer or imitation buffer.
+    An observation buffer which can be used as a replay buffer or imitation buffer.
+    It stores observations in a circular buffer and assigns a weight to each observation, depending on its time of arrival.
+    Sampling from the buffer is done using the weights as probabilities.
+    The weights of old observations are reduced by a diminishing ratio when new observations are added to the buffer.
     """
 
     def __init__(

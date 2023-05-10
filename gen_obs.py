@@ -66,7 +66,18 @@ def gen_model_obs(
     )
 
 
-def save(obs: dict, path: str, experiment_id: str, logger: Logger):
+def save(obs: dict, path: str, id: str, logger: Logger):
+    """
+    Saves the observations to a file.
+
+    Parameters
+    ----------
+    obs -> the observations.
+    path -> the path to save the observations.
+    id -> the id of the observations.
+    logger -> the logger.
+    """
+
     assert path is not None, "Must provide path to save observations"
     try:
         if not os.path.exists(path):
@@ -77,7 +88,7 @@ def save(obs: dict, path: str, experiment_id: str, logger: Logger):
     if path[-1] != "/":
         path += "/"
 
-    file_name = f"{path}demos_{experiment_id}.pt"
+    file_name = f"{path}demos_{id}.pt"
 
     logger.info(f"Saving demonstrations to {file_name}")
     torch.save(obs, file_name)
@@ -85,7 +96,7 @@ def save(obs: dict, path: str, experiment_id: str, logger: Logger):
 
 @hydra.main(version_base=None, config_path="configs", config_name="gen_obs")
 def main(config: DictConfig):
-    config.logger.experiment_id = str(int(time.time()))
+    config.logger.run_id = str(int(time.time()))
     config.models_dir_path = f"{config.env_name}/{config.seed}"
     if config.logger.group_name != "":
         config.models_dir_path = f"{config.logger.group_name}/" + config.models_dir_path
@@ -118,15 +129,19 @@ def main(config: DictConfig):
             loggers["file"] = FileLogger(
                 config.logger.project_name,
                 config.logger.group_name,
-                config.logger.experiment_id,
+                config.logger.experiment_name,
+                config.logger.run_id,
             )
         elif logger == "wandb":
             loggers["wandb"] = WandbLogger(
                 config.logger.project_name,
                 config.logger.group_name,
-                config.logger.experiment_id,
+                config.logger.experiment_name,
+                config.logger.run_id,
                 config,
             )
+        elif logger == "":
+            pass
         else:
             print(f'[WARNING] Logger "{logger}" is not supported')
     logger = MultiLogger(loggers)
@@ -134,7 +149,7 @@ def main(config: DictConfig):
     obs = gen_model_obs(config, env, logger)
     env.close()
 
-    save(obs, config.save_path, config.logger.experiment_id, logger)
+    save(obs, config.save_path, config.logger.run_id, logger)
 
 
 if __name__ == "__main__":

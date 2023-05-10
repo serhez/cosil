@@ -894,7 +894,10 @@ class CoIL(object):
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
 
-        model_path = os.path.join(dir_path, self.config.logger.experiment_id + ".pt")
+        file_name = self.config.logger.run_id + ".pt"
+        if self.config.logger.experiment_name != "":
+            file_name = self.config.logger.experiment_name + "_" + file_name
+        model_path = os.path.join(dir_path, file_name)
         self.logger.info(f"Saving model to {model_path}")
 
         data = {

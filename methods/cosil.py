@@ -379,7 +379,10 @@ class CoSIL(object):
                 # from the buffer (weighted by the recency of the morphology); otherwise,
                 # we take all demonstrations in the buffer, which correspond to the prev.
                 # morphology.
-                if self.config.method.clear_imitation:
+                if (
+                    not self.config.method.imitate_morphos
+                    or self.config.method.clear_imitation
+                ):
                     demos = self.imitation_buffer.to_list()
                 else:
                     demos = self.imitation_buffer.sample(
@@ -540,7 +543,7 @@ class CoSIL(object):
                 log_dict["reward_optimized_train"] = episode_reward
 
             # Update omega
-            if self.dual_mode == "reward":
+            if self.dual_mode == "r":
                 self.rewarder.update_omega()
             elif self.dual_mode == "q":
                 assert (
@@ -556,7 +559,7 @@ class CoSIL(object):
             ):
                 # Reset omega
                 if self.config.method.reset_omega:
-                    if self.dual_mode == "reward":
+                    if self.dual_mode == "r":
                         self.logger.info(
                             "Resetting omega via the DualRewarder",
                             ["console", "wandb"],
@@ -578,7 +581,7 @@ class CoSIL(object):
 
                 # Add new observations from the current morphology to the imitation buffer
                 # This achieves transfer learning between this and the next morphologies' behavior
-                if self.config.method.imitate_prev_morpho:
+                if self.config.method.imitate_morphos:
                     if self.config.method.clear_imitation:
                         self.logger.info("Clearing the imitation buffer")
                         self.imitation_buffer.clear()
@@ -1030,7 +1033,10 @@ class CoSIL(object):
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
 
-        model_path = os.path.join(dir_path, self.config.experiment_id + ".pt")
+        file_name = self.config.logger.run_id + ".pt"
+        if self.config.logger.experiment_name != "":
+            file_name = self.config.logger.experiment_name + "_" + file_name
+        model_path = os.path.join(dir_path, file_name)
         self.logger.info(f"Saving model to {model_path}")
 
         data = {

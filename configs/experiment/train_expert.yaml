@@ -37,3 +37,4 @@ logger:
   loggers: console
   project_name: expert
   group_name: ""
+  experiment_name: ""

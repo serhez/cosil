@@ -36,3 +36,5 @@ method:
 
 logger:
   loggers: console
+  group_name: ""
+  experiment_name: ""

@@ -1,0 +1,12 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method: coil
+  - override /method/agent: sac
+  - override /method/rewarder: gail
+
+logger:
+  group_name: "11-05-2023_methods"
+  experiment_name: "coil"

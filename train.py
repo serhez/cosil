@@ -16,8 +16,8 @@ from methods import CoIL, CoSIL
 @hydra.main(version_base=None, config_path="configs", config_name="train")
 def main(config: DictConfig) -> None:
     for _ in range(config.num_agents):
-        config.logger.experiment_id = str(int(time.time()))
-        config.models_dir_path = f"{config.env_name}/{config.seed}"
+        config.logger.run_id = str(int(time.time()))
+        config.models_dir_path = f"{config.env_name}/seed-{config.seed}"
         if config.logger.group_name != "":
             config.models_dir_path = (
                 f"{config.logger.group_name}/" + config.models_dir_path
@@ -51,15 +51,19 @@ def main(config: DictConfig) -> None:
                 loggers["file"] = FileLogger(
                     config.logger.project_name,
                     config.logger.group_name,
-                    config.logger.experiment_id,
+                    config.logger.experiment_name,
+                    config.logger.run_id,
                 )
             elif logger == "wandb":
                 loggers["wandb"] = WandbLogger(
                     config.logger.project_name,
                     config.logger.group_name,
-                    config.logger.experiment_id,
+                    config.logger.experiment_name,
+                    config.logger.run_id,
                     config,
                 )
+            elif logger == "":
+                pass
             else:
                 print(f'[WARNING] Logger "{logger}" is not supported')
         logger = MultiLogger(loggers)
@@ -77,7 +81,7 @@ def main(config: DictConfig) -> None:
         env.close()
 
         # Reset the seed for the next model
-        config.seed = np.random.randint(low=1, high=np.iinfo(np.int32).max, size=1)[0]
+        config.seed = np.random.randint(low=1, high=np.iinfo(np.int32).max)
 
 
 if __name__ == "__main__":

@@ -55,7 +55,7 @@ class HeadWrtTypes(StrEnum):
 
 class DualModes(StrEnum):
     q = "q"
-    reward = "reward"
+    r = "r"
 
 
 class NormalizationTypes(StrEnum):
@@ -81,8 +81,11 @@ class LoggerConfig:
     group_name: str = "Group"
     """Name of the group."""
 
-    experiment_id: str = "generic-ID"
-    """ID of the experiment."""
+    experiment_name: str = "Name"
+    """Name of the group."""
+
+    run_id: str = "generic-ID"
+    """ID of the experiment, should be uniquely set at runtime."""
 
     loggers: str = "console,file"
     """List of loggers to use. Possible values: console, file, wandb."""
@@ -325,7 +328,7 @@ class CoILConfig(MethodConfig):
     expert_demos: str = MISSING
     """Path to the expert demonstrations."""
 
-    morpho_warmup: int = 60000
+    morpho_warmup: int = 50000
     """Steps before starting to optimize the morphology."""
 
     episodes_per_morpho: int = 50
@@ -410,10 +413,10 @@ class CoSILConfig(CoILConfig):
     imitation_capacity: int = 100000
     """Capacity of the imitation buffer."""
 
-    imitation_dim_ratio: float = 0.5
+    imitation_dim_ratio: float = 0.8
     """The diminishing ratio for the imitation buffer."""
 
-    imitate_prev_morpho: bool = True
+    imitate_morphos: bool = True
     """Whether to imitate the previous morphology by adding observations from its policy to the imitation buffer."""
 
     clear_imitation: bool = True

@@ -1,0 +1,14 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+
+method:
+  # CoSIL
+  normalization_type: range
+  normalization_mode: min
+  normalization_gamma: 0.0
+
+logger:
+  group_name: "11-05-2023_normalization"
+  experiment_name: "range-min-0"

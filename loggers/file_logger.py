@@ -10,7 +10,7 @@ from .logger import Logger
 class FileLogger(Logger):
     """Logs to a file."""
 
-    def __init__(self, project: str, group: str, experiment: str):
+    def __init__(self, project: str, group: str, name: str, id: str):
         """
         Initializes a file logger.
 
@@ -18,7 +18,8 @@ class FileLogger(Logger):
         ----------
         project -> the name of the project.
         group -> the name of the group.
-        experiment -> the ID of the experiment.
+        name -> the name of the experiment.
+        id -> the ID of the run.
         """
 
         TRIES = 10
@@ -27,7 +28,7 @@ class FileLogger(Logger):
         dir_path = f"logs/{project}/{group}/"
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
-        file_path = dir_path + experiment + ".json"
+        file_path = dir_path + name + "_" + id + ".json"
 
         # Use a random uuid if the file name is already taken
         while os.path.exists(file_path) and TRIES > 0:

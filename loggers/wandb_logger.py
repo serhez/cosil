@@ -1,4 +1,3 @@
-import argparse
 from typing import Any, Dict, Union
 
 from omegaconf import DictConfig
@@ -11,7 +10,9 @@ from .logger import Logger
 class WandbLogger(Logger):
     """Logs to Weights & Biases."""
 
-    def __init__(self, project: str, group: str, experiment: str, config: DictConfig):
+    def __init__(
+        self, project: str, group: str, name: str, id: str, config: DictConfig
+    ):
         """
         Initializes a Weights & Biases logger.
 
@@ -23,7 +24,9 @@ class WandbLogger(Logger):
         config -> the configuration of the experiment.
         """
 
-        wandb.init(project=project, group=group, name=experiment, config=vars(config))
+        wandb.init(
+            project=project, group=group, name=name + "_" + id, config=vars(config)
+        )
 
     def log(self, message: Union[str, Dict[str, Any]], level: str = "INFO", *_) -> bool:
         """
