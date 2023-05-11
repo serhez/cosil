@@ -69,6 +69,11 @@ class NormalizationModes(StrEnum):
     mean = "mean"
 
 
+class Schedulers(StrEnum):
+    cosine_annealing = "cosine_annealing"
+    exponential = "exponential"
+
+
 @dataclass(kw_only=True)
 class LoggerConfig:
     """
@@ -406,6 +411,10 @@ class CoSILConfig(CoILConfig):
 
     omega_init: float = 1.0
     """Initial value for omega."""
+
+    omega_scheduler: Schedulers = (  # pyright: ignore[reportGeneralTypeIssues]
+        "exponential"
+    )
 
     reset_omega: bool = True
     """Whether to reset omega before each morphology change."""

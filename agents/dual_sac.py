@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List
 
 import torch
 import torch.nn.functional as F
@@ -12,6 +12,7 @@ from common.models import (
     MorphoValueFunction,
 )
 from common.observation_buffer import ObservationBuffer
+from common.schedulers import Scheduler
 from loggers import Logger
 from normalizers import RangeNormalizer, ZScoreNormalizer
 from rewarders import SAIL, EnvReward, Rewarder
@@ -32,7 +33,7 @@ class DualSAC(Agent):
         num_morpho_parameters: int,
         imitation_rewarder: Rewarder,
         reinforcement_rewarder: EnvReward,
-        omega_update_fn: Optional[Callable[[float], float]] = None,
+        omega_scheduler: Scheduler,
     ):
         """
         Initialize the Dual SAC agent.
@@ -46,16 +47,14 @@ class DualSAC(Agent):
         num_morpho_parameters -> the number of morphology parameters.
         imitation_rewarder -> the imitation rewarder.
         reinforcement_rewarder -> the reinforcement rewarder.
-        omega_update_fn -> the function to update omega.
+        omega_scheduler -> the scheduler for the omega parameter.
         """
 
         self._logger = logger
         self._gamma = config.method.agent.gamma
         self._tau = config.method.agent.tau
         self._alpha = config.method.agent.alpha
-        self._omega = config.method.omega_init
-        self._omega_init = config.method.omega_init
-        self._omega_update_fn = omega_update_fn
+        self._omega_scheduler = omega_scheduler
         self._learn_disc_transitions = config.learn_disc_transitions
         self._device = torch.device(config.device)
 
@@ -183,40 +182,6 @@ class DualSAC(Agent):
                 self._policy.parameters(), lr=config.method.agent.lr
             )
 
-    @property
-    def omega(self) -> float:
-        """
-        The Q-value weighting parameter: omega * Q-value_1 + (1 - omega) * Q-value_2.
-        """
-
-        return self._omega
-
-    def update_omega(self) -> float:
-        """
-        Updates the omega parameter using the omega_update_fn and returns the new value.
-        If no omega_update_fn was provided, the omega parameter is not updated.
-
-        Returns
-        -------
-        The new value of omega
-        """
-
-        if self._omega_update_fn is not None:
-            self._omega = self._omega_update_fn(self._omega)
-        return self._omega
-
-    def reset_omega(self) -> float:
-        """
-        Resets the omega parameter to the initial value and returns the new value.
-
-        Returns
-        -------
-        The new value of omega
-        """
-
-        self._omega = self._omega_init
-        return self._omega
-
     # FIX: Make this function work with batches, make the shape transformations be a responsibility of the caller
     #      and replace every call to self._policy.sample() with a call to this function
     def select_action(self, state, evaluate=False):
@@ -290,7 +255,10 @@ class DualSAC(Agent):
         if self._imitation_norm is not None and self._reinforcement_norm is not None:
             imitation_value = self._imitation_norm(imitation_value)
             reinforcement_value = self._reinforcement_norm(reinforcement_value)
-        return self._omega * imitation_value + (1 - self._omega) * reinforcement_value
+        return (
+            self._omega_scheduler.value * imitation_value
+            + (1 - self._omega_scheduler.value) * reinforcement_value
+        )
 
     def update_parameters(
         self, batch, updates: int, expert_obs=[], update_value_only=False
@@ -470,7 +438,6 @@ class DualSAC(Agent):
             "loss/policy": policy_loss.item(),
             "loss/entropy_loss": alpha_loss.item(),
             "entropy_temperature/alpha": alpha_tlogs.item(),
-            "omega": self._omega,
             "action_std": std,
             "imitation_reward": imitation_mean_reward.item(),
             "reinforcement_reward": reinforcement_mean_reward.item(),

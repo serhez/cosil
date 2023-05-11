@@ -15,6 +15,7 @@ from omegaconf import DictConfig
 import wandb
 from agents import SAC, DualSAC
 from common.observation_buffer import ObservationBuffer
+from common.schedulers import CosineAnnealingScheduler, ExponentialScheduler
 from loggers import Logger
 from rewarders import GAIL, PWIL, SAIL, DualRewarder, EnvReward
 from utils import dict_add, dict_div
@@ -155,6 +156,32 @@ class CoSIL(object):
         self.logger.info({"Keys to match": self.to_match})
         self.logger.info({"Expert observation shapes": demo_shapes})
 
+        # We reset after `episodes_per_morpho` episodes if we are co-adapting and resetting omega.
+        # This reset is done automatically by the schedulers using the `T_0` parameter.
+        # If we are not co-adapting or not resetting omega, then we calculate the schedulers'
+        # hyper-parameters using an episode horizon equal to `num_episodes`.
+        # Note that the `morpho_warmup` episodes don't matter towards the reset, as we still
+        # change the morphology (even if it's randomly) during the warmup.
+        n_reset_episodes = (
+            self.config.method.episodes_per_morpho
+            if self.config.method.co_adapt and self.config.method.reset_omega
+            else self.config.method.num_episodes
+        )
+        if self.config.method.omega_scheduler == "exponential":
+            # This choice of gamma seems reasonable for omega, but other choices are possible
+            gamma = 1 - np.sqrt(n_reset_episodes) / n_reset_episodes
+            self.omega_scheduler = ExponentialScheduler(
+                self.config.method.omega_init, gamma, T_0=n_reset_episodes
+            )
+        elif self.config.method.omega_scheduler == "cosine_annealing":
+            self.omega_scheduler = CosineAnnealingScheduler(
+                0.0, self.config.method.omega_init, n_reset_episodes, 1.0
+            )
+        else:
+            raise ValueError(
+                f"Omega scheduler is not supported: {self.config.method.omega_scheduler}"
+            )
+
         self.logger.info(f"Using imitation rewarder {config.method.rewarder.name}")
         reinforcement_rewarder = EnvReward(config)
         if config.method.rewarder.name == "gail":
@@ -177,8 +204,7 @@ class CoSIL(object):
         self.rewarder = DualRewarder(
             imitation_rewarder,
             reinforcement_rewarder,
-            omega_init=config.method.omega_init,
-            omega_update_fn=self._omega_update_fn,
+            omega_scheduler=self.omega_scheduler,
         )
         self.rewarder_batch_size = self.config.method.rewarder.batch_size
 
@@ -204,7 +230,7 @@ class CoSIL(object):
                 len(self.env.morpho_params),
                 imitation_rewarder,
                 reinforcement_rewarder,
-                self._omega_update_fn,
+                self.omega_scheduler,
             )
         else:
             raise ValueError("Invalid agent")
@@ -220,21 +246,6 @@ class CoSIL(object):
                 )
             else:
                 raise ValueError(f"Failed to load {self.config.resume}")
-
-    def _omega_update_fn(self, current_omega: float) -> float:
-        """
-        The function that determines how omega is updated.
-
-        Parameters
-        ----------
-        current_omega -> the current value of omega.
-
-        Returns
-        -------
-        The new value of omega.
-        """
-
-        return 0.3 / np.log(0.01 * current_omega + 2.0)
 
     def train(self):
         self.morphos = []
@@ -538,18 +549,13 @@ class CoSIL(object):
             log_dict["distr_distances/pos_baseline_distance"] = pos_baseline_distance
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
             log_dict["episode_steps"] = episode_steps
+            log_dict["omega"] = self.omega_scheduler.value
 
             if self.optimized_morpho:
                 log_dict["reward_optimized_train"] = episode_reward
 
-            # Update omega
-            if self.dual_mode == "r":
-                self.rewarder.update_omega()
-            elif self.dual_mode == "q":
-                assert (
-                    type(self.agent) == DualSAC
-                ), "Dual-Q mode only works with DualSAC"
-                self.agent.update_omega()
+            # Update omega and reset it if necessary
+            self.omega_scheduler.step()
 
             # Morphology evolution
             new_morpho_episode = morpho_episode + 1
@@ -557,28 +563,6 @@ class CoSIL(object):
             if self.config.method.co_adapt and (
                 episode % self.config.method.episodes_per_morpho == 0
             ):
-                # Reset omega
-                if self.config.method.reset_omega:
-                    if self.dual_mode == "r":
-                        self.logger.info(
-                            "Resetting omega via the DualRewarder",
-                            ["console", "wandb"],
-                        )
-                        self.rewarder.reset_omega()
-                    elif self.dual_mode == "q":
-                        assert isinstance(
-                            self.agent, DualSAC
-                        ), "Agent must be DualSAC in Dual-Q mode"
-                        self.logger.info(
-                            "Resetting omega via DualSAC",
-                            ["console", "wandb"],
-                        )
-                        self.agent.reset_omega()
-                    else:
-                        self.logger.warning(
-                            "Not resetting omega because the agent type is not recognized",
-                        )
-
                 # Add new observations from the current morphology to the imitation buffer
                 # This achieves transfer learning between this and the next morphologies' behavior
                 if self.config.method.imitate_morphos:
@@ -633,6 +617,7 @@ class CoSIL(object):
                 {
                     "Episode": episode,
                     "Morpho episode": morpho_episode,
+                    "Omega": self.omega_scheduler.value,
                     "Total steps": self.total_numsteps,
                     "Episode steps": episode_steps,
                     "Episode reward": episode_reward,
