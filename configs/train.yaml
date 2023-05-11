@@ -8,7 +8,7 @@ env_name: GaitTrackHalfCheetah-v0
 method:
   reset_omega: false
   num_episodes: 100
-  morpho_warmup: 50000
+  morpho_warmup: 5000
 
   # CoIL
   episodes_per_morpho: 5

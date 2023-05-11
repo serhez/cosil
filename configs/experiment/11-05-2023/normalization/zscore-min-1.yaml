@@ -6,9 +6,9 @@ defaults:
 method:
   # CoSIL
   normalization_type: z_score
-  normalization_mode: mean
-  normalization_gamma: 0.0
+  normalization_mode: min
+  normalization_gamma: 1.0
 
 logger:
   group_name: "11-05-2023_normalization"
-  experiment_name: "zscore-mean-0"
+  experiment_name: "zscore-min-1"
