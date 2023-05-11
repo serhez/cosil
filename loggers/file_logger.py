@@ -4,6 +4,8 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Union
 
+import numpy as np
+
 from .logger import Logger
 
 
@@ -62,6 +64,12 @@ class FileLogger(Logger):
         -------
         Whether the message was logged successfully.
         """
+
+        # Convert numpy's ndarrays to lists so that they are JSON serializable
+        if isinstance(message, dict):
+            for key, value in message.items():
+                if isinstance(value, np.ndarray):
+                    message[key] = value.tolist()
 
         try:
             with open(self._file_path) as file:
