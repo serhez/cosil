@@ -481,7 +481,7 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
 
 def bo_step(config, morphos, num_morpho, pos_train_distances, env):
     bo_config = SimpleNamespace()
-    bo_config.mean = config.bo_gp_mean
+    bo_config.mean = config.method.co_adaptation.bo_gp_mean
     bo_config.kernel = "Matern52"
     bo_config.optimizer = "lbfgsb"
     bo_config.gp_type = "GPR"
@@ -494,9 +494,9 @@ def bo_step(config, morphos, num_morpho, pos_train_distances, env):
     if config.env_name == "GaitTrackHalfCheetah-v0":
         prev_morphos_to_consider = 200
 
-    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[:, 0][
-        -prev_morphos_to_consider:
-    ]
+    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[
+        :, 0
+    ][-prev_morphos_to_consider:]
     Y = (
         np.array(pos_train_distances)
         .reshape(-1, config.method.episodes_per_morpho)
@@ -511,9 +511,7 @@ def bo_step(config, morphos, num_morpho, pos_train_distances, env):
         config.env_name,
         env.min_task,
         env.max_task,
-        config.acq_weight,
-        None,
-        acq_type="LCB",
+        config.method.co_adaptation.acq_weight,
     )
     morpho_params_np = x_next.flatten()
     optimized_morpho_params = x_exploit_next.flatten()
@@ -524,7 +522,9 @@ def bo_step(config, morphos, num_morpho, pos_train_distances, env):
 
 def rs_step(config, num_morpho, morphos, pos_train_distances, min_task, max_task):
     # Average over same morphologies
-    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[:, 0]
+    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[
+        :, 0
+    ]
     Y = (
         np.array(pos_train_distances)
         .reshape(-1, config.method.episodes_per_morpho)
