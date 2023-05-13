@@ -13,7 +13,6 @@ class DualRewarder(Rewarder):
     A dual rewarder that combines two rewarders.
     A parameter omega is used to balance the rewards from the two rewarders.
     The reward is computed as omega * reward_1 + (1 - omega) * reward_2.
-    Both reward_1 and reward_2 are mean normalized to [-1, 1] using the whole history of computed rewards.
     """
 
     def __init__(
@@ -31,20 +30,11 @@ class DualRewarder(Rewarder):
         `rewarder_2` -> the second rewarder.
         `omega_scheduler` -> the scheduler for the omega parameter.
         """
+        super().__init__()
 
         self.rewarder_1 = rewarder_1
         self.rewarder_2 = rewarder_2
         self._omega_scheduler = omega_scheduler
-
-        # Helpers to calculate statistical measures
-        self._rewarder_1_max = -np.inf
-        self._rewarder_1_min = np.inf
-        self._rewarder_1_sum = 0.0
-        self._rewarder_1_count = 0
-        self._rewarder_2_max = -np.inf
-        self._rewarder_2_min = np.inf
-        self._rewarder_2_sum = 0.0
-        self._rewarder_2_count = 0
 
     def train(
         self,
@@ -100,10 +90,8 @@ class DualRewarder(Rewarder):
         expert_obs: List[torch.Tensor],
     ) -> torch.Tensor:
         """
-        Computes the rewards using the given batch.
-        Returns the combined rewards.
+        Computes the rewards using the given batch and returns the combined rewards.
         The reward is computed as omega * reward_1 + (1 - omega) * reward_2.
-        Both reward_1 and reward_2 are mean normalized to [-1, 1] using the whole history of computed rewards.
 
         Parameters
         ----------
@@ -114,34 +102,12 @@ class DualRewarder(Rewarder):
         The rewards
         """
 
-        # Calculate the rewards
         rewards_1 = self.rewarder_1.compute_rewards(batch, expert_obs)
         rewards_2 = self.rewarder_2.compute_rewards(batch, expert_obs)
 
-        # Update the statistical measures
-        self._rewarder_1_max = max(self._rewarder_1_max, rewards_1.max().item())
-        self._rewarder_1_min = min(self._rewarder_1_min, rewards_1.min().item())
-        self._rewarder_1_sum += rewards_1.sum().item()
-        self._rewarder_1_count += rewards_1.numel()
-        self._rewarder_2_max = max(self._rewarder_2_max, rewards_2.max().item())
-        self._rewarder_2_min = min(self._rewarder_2_min, rewards_2.min().item())
-        self._rewarder_2_sum += rewards_2.sum().item()
-        self._rewarder_2_count += rewards_2.numel()
-
-        # Normalize the rewards
-        rewards_1_mean = self._rewarder_1_sum / self._rewarder_1_count
-        rewards_2_mean = self._rewarder_2_sum / self._rewarder_2_count
-        rewards_1_normalized = (rewards_1 - rewards_1_mean) / (
-            self._rewarder_1_max - self._rewarder_1_min
-        )
-        rewards_2_normalized = (rewards_2 - rewards_2_mean) / (
-            self._rewarder_2_max - self._rewarder_2_min
-        )
-
-        # Return the weighted sum of the rewards
         return (
-            self._omega_scheduler.value * rewards_1_normalized
-            + (1 - self._omega_scheduler.value) * rewards_2_normalized
+            self._omega_scheduler.value * rewards_1
+            + (1 - self._omega_scheduler.value) * rewards_2
         )
 
     def get_model_dict(self) -> Dict[str, Any]:
@@ -152,6 +118,8 @@ class DualRewarder(Rewarder):
         -------
         The model dictionary
         """
+
+        model_dict = {}
 
         model_dict_1 = self.rewarder_1.get_model_dict()
         model_dict_2 = self.rewarder_2.get_model_dict()
@@ -179,6 +147,7 @@ class DualRewarder(Rewarder):
         model_dict_1 = {}
         model_dict_2 = {}
         prefix_len = len("rewarder_1.")
+
         for key in model:
             if key.startswith("rewarder_1."):
                 model_dict_1[key[prefix_len:]] = model[key]

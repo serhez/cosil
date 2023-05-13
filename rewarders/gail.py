@@ -1,14 +1,19 @@
+from typing import Optional
+
 import torch
 from torch import optim
 
 from common.models import Discriminator
+from normalizers import Normalizer
 from utils.imitation import train_disc
 
 from .rewarder import Rewarder
 
 
 class GAIL(Rewarder):
-    def __init__(self, demo_dim, config):
+    def __init__(self, demo_dim, config, normalizer: Optional[Normalizer] = None):
+        super().__init__(normalizer)
+
         self.device = torch.device(config.device)
         self.learn_disc_transitions = config.learn_disc_transitions
         self.log_scale_rewards = config.method.rewarder.log_scale_rewards
@@ -43,6 +48,8 @@ class GAIL(Rewarder):
             rewards = -(1 - rewards).log()
         else:
             rewards = -(1 - rewards)
+
+        rewards = self._normalize(rewards)
 
         return rewards
 

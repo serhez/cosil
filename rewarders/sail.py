@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 import torch
 from torch import optim
@@ -7,13 +8,18 @@ from torch.optim import Adam
 from common.models import InverseDynamics, WassersteinCritic
 from common.observation_buffer import ObservationBuffer
 from common.vae import VAE
+from normalizers import Normalizer
 from utils.imitation import train_wgan_critic
 
 from .rewarder import Rewarder
 
 
 class SAIL(Rewarder):
-    def __init__(self, logger, env, demo_dim, config) -> None:
+    def __init__(
+        self, logger, env, demo_dim, config, normalizer: Optional[Normalizer] = None
+    ) -> None:
+        super().__init__(normalizer)
+
         self.logger = logger
         self.device = torch.device(config.device)
         self.num_inputs = env.observation_space.shape[0]
@@ -106,13 +112,9 @@ class SAIL(Rewarder):
             rewards = self.disc(feats) - self.disc(expert_feats).mean()
 
             # Avoid negative rewards when running with termination
-            if self.min_reward is None:
-                self.min_reward = rewards.min().item()
-
-            # TODO: Remove all of this normalization? We may be normalizing twice otherwise
-            # rewards = rewards - self.min_reward
-            rewards = (rewards - rewards.mean()) / rewards.std()
             rewards = rewards + 1
+
+        rewards = self._normalize(rewards)
 
         return rewards
 

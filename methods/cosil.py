@@ -17,6 +17,7 @@ from agents import SAC, DualSAC
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import CosineAnnealingScheduler, ExponentialScheduler
 from loggers import Logger
+from normalizers import RangeNormalizer, ZScoreNormalizer
 from rewarders import GAIL, PWIL, SAIL, DualRewarder, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
@@ -169,7 +170,7 @@ class CoSIL(object):
         )
         if self.config.method.omega_scheduler == "exponential":
             # This choice of gamma seems reasonable for omega, but other choices are possible
-            gamma = 1 - np.sqrt(n_reset_episodes) / n_reset_episodes
+            gamma = 1 - np.sqrt(n_reset_episodes - 1) / (n_reset_episodes - 1)
             self.omega_scheduler = ExponentialScheduler(
                 self.config.method.omega_init, gamma, T_0=n_reset_episodes
             )
@@ -182,14 +183,56 @@ class CoSIL(object):
                 f"Omega scheduler is not supported: {self.config.method.omega_scheduler}"
             )
 
+        # Instantiate the rewarders' normalizers, if in dual-reward mode
+        if self.dual_mode == "r":
+            if config.method.normalization_type == "none":
+                imit_norm = None
+                rein_norm = None
+            elif config.method.normalization_type == "range":
+                imit_norm = RangeNormalizer(
+                    mode=config.method.normalization_mode,
+                    gamma=config.method.normalization_gamma,
+                    beta=config.method.normalization_beta,
+                )
+                rein_norm = RangeNormalizer(
+                    mode=config.method.normalization_mode,
+                    gamma=config.method.normalization_gamma,
+                    beta=config.method.normalization_beta,
+                )
+            elif config.method.normalization_type == "z_score":
+                imit_norm = ZScoreNormalizer(
+                    mode=config.method.normalization_mode,
+                    gamma=config.method.normalization_gamma,
+                    beta=config.method.normalization_beta,
+                    low_clip=config.method.normalization_low_clip,
+                    high_clip=config.method.normalization_high_clip,
+                )
+                rein_norm = ZScoreNormalizer(
+                    mode=config.method.normalization_mode,
+                    gamma=config.method.normalization_gamma,
+                    beta=config.method.normalization_beta,
+                    low_clip=config.method.normalization_low_clip,
+                    high_clip=config.method.normalization_high_clip,
+                )
+            else:
+                raise ValueError(
+                    f"Invalid dual normalization: {config.method.normalization_type}"
+                )
+        else:
+            rein_norm = None
+            imit_norm = None
+
+        # Instantiate rewarders
         self.logger.info(f"Using imitation rewarder {config.method.rewarder.name}")
-        reinforcement_rewarder = EnvReward(config)
+        reinforcement_rewarder = EnvReward(config.device, rein_norm)
         if config.method.rewarder.name == "gail":
-            imitation_rewarder = GAIL(self.demo_dim, config)
+            imitation_rewarder = GAIL(self.demo_dim, config, imit_norm)
         elif (
             config.method.rewarder.name == "sail"
         ):  # SAIL includes a pretraining step for the VAE and inverse dynamics
-            imitation_rewarder = SAIL(self.logger, self.env, self.demo_dim, config)
+            imitation_rewarder = SAIL(
+                self.logger, self.env, self.demo_dim, config, imit_norm
+            )
             self.vae_loss = imitation_rewarder.pretrain_vae(10000)
             if not self.config.resume:
                 imitation_rewarder.g_inv_loss = self._pretrain_sail(
@@ -548,11 +591,8 @@ class CoSIL(object):
             log_dict["distr_distances/vel_train_distance"] = vel_train_distance
             log_dict["distr_distances/pos_baseline_distance"] = pos_baseline_distance
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
-            log_dict["episode_steps"] = episode_steps
-            log_dict["omega"] = self.omega_scheduler.value
-
-            if self.optimized_morpho:
-                log_dict["reward_optimized_train"] = episode_reward
+            log_dict["general/episode_steps"] = episode_steps
+            log_dict["general/omega"] = self.omega_scheduler.value
 
             # Update omega and reset it if necessary
             self.omega_scheduler.step()
@@ -603,7 +643,7 @@ class CoSIL(object):
 
                 new_morpho_episode = 1
 
-            log_dict["reward_train"] = episode_reward
+            log_dict["reward/env_total"] = episode_reward
 
             if self.config.method.save_optimal and episode_reward > prev_best_reward:
                 self._save("optimal")
@@ -611,7 +651,7 @@ class CoSIL(object):
                 self.logger.info(f"New best reward: {episode_reward}")
 
             took = time.time() - start
-            log_dict["episode_time"] = took
+            log_dict["general/episode_time"] = took
 
             self.logger.info(
                 {
@@ -634,7 +674,7 @@ class CoSIL(object):
                 self._evaluate(episode, optimized_morpho_params, log_dict)
                 train_marker_obs_history = []
 
-            log_dict["total_numsteps"] = self.total_numsteps
+            log_dict["general/total_steps"] = self.total_numsteps
             self.logger.info(log_dict, ["console"])
             log_dict, logged = {}, 0
 
@@ -959,12 +999,10 @@ class CoSIL(object):
         avg_reward /= episodes
         avg_steps /= episodes
 
-        log_dict["avg_test_reward"] = avg_reward
-        log_dict["avg_test_steps"] = avg_steps
-        log_dict["reward_optimized_test"] = avg_reward
         took = time.time() - start
-
-        log_dict["test_time"] = took
+        log_dict["test/avg_reward"] = avg_reward
+        log_dict["test/avg_steps"] = avg_steps
+        log_dict["test/time"] = took
         if vid_path is not None:
             log_dict["test_video"] = wandb.Video(vid_path, fps=20, format="gif")
 

@@ -159,7 +159,7 @@ class CoIL(object):
             # TODO: add PWIL
             pass
         elif config.method.rewarder.name == "env":
-            self.rewarder = EnvReward(config)
+            self.rewarder = EnvReward(config.device)
         else:
             raise NotImplementedError
         self.rewarder_batch_size = self.config.method.rewarder.batch_size
@@ -465,10 +465,7 @@ class CoIL(object):
             log_dict["distr_distances/vel_train_distance"] = vel_train_distance
             log_dict["distr_distances/pos_baseline_distance"] = pos_baseline_distance
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
-            log_dict["episode_steps"] = episode_steps
-
-            if self.optimized_morpho:
-                log_dict["reward_optimized_train"] = episode_reward
+            log_dict["general/episode_steps"] = episode_steps
 
             # Adapt the morphology
             optimized_morpho_params = None
@@ -479,7 +476,7 @@ class CoIL(object):
                     epsilon, es, es_buffer, log_dict
                 )
 
-            log_dict["reward_train"] = episode_reward
+            log_dict["reward/env_total"] = episode_reward
 
             if self.config.method.save_optimal and episode_reward > prev_best_reward:
                 self._save("optimal")
@@ -487,7 +484,7 @@ class CoIL(object):
                 self.logger.info(f"New best reward: {episode_reward}")
 
             took = time.time() - start
-            log_dict["episode_time"] = took
+            log_dict["general/episode_time"] = took
 
             self.logger.info(
                 {
@@ -508,7 +505,7 @@ class CoIL(object):
                 self._evaluate(i_episode, optimized_morpho_params, log_dict)
                 train_marker_obs_history = []
 
-            log_dict["total_numsteps"] = self.total_numsteps
+            log_dict["general/total_steps"] = self.total_numsteps
 
             self.logger.info(log_dict, ["console"])
 
@@ -835,12 +832,10 @@ class CoIL(object):
         avg_reward /= episodes
         avg_steps /= episodes
 
-        log_dict["avg_test_reward"] = avg_reward
-        log_dict["avg_test_steps"] = avg_steps
-        log_dict["reward_optimized_test"] = avg_reward
         took = time.time() - start
-
-        log_dict["test_time"] = took
+        log_dict["test/avg_reward"] = avg_reward
+        log_dict["test/avg_steps"] = avg_steps
+        log_dict["test/time"] = took
         if vid_path is not None:
             log_dict["test_video"] = wandb.Video(vid_path, fps=20, format="gif")
 

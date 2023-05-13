@@ -6,16 +6,16 @@ defaults:
 env_name: GaitTrackHalfCheetah-v0
 
 method:
-  reset_omega: false
+  reset_omega: true
   num_episodes: 100
-  morpho_warmup: 5000
+  morpho_warmup: 10000
 
   # CoIL
-  episodes_per_morpho: 5
+  episodes_per_morpho: 10
 
 logger:
   project_name: "CoSIL-test"
   group_name: "11-05-2023_omega"
-  experiment_name: "no-reset"
+  experiment_name: "test-normalizers"
   run_id: ""
   loggers: console,file,wandb

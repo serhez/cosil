@@ -177,7 +177,7 @@ class SAC(Agent):
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
-    def get_value(self, state, action) -> float:
+    def get_value(self, state, action) -> torch.FloatTensor:
         return self._critic.min(state, action)
 
     def update_parameters(
@@ -249,8 +249,6 @@ class SAC(Agent):
             )
             next_q_value = reward_batch + dones * self._gamma * (min_qf_next_target)
 
-        mean_modified_reward = reward_batch.mean()
-
         # Plot absorbing rewards
         marker_feats = next_marker_batch
         if self._learn_disc_transitions:
@@ -310,16 +308,18 @@ class SAC(Agent):
             soft_update(self._critic_target, self._critic, self._tau)
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
+        # TODO: we could include also the "reward/reinforcement_mean" and "reward/imitation_mean" if we are using a dual rewarder
         return {
-            "loss/critic_loss": qf_loss,
+            "reward/balanced_mean": reward_batch.mean().item(),
+            "reward/absorbing_mean": absorbing_rewards.item(),
+            "q-value/q-value": q_value.mean().item(),
+            "loss/critic": qf_loss,
             "loss/policy": policy_loss.item(),
-            "loss/entropy_loss": alpha_loss.item(),
-            "entropy_temperature/alpha": alpha_tlogs.item(),
-            "action_std": std,
-            "weighted_reward": mean_modified_reward.item(),
-            "entropy_temperature/entropy": entropy,
-            "loss/policy_prior_loss": vae_loss.item(),
-            "absorbing_reward": absorbing_rewards.item(),
+            "loss/alpha": alpha_loss.item(),
+            "loss/vae": vae_loss.item(),
+            "entropy/alpha": alpha_tlogs.item(),
+            "entropy/entropy": entropy,
+            "entropy/action_std": std,
         }
 
     # Return a dictionary containing the model state for saving

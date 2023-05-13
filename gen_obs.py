@@ -1,4 +1,3 @@
-import itertools
 import os
 import random
 import time
@@ -48,7 +47,7 @@ def gen_model_obs(
     if config.absorbing_state:
         obs_size += 1
 
-    rewarder = EnvReward(config)
+    rewarder = EnvReward(config.device)
     agent = SAC(
         config,
         logger,
