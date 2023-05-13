@@ -15,6 +15,9 @@ class ZScoreNormalizer(Normalizer):
     Clipping can also be activated using either or both of the `low_clip` and `high_clip` parameters, which will clip the normalized values to the range [low_clip, high_clip].
     """
 
+    EPS = 1e-8
+    """A small value to avoid division by zero."""
+
     def __init__(
         self,
         mode: str = "mean",
@@ -35,8 +38,6 @@ class ZScoreNormalizer(Normalizer):
         high_clip -> the higher bound for clipping; not applied if set to None.
         """
         super().__init__(gamma, beta)
-
-        self._EPS = 1e-8
 
         # Running statistical measures recorded to compute the mean and standard deviation
         self._min = np.inf
@@ -73,7 +74,7 @@ class ZScoreNormalizer(Normalizer):
             raise ValueError(f"Invalid normalization mode: {self._mode}")
 
         normalized_tensor = (
-            sub_tensor / (self._std + self._EPS) * self._gamma + self._beta
+            sub_tensor / (self._std + self.EPS) * self._gamma + self._beta
         )
 
         if self._low_clip is not None or self._high_clip is not None:
