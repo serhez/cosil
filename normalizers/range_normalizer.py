@@ -44,9 +44,13 @@ class RangeNormalizer(Normalizer):
         self._count += tensor.numel()
 
         if self._mode == "min":
-            return (tensor - self._min) / (self._max - self._min)
+            return (tensor - self._min) / (
+                self._max - self._min
+            ) * self._gamma + self._beta
         elif self._mode == "mean":
-            return (tensor - self._sum / self._count) / (self._max - self._min)
+            return (tensor - self._sum / self._count) / (
+                self._max - self._min
+            ) * self._gamma + self._beta
         else:
             raise ValueError(f"Invalid normalizer mode: {self._mode}")
 
