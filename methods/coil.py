@@ -157,9 +157,11 @@ class CoIL(object):
                 )
         elif config.method.rewarder.name == "pwil":
             # TODO: add PWIL
-            pass
+            raise NotImplementedError
         elif config.method.rewarder.name == "env":
-            self.rewarder = EnvReward(config.device)
+            self.rewarder = EnvReward(
+                config.device, sparse_mask=config.method.sparse_mask
+            )
         else:
             raise NotImplementedError
         self.rewarder_batch_size = self.config.method.rewarder.batch_size

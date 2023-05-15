@@ -306,6 +306,13 @@ class MethodConfig:
     save_final: bool = True
     """Whether to save the final policy."""
 
+    sparse_mask: Optional[float] = None
+    """
+    The sparsity mask for the envrionment.
+    For example, a mask of 90.0 means that all environment rewards below 90.0 are made 0.0.
+    If None, no mask is applied.
+    """
+
 
 @dataclass(kw_only=True)
 class CoILConfig(MethodConfig):
@@ -319,7 +326,7 @@ class CoILConfig(MethodConfig):
                 "agent": "sac",
             },
             {
-                "rewarder": "env",
+                "rewarder": "gail",
             },
         ]
     )

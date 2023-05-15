@@ -55,12 +55,12 @@ class GAIL(Rewarder):
 
     def get_model_dict(self):
         data = {
-            "disc_state_dict": self.disc.state_dict(),
-            "disc_optim_state_dict": self.disc_opt.state_dict(),
+            "gail/disc_state_dict": self.disc.state_dict(),
+            "gail/disc_optim_state_dict": self.disc_opt.state_dict(),
         }
         return data
 
     def load(self, model):
-        self.disc.load_state_dict(model["disc_state_dict"])
-        self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
+        self.disc.load_state_dict(model["gail/disc_state_dict"])
+        self.disc_opt.load_state_dict(model["gail/disc_optim_state_dict"])
         return True

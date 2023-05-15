@@ -224,7 +224,9 @@ class CoSIL(object):
 
         # Instantiate rewarders
         self.logger.info(f"Using imitation rewarder {config.method.rewarder.name}")
-        reinforcement_rewarder = EnvReward(config.device, rein_norm)
+        reinforcement_rewarder = EnvReward(
+            config.device, rein_norm, config.method.sparse_mask
+        )
         if config.method.rewarder.name == "gail":
             imitation_rewarder = GAIL(self.demo_dim, config, imit_norm)
         elif (

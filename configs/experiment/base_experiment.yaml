@@ -29,6 +29,7 @@ method:
   save_checkpoints: false
   save_optimal: false
   save_final: true
+  sparse_mask: null
 
   # CoIL
   expert_demos: data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt
