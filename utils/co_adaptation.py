@@ -254,8 +254,8 @@ def obj_morpho_value(
 
 
 @torch.no_grad()
-def plot_full_q_fn(fn, bounds, current_optima, real_lengths=None):
-    optima = torch.as_tensor(current_optima).float()
+def plot_full_q_fn(fn, bounds, current_optima, real_lengths=None, device="cpu"):
+    optima = torch.as_tensor(current_optima, device=device).float()
     optima = optima.repeat(100, 1)
 
     fig = plt.figure(figsize=(12, 12), dpi=100)
@@ -324,8 +324,8 @@ def optimize_morpho_params_pso(
     # print gradients. They should be zero-ish if we are at local optimum
     # _, grads_abs_sum = obj(pos, initial_states_torch, policy, q_function, evaluate_grads=True)
 
-    fig = plot_full_q_fn(fn, bounds, pos)
-    morpho_params = torch.tensor(pos)
+    fig = plot_full_q_fn(fn, bounds, pos, device)
+    morpho_params = torch.tensor(pos, device=device)
 
     return cost, morpho_params, fig, 0
 

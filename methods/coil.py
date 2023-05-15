@@ -42,8 +42,8 @@ class CoIL(object):
         self.logger = logger
 
         # Bounds for morphology optimization
-        highs = torch.tensor(self.env.max_task)
-        lows = torch.tensor(self.env.min_task)
+        highs = torch.tensor(self.env.max_task, device=self.device)
+        lows = torch.tensor(self.env.min_task, device=self.device)
         self.bounds = torch.stack([lows, highs], dim=1)
 
         # The distribution used for morphology exploration

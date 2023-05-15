@@ -358,7 +358,11 @@ class DualSAC(Agent):
             dones = torch.logical_or(
                 terminated_batch,
                 truncated_batch,
-                out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype),
+                out=torch.empty(
+                    terminated_batch.shape,
+                    dtype=terminated_batch.dtype,
+                    device=terminated_batch.device,
+                ),
             )
 
             next_state_action, next_state_log_pi, _, _ = self._policy.sample(
@@ -427,7 +431,7 @@ class DualSAC(Agent):
         ) = self.get_value(state_batch, pi)
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
-        vae_loss = torch.tensor(0.0)
+        vae_loss = torch.tensor(0.0, device=self._device)
 
         if isinstance(self._imit_rewarder, SAIL):
             vae_loss = self._imit_rewarder.get_vae_loss(
@@ -454,7 +458,9 @@ class DualSAC(Agent):
             alpha_tlogs = self._alpha.clone()  # For TensorboardX logs
         else:
             alpha_loss = torch.tensor(0.0).to(self._device)
-            alpha_tlogs = torch.tensor(self._alpha)  # For TensorboardX logs
+            alpha_tlogs = torch.tensor(
+                self._alpha, device=self._device
+            )  # For TensorboardX logs
 
         if updates % self._target_update_interval == 0:
             soft_update(self._imit_critic_target, self._imit_critic, self._tau)
