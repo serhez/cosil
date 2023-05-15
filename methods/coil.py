@@ -56,7 +56,7 @@ class CoIL(object):
             self.env.set_task(*self.config.method.fixed_morpho)
 
         if self.config.method.co_adapt:
-            morpho_params = self.morpho_dist.sample().numpy()
+            morpho_params = self.morpho_dist.sample().cpu().numpy()
             self.env.set_task(*morpho_params)
             self.optimized_morpho = False
 
@@ -543,7 +543,7 @@ class CoIL(object):
         while step < steps:
             if co_adapt:
                 morpho_params = self.morpho_dist.sample()
-                self.env.set_task(*morpho_params.numpy())
+                self.env.set_task(*morpho_params.cpu().numpy())
 
             state, _ = self.env.reset()
             state = np.concatenate([state, self.env.morpho_params])
@@ -623,7 +623,7 @@ class CoIL(object):
         if self.total_numsteps < self.config.method.morpho_warmup:
             self.logger.info("Sampling morphology")
             morpho_params = self.morpho_dist.sample()
-            self.morpho_params_np = morpho_params.numpy()
+            self.morpho_params_np = morpho_params.cpu().numpy()
 
         # Bayesian optimization (Algorithm 2)
         elif self.config.method.co_adaptation.dist_optimizer == "bo":
@@ -734,8 +734,8 @@ class CoIL(object):
                     use_distance_value=self.config.method.train_distance_value,
                     device=self.device,
                 )
-                optimized_morpho_params = morpho_params.clone().numpy()
-                self.morpho_params_np = morpho_params.detach().numpy()
+                optimized_morpho_params = morpho_params.clone().cpu().numpy()
+                self.morpho_params_np = morpho_params.detach().cpu().numpy()
                 log_dict["morpho/morpho_loss"] = morpho_loss
                 log_dict["morpho/grads_abs_sum"] = grads_abs_sum
                 log_dict["q_fn_scale"] = wandb.Image(fig)
@@ -746,7 +746,7 @@ class CoIL(object):
                     ] = self.morpho_params_np[j]
             else:
                 morpho_params = self.morpho_dist.sample()
-                self.morpho_params_np = morpho_params.numpy()
+                self.morpho_params_np = morpho_params.cpu().numpy()
 
             self.logger.info(
                 {

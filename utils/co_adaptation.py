@@ -315,7 +315,7 @@ def optimize_morpho_params_pso(
         n_particles=250,
         dimensions=bounds.shape[0],
         options=options,
-        bounds=(bounds[:, 0].numpy(), bounds[:, 1].numpy()),
+        bounds=(bounds[:, 0].cpu().numpy(), bounds[:, 1].cpu().numpy()),
         ftol=1e-7,
         ftol_iter=30,
     )
