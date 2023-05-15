@@ -5,3 +5,4 @@ outputs/
 report.log
 imitator.pt
 metrics.pt
+slurm*

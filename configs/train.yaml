@@ -3,19 +3,20 @@ defaults:
   - base_train
   - _self_
 
+device: cuda
 env_name: GaitTrackHalfCheetah-v0
 
 method:
   reset_omega: true
-  num_episodes: 100
-  morpho_warmup: 10000
+  num_episodes: 2
+  morpho_warmup: 0
 
   # CoIL
-  episodes_per_morpho: 10
+  episodes_per_morpho: 5
 
 logger:
   project_name: "CoSIL-test"
-  group_name: "11-05-2023_omega"
-  experiment_name: "test-normalizers"
+  group_name: "11-05-2023_triton"
+  experiment_name: "cuda"
   run_id: ""
   loggers: console,file,wandb

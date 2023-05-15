@@ -7,7 +7,7 @@ defaults:
   - override /method/rewarder: gail  # variable
 
 seed: 123456
-device: "cuda"
+device: cuda
 env_name: GaitTrackHalfCheetah-v0
 models_dir_path: models
 learn_disc_transitions: false
@@ -20,7 +20,7 @@ method:
   eval_episodes: 10
   eval_per_episodes: 20
   batch_size: 256
-  num_episodes: 500
+  num_episodes: 300
   updates_per_step: 1
   start_steps: 10000
   replay_capacity: 2000000
