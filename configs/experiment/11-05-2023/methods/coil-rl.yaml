@@ -9,4 +9,4 @@ defaults:
 
 logger:
   group_name: "11-05-2023_methods"
-  experiment_name: "rl"
+  experiment_name: "coil-rl"

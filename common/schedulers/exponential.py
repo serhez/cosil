@@ -9,7 +9,7 @@ class ExponentialScheduler(Scheduler):
     Optionally, the scheduler can perform warm restarts after a certain number of episodes.
     The warm restart intervals can be increased after each restart.
 
-    This is an adaptation of PyTorch's `CosineAnnealingWarmRestarts`:
+    This is an adaptation of PyTorch's `ExponentialLR`:
     https://github.com/pytorch/pytorch/blob/main/torch/optim/lr_scheduler.py
     """
 

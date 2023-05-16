@@ -70,6 +70,7 @@ class NormalizationModes(StrEnum):
 
 
 class Schedulers(StrEnum):
+    constant = "constant"
     cosine_annealing = "cosine_annealing"
     exponential = "exponential"
 

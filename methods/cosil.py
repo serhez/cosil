@@ -15,7 +15,11 @@ from omegaconf import DictConfig
 import wandb
 from agents import SAC, DualSAC
 from common.observation_buffer import ObservationBuffer
-from common.schedulers import CosineAnnealingScheduler, ExponentialScheduler
+from common.schedulers import (
+    ConstantScheduler,
+    CosineAnnealingScheduler,
+    ExponentialScheduler,
+)
 from loggers import Logger
 from normalizers import RangeNormalizer, ZScoreNormalizer
 from rewarders import GAIL, PWIL, SAIL, DualRewarder, EnvReward
@@ -178,6 +182,8 @@ class CoSIL(object):
             self.omega_scheduler = CosineAnnealingScheduler(
                 0.0, self.config.method.omega_init, n_reset_episodes, 1.0
             )
+        elif self.config.method.omega_scheduler == "constant":
+            self.omega_scheduler = ConstantScheduler(self.config.method.omega_init)
         else:
             raise ValueError(
                 f"Omega scheduler is not supported: {self.config.method.omega_scheduler}"
@@ -620,8 +626,8 @@ class CoSIL(object):
                     )
                     expert_obs_np, self.to_match = get_marker_info(
                         obs_dict,
-                        self.policy_legs,  # BUG:?
-                        self.policy_limb_indices,  # BUG:?
+                        self.policy_legs,
+                        self.policy_limb_indices,
                         pos_type=self.config.method.pos_type,
                         vel_type=self.config.method.vel_type,
                         torso_type=self.config.method.torso_type,
