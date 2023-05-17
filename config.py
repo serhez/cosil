@@ -73,6 +73,8 @@ class Schedulers(StrEnum):
     constant = "constant"
     cosine_annealing = "cosine_annealing"
     exponential = "exponential"
+    step = "step"
+    min_max = "min_max"
 
 
 @dataclass(kw_only=True)
@@ -222,7 +224,7 @@ class SACConfig(AgentConfig):
 
     bc_regularization: bool = False
     """
-    Whether to use behavior cloning regularization term in the policy loss.
+    Whether to use a behavior cloning regularization term in the policy loss.
     This technique has been proposed in the TD3+BC paper: "A minimalist approach to offline reinforcement learning".
     """
 
