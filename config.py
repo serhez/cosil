@@ -220,6 +220,12 @@ class SACConfig(AgentConfig):
     target_update_interval: int = 1
     """Interval for updating the target networks."""
 
+    bc_regularization: bool = False
+    """
+    Whether to use behavior cloning regularization term in the policy loss.
+    This technique has been proposed in the TD3+BC paper: "A minimalist approach to offline reinforcement learning".
+    """
+
 
 @dataclass(kw_only=True)
 class DualSACConfig(SACConfig):

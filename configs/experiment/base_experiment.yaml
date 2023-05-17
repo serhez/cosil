@@ -50,6 +50,7 @@ method:
   head_wrt: null
   omit_done: false
   fixed_morpho: null
+  bc_regularization: false
 
   # CoSIL
   omega_init: 1.0

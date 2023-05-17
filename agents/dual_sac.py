@@ -50,13 +50,14 @@ class DualSAC(Agent):
         omega_scheduler -> the scheduler for the omega parameter.
         """
 
+        self._device = torch.device(config.device)
         self._logger = logger
         self._gamma = config.method.agent.gamma
         self._tau = config.method.agent.tau
         self._alpha = config.method.agent.alpha
         self._omega_scheduler = omega_scheduler
         self._learn_disc_transitions = config.learn_disc_transitions
-        self._device = torch.device(config.device)
+        self._bc_regul = config.method.agent.bc_regularization
 
         self._target_update_interval = config.method.agent.target_update_interval
         self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
@@ -431,13 +432,22 @@ class DualSAC(Agent):
         ) = self.get_value(state_batch, pi)
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
+        # VAE term
         vae_loss = torch.tensor(0.0, device=self._device)
-
         if isinstance(self._imit_rewarder, SAIL):
             vae_loss = self._imit_rewarder.get_vae_loss(
                 state_batch, marker_batch, policy_mean
             )
             policy_loss += vae_loss
+
+        # BC term (look at the TD3+BC paper).
+        # We reuse omega as the BC weighting hyperparameter, since the usefullness of the BC term
+        # is proportional to the usefulness of the imitation loss/Q-value in our transfer learning case.
+        bc_loss = -torch.square(policy_mean - action_batch).mean()
+        if self._bc_regul:
+            policy_loss = (
+                1 - self._omega_scheduler.value
+            ) * policy_loss + self._omega_scheduler.value * bc_loss
 
         self._policy_optim.zero_grad()
         policy_loss.backward()
@@ -481,6 +491,7 @@ class DualSAC(Agent):
             "loss/policy": policy_loss.item(),
             "loss/vae": vae_loss.item(),
             "loss/alpha": alpha_loss.item(),
+            "loss/behavioral_cloning": bc_loss.item(),
             "entropy/alpha": alpha_tlogs.item(),
             "entropy/entropy": entropy,
             "entropy/action_std": std,
