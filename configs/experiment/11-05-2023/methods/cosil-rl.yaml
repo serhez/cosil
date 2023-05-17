@@ -10,6 +10,7 @@ defaults:
 method:
   omega_scheduler: constant
   omega_init: 0.0
+  normalization_type: none
 
 logger:
   group_name: "11-05-2023_methods"

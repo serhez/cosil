@@ -7,7 +7,7 @@ defaults:
   - override /method/rewarder: gail  # variable
 
 seed: 123456
-device: cuda
+device: cpu
 env_name: GaitTrackHalfCheetah-v0
 models_dir_path: models
 learn_disc_transitions: false
@@ -62,7 +62,7 @@ method:
   obs_per_morpho: 10000
   morpho_policy_warmup: 1  # could be tested
   dual_mode: q  # variable
-  normalization_type: range  # variable
+  normalization_type: z_score  # variable
   normalization_mode: min  # variable
   normalization_gamma: 100.0  # variable
   normalization_beta: 0.0  # could be tested
