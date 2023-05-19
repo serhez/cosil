@@ -11,7 +11,7 @@ class Scheduler(ABC):
 
         Returns
         -------
-        `state_dict` -> the scheduler state.
+        The scheduler state.
         """
 
         return {key: value for key, value in self.__dict__.items()}
@@ -37,7 +37,7 @@ class Scheduler(ABC):
     def step(self):
         """
         Updates the parameter value based on the current episode.
-        The computed value is cached and can be retrieved without overhead at `value`.
+        The computed value is cached and can be retrieved without overhead at `scheduler.value`.
 
         Returns
         -------
@@ -49,7 +49,9 @@ class Scheduler(ABC):
     @abstractmethod
     def reset(self, hard: bool = False, **new_hyper_params) -> float:
         """
-        Resets the scheduler manually by performing a warm restart, and additionally takes a step.
+        Resets the scheduler manually by performing a warm restart.
+        It resets its internal step to 0 and its hyperparameters to their initial values.
+        New initial values for the hyperparameters can be passed as keyword arguments.
 
         Parameters
         ----------

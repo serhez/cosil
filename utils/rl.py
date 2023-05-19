@@ -47,6 +47,7 @@ def gen_obs(
     num_obs: int,
     env: gym.Env,
     agent: Agent,
+    morpho_in_state: bool,
     absorbing_state: bool,
     logger: Logger,
     logger_mask: List[str] = ["wandb"],
@@ -62,9 +63,10 @@ def gen_obs(
     Parameters
     ----------
     num_obs -> the number of observations to generate.
-    config -> the configuration.
     env -> the environment.
     agent -> the agent.
+    morpho_in_state -> whether to add the morphological parameters to the state.
+    absorbing_state -> whether to add an absorbing state to the observations.
     logger -> the logger.
     logger_mask -> the loggers to mask when logging.
 
@@ -86,7 +88,10 @@ def gen_obs(
             break
 
         state, _ = env.reset()
-        feat = np.concatenate([state, env.morpho_params])
+
+        feat = state
+        if morpho_in_state:
+            feat = np.concatenate([state, env.morpho_params])
         if absorbing_state:
             feat = np.concatenate([feat, np.zeros(1)])
 
@@ -98,7 +103,9 @@ def gen_obs(
             action = agent.select_action(feat, evaluate=True)
             next_state, reward, terminated, truncated, info = env.step(action)
 
-            next_feat = np.concatenate([next_state, env.morpho_params])
+            next_feat = next_state
+            if morpho_in_state:
+                next_feat = np.concatenate([next_state, env.morpho_params])
             if absorbing_state:
                 next_feat = np.concatenate([next_feat, np.zeros(1)])
 

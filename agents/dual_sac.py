@@ -27,10 +27,9 @@ class DualSAC(Agent):
         self,
         config,
         logger: Logger,
-        num_inputs: int,
         action_space,
-        num_morpho_obs: int,
-        num_morpho_parameters: int,
+        state_dim: int,
+        morpho_dim: int,
         imitation_rewarder: Rewarder,
         reinforcement_rewarder: EnvReward,
         omega_scheduler: Scheduler,
@@ -40,14 +39,14 @@ class DualSAC(Agent):
 
         Parameters
         ----------
-        config -> the configuration object.
-        logger -> the logger object.
-        action_space -> the action space.
-        num_morpho_obs -> the number of morphology observations.
-        num_morpho_parameters -> the number of morphology parameters.
-        imitation_rewarder -> the imitation rewarder.
-        reinforcement_rewarder -> the reinforcement rewarder.
-        omega_scheduler -> the scheduler for the omega parameter.
+        `config` -> the configuration object.
+        `logger` -> the logger object.
+        `action_space` -> the action space.
+        `state_dim` -> the number of state features, which may include the morphology features.
+        `morpho_dim` -> the number of morphology features.
+        `imitation_rewarder` -> the imitation rewarder.
+        `reinforcement_rewarder` -> the reinforcement rewarder.
+        `omega_scheduler` -> the scheduler for the omega parameter.
         """
 
         self._device = torch.device(config.device)
@@ -65,9 +64,9 @@ class DualSAC(Agent):
         self._imit_rewarder = imitation_rewarder
         self._rein_rewarder = reinforcement_rewarder
 
-        self._morpho_slice = slice(-num_morpho_obs, None)
+        self._morpho_slice = slice(-morpho_dim, None)
         if config.absorbing_state:
-            self._morpho_slice = slice(-num_morpho_obs - 1, -1)
+            self._morpho_slice = slice(-morpho_dim - 1, -1)
 
         assert config.method.normalization_mode in [
             "min",
@@ -108,7 +107,7 @@ class DualSAC(Agent):
             )
 
         self._imit_critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs,
+            state_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(device=self._device)
@@ -118,7 +117,7 @@ class DualSAC(Agent):
             weight_decay=config.method.agent.q_weight_decay,
         )
         self._rein_critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs,
+            state_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(device=self._device)
@@ -129,13 +128,13 @@ class DualSAC(Agent):
         )
 
         self._imit_critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs,
+            state_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(self._device)
         hard_update(self._imit_critic_target, self._imit_critic)
         self._rein_critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs,
+            state_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(self._device)
@@ -144,10 +143,8 @@ class DualSAC(Agent):
         # TODO: Get these values out of here
         #       They are only used by code in co_adaptation.py
         #       They should be passed individually and not as part of the agent object
-        self._morpho_value = MorphoValueFunction(num_morpho_parameters).to(self._device)
+        self._morpho_value = MorphoValueFunction(morpho_dim).to(self._device)
         self._morpho_value_optim = Adam(self._morpho_value.parameters(), lr=1e-2)
-        self._num_inputs = num_inputs
-        self._num_morpho_obs = num_morpho_obs
 
         if config.method.agent.policy_type == "gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
@@ -161,7 +158,7 @@ class DualSAC(Agent):
                 self._alpha_optim = Adam([self._log_alpha], lr=config.method.agent.lr)
 
             self._policy = GaussianPolicy(
-                num_inputs + num_morpho_obs,
+                state_dim,
                 action_space.shape[0],
                 config.method.agent.hidden_size,
                 action_space,
@@ -174,7 +171,7 @@ class DualSAC(Agent):
             self._alpha = 0
             self._automatic_entropy_tuning = False
             self._policy = DeterministicPolicy(
-                num_inputs,
+                state_dim,
                 action_space.shape[0],
                 config.method.agent.hidden_size,
                 action_space,

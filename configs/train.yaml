@@ -3,7 +3,7 @@ defaults:
   - base_train
   - _self_
 
-device: cuda
+device: cpu
 env_name: GaitTrackHalfCheetah-v0
 
 method:
@@ -17,6 +17,6 @@ method:
 logger:
   project_name: "CoSIL-test"
   group_name: "11-05-2023_triton"
-  experiment_name: "cuda"
+  experiment_name: "cpu"
   run_id: ""
-  loggers: console,file,wandb
+  loggers: console

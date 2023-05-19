@@ -70,11 +70,12 @@ class NormalizationModes(StrEnum):
 
 
 class Schedulers(StrEnum):
+    alternating = "alternating"
+    binary = "binary"
     constant = "constant"
     cosine_annealing = "cosine_annealing"
     exponential = "exponential"
     step = "step"
-    min_max = "min_max"
 
 
 @dataclass(kw_only=True)
@@ -457,7 +458,7 @@ class CoSILConfig(CoILConfig):
     This variable is also used as the number of demonstrations to sample from the imitation buffer during training when `clear_imitation` is False.
     """
 
-    morpho_policy_warmup: int = 1
+    morpho_policy_warmup: int = 0
     """
     Number of episodes during which we do not train the policy after a morphology change.
     By doing this, we prevent the policy from being updated with an out-of-sync `imitation_critic` which is itself being updated with an out-of-sync `discriminator`.
@@ -517,6 +518,9 @@ class Config:
 
     learn_disc_transitions: bool = False  # FIX: We are gonna have a problem with this
     """Learn discriminator using (s, s') transitions."""
+
+    morpho_in_state: bool = True
+    """Whether to include the morphology parameters in the state provided to the agent."""
 
     absorbing_state: bool = False  # FIX: We are gonna have a problem with this
     """Whether to use absorbing states."""

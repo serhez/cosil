@@ -417,7 +417,9 @@ def handle_absorbing(
     return to_push
 
 
-def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5000):
+def create_replay_data(
+    env, marker_info_fn, agent, absorbing_state=True, steps=5000, morpho_in_state=True
+):
     to_push = []
     start_time = time.time()
     step = 0
@@ -428,7 +430,10 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
         rsum = 0
 
         while not done:
-            feats = np.concatenate([state, env.morpho_params])
+            feats = state
+            if morpho_in_state:
+                feats = np.concatenate([feats, env.morpho_params])
+
             if absorbing_state:
                 feats = np.concatenate([feats, np.zeros(1)])
 
@@ -439,7 +444,10 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
             rsum += info["reward_run"]
 
             next_marker_obs, _ = marker_info_fn(info)
-            next_feats = np.concatenate([next_state, env.morpho_params])
+
+            next_feats = next_state
+            if morpho_in_state:
+                next_feats = np.concatenate([next_state, env.morpho_params])
 
             mask = 1.0
 
@@ -453,7 +461,7 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
                         mask,
                         marker_obs,
                         next_marker_obs,
-                        agent._num_inputs + agent._num_morpho_obs,
+                        feats.shape[0],
                     )
                 )
             else:

@@ -11,6 +11,7 @@ device: cpu
 env_name: GaitTrackHalfCheetah-v0
 models_dir_path: models
 learn_disc_transitions: false
+morpho_in_state: true  # could be tested
 absorbing_state: false  # could be tested
 resume: null
 num_agents: 1
@@ -61,7 +62,7 @@ method:
   imitate_morphos: true  # variable
   clear_imitation: true  # variable
   obs_per_morpho: 10000
-  morpho_policy_warmup: 1  # could be tested
+  morpho_policy_warmup: 0  # could be tested
   dual_mode: q  # variable
   normalization_type: z_score  # variable
   normalization_mode: min  # variable

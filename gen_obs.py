@@ -51,17 +51,22 @@ def gen_model_obs(
     agent = SAC(
         config,
         logger,
-        obs_size,
         env.action_space,
+        obs_size + env.morpho_params.shape[0] if config.morpho_in_state else obs_size,
         env.morpho_params.shape[0],
-        len(env.morpho_params),
         rewarder,
     )
 
     load_model(config.resume, env, agent, co_adapt=False, evaluate=True)
 
     return gen_obs(
-        config.num_obs, env, agent, config.absorbing_state, logger, logger_mask
+        config.num_obs,
+        env,
+        agent,
+        config.morpho_in_state,
+        config.absorbing_state,
+        logger,
+        logger_mask,
     )
 
 

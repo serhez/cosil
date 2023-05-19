@@ -26,10 +26,9 @@ class SAC(Agent):
         self,
         config,
         logger: Logger,
-        num_inputs: int,
         action_space,
-        num_morpho_obs: int,
-        num_morpho_parameters: int,
+        state_dim: int,
+        morpho_dim: int,
         rewarder: Rewarder,
     ):
         self._logger = logger
@@ -42,14 +41,14 @@ class SAC(Agent):
         self._target_update_interval = config.method.agent.target_update_interval
         self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
 
-        self._morpho_slice = slice(-num_morpho_obs, None)
+        self._morpho_slice = slice(-morpho_dim, None)
         if config.absorbing_state:
-            self._morpho_slice = slice(-num_morpho_obs - 1, -1)
+            self._morpho_slice = slice(-morpho_dim - 1, -1)
 
         self._rewarder = rewarder
 
         self._critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs,
+            state_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(device=self._device)
@@ -59,7 +58,7 @@ class SAC(Agent):
             weight_decay=config.method.agent.q_weight_decay,
         )
         self._critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs,
+            state_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(self._device)
@@ -68,10 +67,8 @@ class SAC(Agent):
         # TODO: Get these values out of here
         #       They are only used by code in co_adaptation.py
         #       They should be passed individually and not as part of the agent object
-        self._morpho_value = MorphoValueFunction(num_morpho_parameters).to(self._device)
+        self._morpho_value = MorphoValueFunction(morpho_dim).to(self._device)
         self._morpho_value_optim = Adam(self._morpho_value.parameters(), lr=1e-2)
-        self._num_inputs = num_inputs
-        self._num_morpho_obs = num_morpho_obs
 
         if config.method.agent.policy_type == "gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
@@ -85,7 +82,7 @@ class SAC(Agent):
                 self._alpha_optim = Adam([self._log_alpha], lr=config.method.agent.lr)
 
             self._policy = GaussianPolicy(
-                num_inputs + num_morpho_obs,
+                state_dim,
                 action_space.shape[0],
                 config.method.agent.hidden_size,
                 action_space,
@@ -98,7 +95,7 @@ class SAC(Agent):
             self._alpha = 0
             self._automatic_entropy_tuning = False
             self._policy = DeterministicPolicy(
-                num_inputs,
+                state_dim,
                 action_space.shape[0],
                 config.method.agent.hidden_size,
                 action_space,

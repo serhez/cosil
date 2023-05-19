@@ -192,6 +192,10 @@ class CoSIL(object):
         # Instantiate the rewarders' normalizers, if in dual-reward mode
         if self.dual_mode == "r":
             if config.method.normalization_type == "none":
+                if config.method.agent.bc_regularization:
+                    raise ValueError(
+                        "Behavior cloning regularization is not supported without normalization"
+                    )
                 imit_norm = None
                 rein_norm = None
             elif config.method.normalization_type == "range":
@@ -264,10 +268,11 @@ class CoSIL(object):
             self.agent = SAC(
                 self.config,
                 self.logger,
-                self.obs_size,
                 self.env.action_space,
+                self.obs_size + self.num_morpho
+                if config.morpho_in_state
+                else self.obs_size,
                 self.num_morpho,
-                len(self.env.morpho_params),
                 self.rewarder,
             )
         elif config.method.agent.name == "dual_sac":
@@ -275,10 +280,11 @@ class CoSIL(object):
             self.agent = DualSAC(
                 self.config,
                 self.logger,
-                self.obs_size,
                 self.env.action_space,
+                self.obs_size + self.num_morpho
+                if config.morpho_in_state
+                else self.obs_size,
                 self.num_morpho,
-                len(self.env.morpho_params),
                 imitation_rewarder,
                 reinforcement_rewarder,
                 self.omega_scheduler,
@@ -386,8 +392,12 @@ class CoSIL(object):
                 head_wrt=self.config.method.head_wrt,
             )
 
-            # Morphology parameters xi are included in state in the code
-            feats = np.concatenate([state, self.env.morpho_params])
+            if self.config.morpho_in_state:
+                # Morphology parameters xi are included in the state
+                feats = np.concatenate([state, self.env.morpho_params])
+            else:
+                feats = state
+
             if self.absorbing_state:
                 self.initial_states_memory.append(np.concatenate([feats, np.zeros(1)]))
             else:
@@ -430,7 +440,11 @@ class CoSIL(object):
 
                 # Sample action from policy
                 else:
-                    feats = np.concatenate([state, self.env.morpho_params])
+                    if self.config.morpho_in_state:
+                        feats = np.concatenate([state, self.env.morpho_params])
+                    else:
+                        feats = state
+
                     if self.absorbing_state:
                         feats = np.concatenate([feats, np.zeros(1)])
 
@@ -529,8 +543,12 @@ class CoSIL(object):
                 if self.config.method.omit_done:
                     mask = 1.0
 
-                feats = np.concatenate([state, self.env.morpho_params])
-                next_feats = np.concatenate([next_state, self.env.morpho_params])
+                if self.config.morpho_in_state:
+                    feats = np.concatenate([state, self.env.morpho_params])
+                    next_feats = np.concatenate([next_state, self.env.morpho_params])
+                else:
+                    feats = state
+                    next_feats = next_state
 
                 if self.absorbing_state:
                     obs_list = handle_absorbing(
@@ -621,6 +639,7 @@ class CoSIL(object):
                         self.config.method.obs_per_morpho,
                         self.env,
                         self.agent,
+                        self.config.morpho_in_state,
                         self.config.absorbing_state,
                         self.logger,
                     )
@@ -719,7 +738,9 @@ class CoSIL(object):
                 self.env.set_task(*morpho_params.cpu().numpy())
 
             state, _ = self.env.reset()
-            state = np.concatenate([state, self.env.morpho_params])
+            if self.config.morpho_in_state:
+                state = np.concatenate([state, self.env.morpho_params])
+
             marker_obs, _ = marker_info_fn(self.env.get_track_dict())
             done = False
 
@@ -729,7 +750,8 @@ class CoSIL(object):
                 done = terminated or truncated
                 next_marker_obs, _ = marker_info_fn(info)
 
-                next_state = np.concatenate([next_state, self.env.morpho_params])
+                if self.config.morpho_in_state:
+                    next_state = np.concatenate([next_state, self.env.morpho_params])
 
                 mask = 1.0
 
@@ -973,9 +995,14 @@ class CoSIL(object):
                 recorder.capture_frame()
 
             while not done:
-                feats = np.concatenate([state, self.env.morpho_params])
+                if self.config.morpho_in_state:
+                    feats = np.concatenate([state, self.env.morpho_params])
+                else:
+                    feats = state
+
                 if self.absorbing_state:
                     feats = np.concatenate([feats, np.zeros(1)])
+
                 action = self.agent.select_action(feats, evaluate=True)
 
                 next_state, _, terminated, truncated, info = self.env.step(action)

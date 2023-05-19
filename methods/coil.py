@@ -171,10 +171,11 @@ class CoIL(object):
             self.agent = SAC(
                 self.config,
                 self.logger,
-                self.obs_size,
                 self.env.action_space,
+                self.obs_size + self.num_morpho
+                if config.morpho_in_state
+                else self.obs_size,
                 self.num_morpho,
-                len(self.env.morpho_params),
                 self.rewarder,
             )
         else:
@@ -278,8 +279,12 @@ class CoIL(object):
                 head_wrt=self.config.method.head_wrt,
             )
 
-            # Morphology parameters xi are included in state in the code
-            feats = np.concatenate([state, self.env.morpho_params])
+            if self.config.morpho_in_state:
+                # Morphology parameters xi are included in state in the code
+                feats = np.concatenate([state, self.env.morpho_params])
+            else:
+                feats = state
+
             if self.absorbing_state:
                 self.initial_states_memory.append(np.concatenate([feats, np.zeros(1)]))
             else:
@@ -314,7 +319,11 @@ class CoIL(object):
 
                 # Sample action from policy
                 else:
-                    feats = np.concatenate([state, self.env.morpho_params])
+                    if self.config.morpho_in_state:
+                        feats = np.concatenate([state, self.env.morpho_params])
+                    else:
+                        feats = state
+
                     if self.absorbing_state:
                         feats = np.concatenate([feats, np.zeros(1)])
 
@@ -397,8 +406,12 @@ class CoIL(object):
                 if self.config.method.omit_done:
                     mask = 1.0
 
-                feats = np.concatenate([state, self.env.morpho_params])
-                next_feats = np.concatenate([next_state, self.env.morpho_params])
+                if self.config.morpho_in_state:
+                    feats = np.concatenate([state, self.env.morpho_params])
+                    next_feats = np.concatenate([next_state, self.env.morpho_params])
+                else:
+                    feats = state
+                    next_feats = next_state
 
                 if self.absorbing_state:
                     obs_list = handle_absorbing(
@@ -546,7 +559,8 @@ class CoIL(object):
                 self.env.set_task(*morpho_params.cpu().numpy())
 
             state, _ = self.env.reset()
-            state = np.concatenate([state, self.env.morpho_params])
+            if self.config.morpho_in_state:
+                state = np.concatenate([state, self.env.morpho_params])
             marker_obs, _ = marker_info_fn(self.env.get_track_dict())
             done = False
 
@@ -556,7 +570,8 @@ class CoIL(object):
                 done = terminated or truncated
                 next_marker_obs, _ = marker_info_fn(info)
 
-                next_state = np.concatenate([next_state, self.env.morpho_params])
+                if self.config.morpho_in_state:
+                    next_state = np.concatenate([next_state, self.env.morpho_params])
 
                 mask = 1.0
 
@@ -800,9 +815,14 @@ class CoIL(object):
                 recorder.capture_frame()
 
             while not done:
-                feats = np.concatenate([state, self.env.morpho_params])
+                if self.config.morpho_in_state:
+                    feats = np.concatenate([state, self.env.morpho_params])
+                else:
+                    feats = state
+
                 if self.absorbing_state:
                     feats = np.concatenate([feats, np.zeros(1)])
+
                 action = self.agent.select_action(feats, evaluate=True)
 
                 next_state, _, terminated, truncated, info = self.env.step(action)
