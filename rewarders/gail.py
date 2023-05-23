@@ -17,6 +17,7 @@ class GAIL(Rewarder):
         self.device = torch.device(config.device)
         self.learn_disc_transitions = config.learn_disc_transitions
         self.log_scale_rewards = config.method.rewarder.log_scale_rewards
+        self.reward_style = config.method.rewarder.reward_style
 
         self.disc = Discriminator(demo_dim).to(self.device)
         self.disc_opt = optim.AdamW(
@@ -44,10 +45,19 @@ class GAIL(Rewarder):
 
         rewards = (self.disc(feats).sigmoid() + 1e-7).detach()
 
-        if self.log_scale_rewards:
-            rewards = -(1 - rewards).log()
+        if self.reward_style == "gail":
+            if self.log_scale_rewards:
+                rewards = -(1 - rewards).log()
+            else:
+                rewards = -(1 - rewards)
+        elif self.reward_style == "airl":
+            if self.log_scale_rewards:
+                rewards = (rewards).log() - (1 - rewards).log()
+            else:
+                rewards = rewards - (1 - rewards)
         else:
-            rewards = -(1 - rewards)
+            if self.log_scale_rewards:
+                rewards = rewards.log()
 
         rewards = self._normalize(rewards)
 

@@ -31,6 +31,11 @@ class DistOptimizers(StrEnum):
     pso = "pso"
 
 
+class AILRewardStyles(StrEnum):
+    gail = "gail"
+    airl = "airl"
+
+
 class BOGPMeans(StrEnum):
     Zero = "Zero"
     Constant = "Constant"
@@ -137,6 +142,13 @@ class GAILConfig(RewarderConfig):
 
     disc_weight_decay: float = 1
     """Weight decay for the discriminator."""
+
+    reward_style: AILRewardStyles = "airl"  # pyright: ignore[reportGeneralTypeIssues]
+    """
+    The reward formulation to use for GAIL.
+    - GAIL (Ho and Ermon, 2016).
+    - AIRL (Fu et al., 2018).
+    """
 
 
 @dataclass(kw_only=True)
