@@ -106,7 +106,7 @@ class Logger(ABC):
         return self.log(message, "WARNING", mask)
 
     def error(
-        self, message: Union[str, Dict[str, Any]], mask: Optiona[list[str]] = None
+        self, message: Union[str, Dict[str, Any]], mask: Optional[list[str]] = None
     ) -> bool:
         """
         Wrapper for calling logger.log with level="ERROR".
