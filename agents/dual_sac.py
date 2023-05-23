@@ -440,8 +440,9 @@ class DualSAC(Agent):
         # BC term (look at the TD3+BC paper).
         # We reuse omega as the BC weighting hyperparameter, since the usefullness of the BC term
         # is proportional to the usefulness of the imitation loss/Q-value in our transfer learning case.
-        bc_loss = -torch.square(policy_mean - action_batch).mean()
+        bc_loss = torch.tensor(0.0, device=self._device)
         if self._bc_regul:
+            bc_loss = -torch.square(policy_mean - action_batch).mean()
             policy_loss = (
                 1 - self._omega_scheduler.value
             ) * policy_loss + self._omega_scheduler.value * bc_loss
