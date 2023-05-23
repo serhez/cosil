@@ -51,7 +51,6 @@ method:
   head_wrt: null
   omit_done: false
   fixed_morpho: null
-  bc_regularization: false
 
   # CoSIL
   omega_init: 1.0
@@ -84,13 +83,14 @@ method:
     automatic_entropy_tuning: true
     hidden_size: 256
     target_update_interval: 1
+    bc_regularization: false
 
   rewarder:
     batch_size: 64
 
     # GAIL
-    log_scale_rewards: false
-    disc_weight_decay: 1
+    # log_scale_rewards: false
+    # disc_weight_decay: 1
 
   co_adaptation:
     dist_optimizer: bo

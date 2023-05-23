@@ -104,6 +104,9 @@ class LoggerConfig:
     loggers: str = "console,file"
     """List of loggers to use. Possible values: console, file, wandb."""
 
+    default_mask: str = "wandb"
+    """Default mask to be used by the multi-logger."""
+
 
 @dataclass(kw_only=True)
 class RewarderConfig:
@@ -136,6 +139,9 @@ class GAILConfig(RewarderConfig):
 
     name: str = "gail"
     """Name of the rewarder."""
+
+    lr: float = 1e-4
+    """Learning rate for the rewarder."""
 
     log_scale_rewards: bool = False
     """Whether to log scale the rewards."""
@@ -482,16 +488,16 @@ class CoSILConfig(CoILConfig):
     """The dual mode, either a duality of Q-values or of reward signals."""
 
     normalization_type: NormalizationTypes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "range"
+        "z_score"
     )
     """Normalization type for the reward or Q-values."""
 
     normalization_mode: NormalizationModes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "min"
+        "mean"
     )
     """Normalization mode for the reward or Q-values."""
 
-    normalization_gamma: float = 100.0
+    normalization_gamma: float = 1.0
     """Normalization gamma for the reward or Q-values."""
 
     normalization_beta: float = 0.0

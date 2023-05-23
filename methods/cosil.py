@@ -239,17 +239,10 @@ class CoSIL(object):
         )
         if config.method.rewarder.name == "gail":
             imitation_rewarder = GAIL(self.demo_dim, config, imit_norm)
-        elif (
-            config.method.rewarder.name == "sail"
-        ):  # SAIL includes a pretraining step for the VAE and inverse dynamics
+        elif config.method.rewarder.name == "sail":
             imitation_rewarder = SAIL(
                 self.logger, self.env, self.demo_dim, config, imit_norm
             )
-            self.vae_loss = imitation_rewarder.pretrain_vae(10000)
-            if not self.config.resume:
-                imitation_rewarder.g_inv_loss = self._pretrain_sail(
-                    imitation_rewarder, co_adapt=self.config.method.co_adapt
-                )
         elif config.method.rewarder.name == "pwil":
             # TODO: add PWIL
             raise NotImplementedError
@@ -291,6 +284,16 @@ class CoSIL(object):
             )
         else:
             raise ValueError("Invalid agent")
+
+        # SAIL includes a pretraining step for the VAE and inverse dynamics
+        if isinstance(imitation_rewarder, SAIL):
+            self.vae_loss = imitation_rewarder.pretrain_vae(
+                self.imitation_buffer.to_list(), 10000
+            )
+            if not self.config.resume:
+                imitation_rewarder.g_inv_loss = self._pretrain_sail(
+                    imitation_rewarder, co_adapt=self.config.method.co_adapt
+                )
 
         if config.resume is not None:
             if self._load(self.config.resume):
@@ -709,14 +712,22 @@ class CoSIL(object):
 
         return self.agent, self.env.morpho_params
 
-    def _pretrain_sail(self, sail: SAIL, co_adapt=True, steps=50000):
+    def _pretrain_sail(
+        self, sail: SAIL, co_adapt=True, steps=50000, save=False, load=False
+    ):
+        self.logger.info(f"Pretraining SAIL for {steps} steps")
+
         g_inv_file_name = "pretrained_models/g_inv.pt"
         policy_file_name = "pretrained_models/policy.pt"
 
-        if os.path.exists(g_inv_file_name):
+        if load:
+            if not os.path.exists(g_inv_file_name):
+                raise ValueError(
+                    f"Could not find pretrained G_INV at {g_inv_file_name}",
+                )
             self.logger.info("Loading pretrained G_INV from disk")
             sail.load_g_inv(g_inv_file_name)
-            return 0
+            return
 
         marker_info_fn = lambda x: get_marker_info(
             x,
@@ -767,17 +778,19 @@ class CoSIL(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        memory.push(*obs)
+                        memory.push(obs)
                 else:
                     memory.push(
-                        state,
-                        action,
-                        reward,
-                        next_state,
-                        mask,
-                        mask,
-                        marker_obs,
-                        next_marker_obs,
+                        (
+                            state,
+                            action,
+                            reward,
+                            next_state,
+                            mask,
+                            mask,
+                            marker_obs,
+                            next_marker_obs,
+                        )
                     )
 
                 state = next_state
@@ -785,21 +798,26 @@ class CoSIL(object):
 
                 step += 1
 
-        self.logger.info(
-            {
-                "Pretraining": "SAIL",
-                "Took": time.time() - start_t,
-                "Steps": step,
-            },
-        )
+            self.logger.info(
+                {
+                    "Steps": step,
+                    "Total steps": self.total_numsteps,
+                    "Took": time.time() - start_t,
+                },
+            )
+
+            start_t = time.time()
 
         g_inv_loss = sail.pretrain_g_inv(memory, self.batch_size, n_epochs=300)
         policy_pretrain_loss = self.agent.pretrain_policy(
             sail, memory, self.batch_size, n_epochs=300
         )
 
-        torch.save(sail.get_g_inv_dict(), g_inv_file_name)
-        torch.save(self.agent.get_model_dict()["policy_state_dict"], policy_file_name)
+        if save:
+            torch.save(sail.get_g_inv_dict(), g_inv_file_name)
+            torch.save(
+                self.agent.get_model_dict()["policy_state_dict"], policy_file_name
+            )
 
         return g_inv_loss, policy_pretrain_loss
 

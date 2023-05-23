@@ -22,7 +22,7 @@ class GAIL(Rewarder):
         self.disc = Discriminator(demo_dim).to(self.device)
         self.disc_opt = optim.AdamW(
             self.disc.parameters(),
-            lr=1e-4,
+            lr=config.method.rewarder.lr,
             weight_decay=config.method.rewarder.disc_weight_decay,
         )
 

@@ -146,15 +146,8 @@ class CoIL(object):
         )
         if config.method.rewarder.name == "gail":
             self.rewarder = GAIL(self.demo_dim, config)
-        elif (
-            config.method.rewarder.name == "sail"
-        ):  # SAIL includes a pretraining step for the VAE and inverse dynamics
-            self.rewarder = SAIL(self.logger, self.env, self.expert_obs, config)
-            self.vae_loss = self.rewarder.pretrain_vae(10000)
-            if not self.config.resume:
-                self.rewarder.g_inv_loss = self._pretrain_sail(
-                    self.rewarder, co_adapt=self.config.method.co_adapt
-                )
+        elif config.method.rewarder.name == "sail":
+            self.rewarder = SAIL(self.logger, self.env, self.demo_dim, config)
         elif config.method.rewarder.name == "pwil":
             # TODO: add PWIL
             raise NotImplementedError
@@ -180,6 +173,14 @@ class CoIL(object):
             )
         else:
             raise ValueError("Invalid agent")
+
+        # SAIL includes a pretraining step for the VAE and inverse dynamics
+        if isinstance(self.rewarder, SAIL):
+            self.vae_loss = self.rewarder.pretrain_vae(self.expert_obs, 10000)
+            if not self.config.resume:
+                self.rewarder.g_inv_loss = self._pretrain_sail(
+                    self.rewarder, co_adapt=self.config.method.co_adapt
+                )
 
         if config.resume is not None:
             if self._load(self.config.resume):

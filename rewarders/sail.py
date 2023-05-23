@@ -24,7 +24,7 @@ class SAIL(Rewarder):
         self.device = torch.device(config.device)
         self.num_inputs = env.observation_space.shape[0]
         self.learn_disc_transitions = config.learn_disc_transitions
-        self.vae_scaler = config.vae_scaler
+        self.vae_scaler = config.method.rewarder.vae_scaler
         self.absorbing_state = config.absorbing_state
 
         num_morpho_obs = env.morpho_params.shape[0]
@@ -41,11 +41,13 @@ class SAIL(Rewarder):
             self.g_inv.parameters(),
             lr=3e-4,
             betas=(0.5, 0.9),
-            weight_decay=config.g_inv_weight_decay,
+            weight_decay=config.method.rewarder.g_inv_weight_decay,
         )
 
         self.dynamics = VAE(demo_dim).to(self.device)
-        self.dynamics_optim = Adam(self.dynamics.parameters(), lr=config.lr)
+        self.dynamics_optim = Adam(
+            self.dynamics.parameters(), lr=config.method.rewarder.lr
+        )
 
         (
             self.disc_loss,
@@ -62,12 +64,7 @@ class SAIL(Rewarder):
         )
 
     def train(self, batch, expert_obs):
-        (
-            disc_loss,
-            expert_probs,
-            policy_probs,
-            _,
-        ) = train_wgan_critic(
+        (disc_loss, expert_probs, policy_probs, _,) = train_wgan_critic(
             self.disc_opt,
             self.disc,
             expert_obs,
@@ -147,22 +144,27 @@ class SAIL(Rewarder):
     def load_g_inv(self, file_name):
         self.g_inv.load_state_dict(torch.load(file_name))
 
-    def pretrain_vae(self, expert_obs, batch_size: int, epochs=100):
+    def pretrain_vae(
+        self, expert_obs, batch_size: int, epochs=100, save=False, load=False
+    ):
         self.logger.info("Pretraining VAE")
+
         file_name = "pretrained_models/vae.pt"
 
-        if not os.path.exists("./pretrained_models"):
-            os.makedirs("pretrained_models")
-
-        if os.path.exists(file_name):
+        if load:
+            if not os.path.exists(file_name):
+                raise Exception(f"No pretrained VAE found at {file_name}")
             self.logger.info("Loading pretrained VAE from disk")
             self.dynamics.load_state_dict(torch.load(file_name))
-            return 0
 
         loss = self.dynamics.train(
             expert_obs, epochs, self.dynamics_optim, batch_size=batch_size
         )
-        torch.save(self.dynamics.state_dict(), file_name)
+
+        if save:
+            if not os.path.exists("./pretrained_models"):
+                os.makedirs("pretrained_models")
+            torch.save(self.dynamics.state_dict(), file_name)
 
         return loss
 

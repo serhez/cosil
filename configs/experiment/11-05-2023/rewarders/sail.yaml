@@ -1,0 +1,9 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+  - override /method/rewarder: sail
+
+logger:
+  group_name: "11-05-2023_rewarders"
+  experiment_name: "sail"
