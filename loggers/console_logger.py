@@ -15,8 +15,10 @@ class ConsoleLogger(Logger):
         Initializes a console logger.
         """
 
-    def log(
-        self, message: Union[str, Dict[str, Any]], level: str = "INFO", _=[]
+        super().__init__()
+
+    def _log_impl(
+        self, message: Union[str, Dict[str, Any]], level: str = "INFO", *_
     ) -> bool:
         """
         Logs a message to the console.

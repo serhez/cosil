@@ -66,7 +66,7 @@ def main(config: DictConfig) -> None:
                 pass
             else:
                 print(f'[WARNING] Logger "{logger}" is not supported')
-        logger = MultiLogger(loggers)
+        logger = MultiLogger(loggers, config.logger.default_mask.split(","))
 
         # Train a model using the selected training method
         logger.info(f"Training using method {config.method.name}")
@@ -76,7 +76,12 @@ def main(config: DictConfig) -> None:
             method = CoSIL(config, logger, env)
         else:
             raise ValueError(f"Invalid training method: {config.method.name}")
-        method.train()
+
+        try:
+            method.train()
+        except Exception as e:
+            logger.error(f"Exception occurred during training: {e}")
+            raise e
 
         env.close()
 

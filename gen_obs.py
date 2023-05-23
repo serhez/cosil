@@ -148,7 +148,7 @@ def main(config: DictConfig):
             pass
         else:
             print(f'[WARNING] Logger "{logger}" is not supported')
-    logger = MultiLogger(loggers)
+    logger = MultiLogger(loggers, config.logger.default_mask.split(","))
 
     obs = gen_model_obs(config, env, logger)
     env.close()

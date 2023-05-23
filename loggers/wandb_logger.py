@@ -24,11 +24,14 @@ class WandbLogger(Logger):
         config -> the configuration of the experiment.
         """
 
+        super().__init__()
         wandb.init(
             project=project, group=group, name=name + "_" + id, config=vars(config)
         )
 
-    def log(self, message: Union[str, Dict[str, Any]], level: str = "INFO", *_) -> bool:
+    def _log_impl(
+        self, message: Union[str, Dict[str, Any]], level: str = "INFO", *_
+    ) -> bool:
         """
         Logs a message to Weights & Biases.
 

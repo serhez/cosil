@@ -6,18 +6,20 @@ from .logger import Logger
 class MultiLogger(Logger):
     """Logs to multiple loggers."""
 
-    def __init__(self, loggers: Dict[str, Logger]):
+    def __init__(self, loggers: Dict[str, Logger], default_mask: list[str] = []):
         """
         Initializes a multi-logger.
 
         Parameters
         ----------
         loggers -> a dictionary with the names of the loggers as keys and the loggers as values.
+        default_mask -> the default mask to use when logging.
         """
 
+        super().__init__(default_mask)
         self._loggers = loggers
 
-    def log(
+    def _log_impl(
         self,
         message: Union[str, Dict[str, Any]],
         level: str = "INFO",
