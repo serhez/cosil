@@ -17,7 +17,7 @@ class Rewarder(ABC):
 
         Parameters
         ----------
-        normalizer -> the normalizer to use for the rewarder.
+        `normalizer` -> the normalizer to use for the rewarder.
         """
 
         self._normalizer = normalizer
@@ -28,7 +28,7 @@ class Rewarder(ABC):
 
         Parameters
         ----------
-        rewards -> the rewards to normalize.
+        `rewards` -> the rewards to normalize.
 
         Returns
         -------
@@ -46,8 +46,8 @@ class Rewarder(ABC):
 
         Parameters
         ----------
-        batch -> a batch of data.
-        expert_obs -> the demonstrator's observations.
+        `batch` -> a batch of data.
+        `expert_obs` -> the demonstrator's observations.
 
         Returns
         -------
@@ -64,8 +64,8 @@ class Rewarder(ABC):
 
         Parameters
         ----------
-        batch -> a batch of data.
-        expert_obs -> the demonstrator's observations.
+        `batch` -> a batch of data.
+        `expert_obs` -> the demonstrator's observations.
 
         Returns
         -------
@@ -91,6 +91,6 @@ class Rewarder(ABC):
 
         Parameters
         ----------
-        model -> a dictionary of the rewarder's parameters.
+        `model` -> a dictionary of the rewarder's parameters.
         """
         pass

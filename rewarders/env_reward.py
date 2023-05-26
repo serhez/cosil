@@ -21,9 +21,9 @@ class EnvReward(Rewarder):
 
         Parameters
         ----------
-        device -> the device to use fot the reward tensors.
-        normalizer -> the normalizer to use for the rewards.
-        sparse_mask -> the mask with which to cut off the rewards, e.g., if the mask is 90.0, all rewards below 90.0 will be set to 0.0.
+        `device` -> the device to use fot the reward tensors.
+        `normalizer` -> the normalizer to use for the rewards.
+        `sparse_mask` -> the mask with which to cut off the rewards, e.g., if the mask is 90.0, all rewards below 90.0 will be set to 0.0.
         - The mask will be applied before the normalization.
         """
         super().__init__(normalizer)

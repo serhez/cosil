@@ -80,7 +80,7 @@ def main(config: DictConfig) -> None:
         try:
             method.train()
         except Exception as e:
-            logger.error(f"Exception occurred during training: {e}")
+            logger.error({"Exception occurred during training": e})
             raise e
 
         env.close()

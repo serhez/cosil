@@ -19,4 +19,4 @@ logger:
   group_name: "11-05-2023_triton"
   experiment_name: "cpu"
   run_id: ""
-  loggers: console
+  loggers: file,console
