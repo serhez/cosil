@@ -1,33 +1,41 @@
+from typing import Optional
+
 import torch
 from torch import optim
+
 from common.models import Discriminator
+from normalizers import Normalizer
 from utils.imitation import train_disc
 
 from .rewarder import Rewarder
 
 
 class GAIL(Rewarder):
-    def __init__(self, expert_obs, args):
-        self.device = torch.device("cuda" if args.cuda else "cpu")
-        self.learn_disc_transitions = args.learn_disc_transitions
-        self.log_scale_rewards = args.log_scale_rewards
+    def __init__(self, demo_dim, config, normalizer: Optional[Normalizer] = None):
+        super().__init__(normalizer)
 
-        self.expert_obs = expert_obs
-        demo_dim = self.expert_obs[0].shape[-1]
+        self.device = torch.device(config.device)
+        self.learn_disc_transitions = config.learn_disc_transitions
+        self.log_scale_rewards = config.method.rewarder.log_scale_rewards
+        self.reward_style = config.method.rewarder.reward_style
 
         self.disc = Discriminator(demo_dim).to(self.device)
-        self.disc_opt = optim.AdamW(self.disc.parameters(), lr=1e-4, weight_decay=1)
+        self.disc_opt = optim.AdamW(
+            self.disc.parameters(),
+            lr=config.method.rewarder.lr,
+            weight_decay=config.method.rewarder.disc_weight_decay,
+        )
 
-    def train(self, batch):
+    def train(self, batch, expert_obs):
         return train_disc(
             self.disc_opt,
             self.disc,
-            self.expert_obs,
+            expert_obs,
             batch,
             use_transitions=self.learn_disc_transitions,
         )
 
-    def compute_rewards(self, batch):
+    def compute_rewards(self, batch, _):
         _, _, _, _, _, _, marker_batch, next_marker_batch = batch
         feats = torch.FloatTensor(next_marker_batch).to(self.device)
         if self.learn_disc_transitions:
@@ -37,21 +45,32 @@ class GAIL(Rewarder):
 
         rewards = (self.disc(feats).sigmoid() + 1e-7).detach()
 
-        if self.log_scale_rewards:
-            rewards = -(1 - rewards).log()
+        if self.reward_style == "gail":
+            if self.log_scale_rewards:
+                rewards = -(1 - rewards).log()
+            else:
+                rewards = -(1 - rewards)
+        elif self.reward_style == "airl":
+            if self.log_scale_rewards:
+                rewards = (rewards).log() - (1 - rewards).log()
+            else:
+                rewards = rewards - (1 - rewards)
         else:
-            rewards = -(1 - rewards)
+            if self.log_scale_rewards:
+                rewards = rewards.log()
+
+        rewards = self._normalize(rewards)
 
         return rewards
 
     def get_model_dict(self):
         data = {
-            "disc_state_dict": self.disc.state_dict(),
-            "disc_optim_state_dict": self.disc_opt.state_dict(),
+            "gail/disc_state_dict": self.disc.state_dict(),
+            "gail/disc_optim_state_dict": self.disc_opt.state_dict(),
         }
         return data
 
     def load(self, model):
-        self.disc.load_state_dict(model["disc_state_dict"])
-        self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
+        self.disc.load_state_dict(model["gail/disc_state_dict"])
+        self.disc_opt.load_state_dict(model["gail/disc_optim_state_dict"])
         return True

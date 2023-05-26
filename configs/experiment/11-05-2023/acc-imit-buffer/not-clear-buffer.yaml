@@ -1,0 +1,13 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+
+method:
+  # CoSIL
+  clear_imitation: false
+
+logger:
+  group_name: "11-05-2023_acc-imit-buffer"
+  experiment_name: "not-clear-buffer"

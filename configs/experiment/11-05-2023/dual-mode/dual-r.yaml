@@ -1,0 +1,14 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method/agent: sac
+
+method:
+  # CoSIL
+  dual_mode: r
+
+logger:
+  group_name: "11-05-2023_dual-mode"
+  experiment_name: "dual-r"

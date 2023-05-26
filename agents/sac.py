@@ -1,8 +1,9 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
+from typing import Any, Dict, List
+
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
-from typing import Tuple
 
 from common.models import (
     DeterministicPolicy,
@@ -10,132 +11,140 @@ from common.models import (
     GaussianPolicy,
     MorphoValueFunction,
 )
-from common.replay_memory import ReplayMemory
-from rewarders import Rewarder, SAIL
+from common.observation_buffer import ObservationBuffer
+from loggers import Logger
+from rewarders import SAIL, Rewarder
 from utils.rl import hard_update, soft_update
 
+from .agent import Agent
 
+
+# TODO: Make this class as DualSAC (pass rewarders as arguments to __init__(), etc.)
 # TODO: Move the remaining imitation learning code somewhere else
-class SAC(object):
+class SAC(Agent):
     def __init__(
         self,
-        num_inputs: int,
+        config,
+        logger: Logger,
         action_space,
-        num_morpho_obs: int,
-        num_morpho_parameters: int,
-        args,
+        state_dim: int,
+        morpho_dim: int,
+        rewarder: Rewarder,
     ):
-        self.gamma = args.gamma
-        self.tau = args.tau
-        self.alpha = args.alpha
-        self.num_morpho_obs = num_morpho_obs
-        self.num_inputs = num_inputs
-        self.learn_disc_transitions = args.learn_disc_transitions
+        self._logger = logger
+        self._gamma = config.method.agent.gamma
+        self._tau = config.method.agent.tau
+        self._alpha = config.method.agent.alpha
+        self._learn_disc_transitions = config.learn_disc_transitions
+        self._device = torch.device(config.device)
 
-        self.policy_type = args.policy
-        self.target_update_interval = args.target_update_interval
-        self.automatic_entropy_tuning = args.automatic_entropy_tuning
+        self._target_update_interval = config.method.agent.target_update_interval
+        self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
 
-        self.morpho_slice = slice(-self.num_morpho_obs, None)
-        if args.absorbing_state:
-            self.morpho_slice = slice(-self.num_morpho_obs - 1, -1)
+        self._morpho_slice = slice(-morpho_dim, None)
+        if config.absorbing_state:
+            self._morpho_slice = slice(-morpho_dim - 1, -1)
 
-        self.device = torch.device("cuda" if args.cuda else "cpu")
-        self.reward_bn = torch.nn.BatchNorm1d(1, affine=False).to(self.device)
+        self._rewarder = rewarder
 
-        self.old_q_net = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], args.hidden_size
-        ).to(device=self.device)
-        self.critic = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], args.hidden_size
-        ).to(device=self.device)
-        self.critic_optim = Adam(
-            self.critic.parameters(), lr=args.lr, weight_decay=args.q_weight_decay
+        self._critic = EnsembleQNetwork(
+            state_dim,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
+        ).to(device=self._device)
+        self._critic_optim = Adam(
+            self._critic.parameters(),
+            lr=config.method.agent.lr,
+            weight_decay=config.method.agent.q_weight_decay,
         )
+        self._critic_target = EnsembleQNetwork(
+            state_dim,
+            action_space.shape[0],
+            config.method.agent.hidden_size,
+        ).to(self._device)
+        hard_update(self._critic_target, self._critic)
 
-        self.critic_target = EnsembleQNetwork(
-            num_inputs + num_morpho_obs, action_space.shape[0], args.hidden_size
-        ).to(self.device)
-        hard_update(self.critic_target, self.critic)
+        # TODO: Get these values out of here
+        #       They are only used by code in co_adaptation.py
+        #       They should be passed individually and not as part of the agent object
+        self._morpho_value = MorphoValueFunction(morpho_dim).to(self._device)
+        self._morpho_value_optim = Adam(self._morpho_value.parameters(), lr=1e-2)
 
-        self.morpho_value = MorphoValueFunction(num_morpho_parameters).to(self.device)
-        self.morpho_value_optim = Adam(self.morpho_value.parameters(), lr=1e-2)
-
-        self.expert_env_name = args.expert_env_name
-
-        if self.expert_env_name is None:
-            self.expert_env_name = "CmuData"
-
-        self.env_name = args.env_name
-
-        self.min_reward = None
-
-        if self.policy_type == "Gaussian":
+        if config.method.agent.policy_type == "gaussian":
             # Target Entropy = −dim(A) (e.g. , -6 for HalfCheetah-v2) as given in the paper
-            if self.automatic_entropy_tuning is True:
-                self.target_entropy = -torch.prod(
-                    torch.Tensor(action_space.shape).to(self.device)
+            if self._automatic_entropy_tuning is True:
+                self._target_entropy = -torch.prod(
+                    torch.Tensor(action_space.shape).to(self._device)
                 ).item()
-                self.log_alpha = torch.tensor(
-                    -2.0, requires_grad=True, device=self.device
+                self._log_alpha = torch.tensor(
+                    -2.0, requires_grad=True, device=self._device
                 )
-                self.alpha_optim = Adam([self.log_alpha], lr=args.lr)
+                self._alpha_optim = Adam([self._log_alpha], lr=config.method.agent.lr)
 
-            self.policy = GaussianPolicy(
-                num_inputs + num_morpho_obs,
+            self._policy = GaussianPolicy(
+                state_dim,
                 action_space.shape[0],
-                args.hidden_size,
+                config.method.agent.hidden_size,
                 action_space,
-            ).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+            ).to(self._device)
+            self._policy_optim = Adam(
+                self._policy.parameters(), lr=config.method.agent.lr
+            )
 
         else:
-            self.alpha = 0
-            self.automatic_entropy_tuning = False
-            self.policy = DeterministicPolicy(
-                num_inputs, action_space.shape[0], args.hidden_size, action_space
-            ).to(self.device)
-            self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+            self._alpha = 0
+            self._automatic_entropy_tuning = False
+            self._policy = DeterministicPolicy(
+                state_dim,
+                action_space.shape[0],
+                config.method.agent.hidden_size,
+                action_space,
+            ).to(self._device)
+            self._policy_optim = Adam(
+                self._policy.parameters(), lr=config.method.agent.lr
+            )
 
+    # FIX: Make this function work with batches, make the shape transformations be a responsibility of the caller
+    #      and replace ever call to self._policy.sample() with a call to this function
     def select_action(self, state, evaluate=False):
-        state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+        state = torch.FloatTensor(state).to(self._device).unsqueeze(0)
         if evaluate is False:
-            action, _, _, _ = self.policy.sample(state)
+            action, _, _, _ = self._policy.sample(state)
         else:
-            _, _, action, _ = self.policy.sample(state)
+            _, _, action, _ = self._policy.sample(state)
         return action.detach().cpu().numpy()[0]
 
     def pretrain_policy(
-        self, rewarder: Rewarder, memory: ReplayMemory, batch_size: int, n_epochs=200
+        self,
+        rewarder: SAIL,
+        memory: ObservationBuffer,
+        batch_size: int,
+        n_epochs: int = 200,
     ):
-        assert isinstance(
-            rewarder, SAIL
-        ), "Pretraining the policy is only supported for SAIL"
-
-        print("Pretraining policy to match policy prior")
+        self._logger.info("Pretraining policy to match policy prior")
         loss_fn = torch.nn.MSELoss()
         n_samples = len(memory)
         n_batches = n_samples // batch_size
 
-        policy_optim_state_dict = self.policy_optim.state_dict()
+        policy_optim_state_dict = self._policy_optim.state_dict()
 
         mean_loss = 0
         for e in range(n_epochs):
             mean_loss = 0
             for _ in range(n_batches):
-                self.policy_optim.zero_grad()
+                self._policy_optim.zero_grad()
 
                 state_batch, action_batch, _, _, _, _, marker_batch, _ = memory.sample(
-                    batch_size=batch_size
+                    batch_size
                 )
 
-                state_batch = torch.FloatTensor(state_batch).to(self.device)
-                marker_batch = torch.FloatTensor(marker_batch).to(self.device)
-                action_batch = torch.FloatTensor(action_batch).to(self.device)
+                state_batch = torch.FloatTensor(state_batch).to(self._device)
+                marker_batch = torch.FloatTensor(marker_batch).to(self._device)
+                action_batch = torch.FloatTensor(action_batch).to(self._device)
 
-                morpho_params = state_batch[..., self.morpho_slice]
+                morpho_params = state_batch[..., self._morpho_slice]
                 prior_mean = rewarder.get_prior_mean(marker_batch, morpho_params)
-                _, _, policy_mean, _ = self.policy.sample(state_batch)
+                _, _, policy_mean, _ = self._policy.sample(state_batch)
 
                 loss = loss_fn(policy_mean, prior_mean)
 
@@ -143,25 +152,57 @@ class SAC(object):
 
                 loss.backward()
 
-                self.policy_optim.step()
+                self._policy_optim.step()
 
             mean_loss /= n_batches
-            print(f"Epoch {e} loss {mean_loss:.5f}")
+            self._logger.info({"Epoch": e, "Loss": mean_loss})
 
-        self.policy_optim.load_state_dict(policy_optim_state_dict)
+        self._policy_optim.load_state_dict(policy_optim_state_dict)
 
         return mean_loss
 
-    def pretrain_value(self, rewarder: Rewarder, memory: ReplayMemory, batch_size: int):
+    def pretrain_value(
+        self,
+        memory: ObservationBuffer,
+        expert_obs: List[torch.Tensor],
+        batch_size: int,
+    ):
+        self._logger.info("Pretraining value")
         for i in range(3000):
             batch = memory.sample(batch_size)
-            loss = self.update_parameters(batch, rewarder, i, update_value_only=True)[0]
+            loss = self.update_parameters(batch, i, expert_obs, True)[0]
             if i % 100 == 0:
-                print(f"loss {loss:.3f}")
+                self._logger.info({"Epoch": i, "Loss": loss})
+
+    def get_value(self, state, action) -> torch.FloatTensor:
+        return self._critic.min(state, action)
 
     def update_parameters(
-        self, batch, rewarder: Rewarder, updates: int, update_value_only=False
-        ) -> Tuple[float, float, float, float, float, float, float, float, float]:
+        self, batch, updates: int, expert_obs=[], update_value_only=False
+    ) -> Dict[str, Any]:
+        """
+        Update the parameters of the agent.
+
+        Parameters
+        ----------
+        batch -> the batch of data
+        updates -> the number of updates
+        update_value_only -> whether to update the value function only
+
+        Returns
+        -------
+        A dict reporting:
+            - "loss/critic_loss"
+            - "loss/policy"
+            - "loss/policy_prior_loss"
+            - "loss/entropy_loss"
+            - "weighted_reward"
+            - "absorbing_reward"
+            - "action_std"
+            - "entropy_temperature/alpha"
+            - "entropy_temperature/entropy"
+        """
+
         (
             state_batch,
             action_batch,
@@ -173,50 +214,57 @@ class SAC(object):
             next_marker_batch,
         ) = batch
 
-        state_batch = torch.FloatTensor(state_batch).to(self.device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
-        action_batch = torch.FloatTensor(action_batch).to(self.device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
-        terminated_batch = torch.FloatTensor(terminated_batch).to(self.device).unsqueeze(1)
-        truncated_batch = torch.FloatTensor(truncated_batch).to(self.device).unsqueeze(1)
-        marker_batch = torch.FloatTensor(marker_batch).to(self.device)
-        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self.device)
+        state_batch = torch.FloatTensor(state_batch).to(self._device)
+        next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
+        action_batch = torch.FloatTensor(action_batch).to(self._device)
+        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
+        terminated_batch = (
+            torch.FloatTensor(terminated_batch).to(self._device).unsqueeze(1)
+        )
+        truncated_batch = (
+            torch.FloatTensor(truncated_batch).to(self._device).unsqueeze(1)
+        )
+        marker_batch = torch.FloatTensor(marker_batch).to(self._device)
+        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
 
-        new_rewards = rewarder.compute_rewards(batch)
+        new_rewards = self._rewarder.compute_rewards(batch, expert_obs)
 
         assert reward_batch.shape == new_rewards.shape
         reward_batch = new_rewards
 
+        # Compute the next Q-values
         with torch.no_grad():
-            next_state_action, next_state_log_pi, _, _ = self.policy.sample(
+            next_state_action, next_state_log_pi, _, _ = self._policy.sample(
                 next_state_batch
             )
-            q_next_target = self.critic_target.min(next_state_batch, next_state_action)
-            min_qf_next_target = q_next_target - self.alpha * next_state_log_pi
+            q_next_target = self._critic_target.min(next_state_batch, next_state_action)
+            min_qf_next_target = q_next_target - self._alpha * next_state_log_pi
             dones = torch.logical_or(
                 terminated_batch,
                 truncated_batch,
-                out=torch.empty(terminated_batch.shape, dtype=terminated_batch.dtype)
+                out=torch.empty(
+                    terminated_batch.shape,
+                    dtype=terminated_batch.dtype,
+                    device=terminated_batch.device,
+                ),
             )
-            next_q_value = reward_batch + dones * self.gamma * (min_qf_next_target)
-
-        mean_modified_reward = reward_batch.mean()
+            next_q_value = reward_batch + dones * self._gamma * (min_qf_next_target)
 
         # Plot absorbing rewards
         marker_feats = next_marker_batch
-        if self.learn_disc_transitions:
+        if self._learn_disc_transitions:
             marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
         absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
-        qfs = self.critic(state_batch, action_batch)
+        qfs = self._critic(state_batch, action_batch)
         qf_loss = sum([F.mse_loss(q_value, next_q_value) for q_value in qfs])
 
-        self.critic_optim.zero_grad()
+        self._critic_optim.zero_grad()
         qf_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self.critic.parameters(), 10)
-        self.critic_optim.step()
+        torch.nn.utils.clip_grad.clip_grad_norm_(self._critic.parameters(), 10)
+        self._critic_optim.step()
 
-        pi, log_pi, policy_mean, dist = self.policy.sample(state_batch)
+        pi, log_pi, policy_mean, dist = self._policy.sample(state_batch)
 
         # metrics
         std = (
@@ -226,89 +274,94 @@ class SAC(object):
         )
         entropy = -log_pi.mean().item()
 
-        min_qf_pi = self.critic.min(state_batch, pi)
-        policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        q_value = self.get_value(state_batch, pi)
+        policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
-        vae_loss = torch.tensor(0.0)
-        if isinstance(rewarder, SAIL):
-            vae_loss = rewarder.get_vae_loss(state_batch, marker_batch, policy_mean)
+        vae_loss = torch.tensor(0.0, device=self._device)
+        if isinstance(self._rewarder, SAIL):
+            vae_loss = self._rewarder.get_vae_loss(
+                state_batch, marker_batch, policy_mean
+            )
             policy_loss += vae_loss
 
-        self.policy_optim.zero_grad()
+        self._policy_optim.zero_grad()
         policy_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self.policy.parameters(), 10)
+        torch.nn.utils.clip_grad.clip_grad_norm_(self._policy.parameters(), 10)
         if not update_value_only:
-            self.policy_optim.step()
+            self._policy_optim.step()
 
-        if self.automatic_entropy_tuning:
+        if self._automatic_entropy_tuning:
             alpha_loss = -(
-                self.log_alpha.exp() * (log_pi + self.target_entropy).detach()
+                self._log_alpha.exp() * (log_pi + self._target_entropy).detach()
             ).mean()
 
-            self.alpha_optim.zero_grad()
+            self._alpha_optim.zero_grad()
             alpha_loss.backward()
-            self.alpha_optim.step()
+            self._alpha_optim.step()
 
-            self.alpha = self.log_alpha.exp()
-            alpha_tlogs = self.alpha.clone()  # For TensorboardX logs
+            self._alpha = self._log_alpha.exp()
+            alpha_tlogs = self._alpha.clone()  # For TensorboardX logs
         else:
-            alpha_loss = torch.tensor(0.0).to(self.device)
-            alpha_tlogs = torch.tensor(self.alpha)  # For TensorboardX logs
+            alpha_loss = torch.tensor(0.0).to(self._device)
+            alpha_tlogs = torch.tensor(
+                self._alpha, device=self._device
+            )  # For TensorboardX logs
 
-        if updates % self.target_update_interval == 0:
-            soft_update(self.critic_target, self.critic, self.tau)
+        if updates % self._target_update_interval == 0:
+            soft_update(self._critic_target, self._critic, self._tau)
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
-        return (
-            qf_loss.item(),
-            policy_loss.item(),
-            alpha_loss.item(),
-            alpha_tlogs.item(),
-            std,
-            mean_modified_reward.item(),
-            entropy,
-            vae_loss.item(),
-            absorbing_rewards.item(),
-        )
+        # TODO: we could include also the "reward/reinforcement_mean" and "reward/imitation_mean" if we are using a dual rewarder
+        return {
+            "reward/balanced_mean": reward_batch.mean().item(),
+            "reward/absorbing_mean": absorbing_rewards.item(),
+            "q-value/q-value": q_value.mean().item(),
+            "loss/critic": qf_loss,
+            "loss/policy": policy_loss.item(),
+            "loss/alpha": alpha_loss.item(),
+            "loss/vae": vae_loss.item(),
+            "entropy/alpha": alpha_tlogs.item(),
+            "entropy/entropy": entropy,
+            "entropy/action_std": std,
+        }
 
     # Return a dictionary containing the model state for saving
     def get_model_dict(self):
         data = {
-            "policy_state_dict": self.policy.state_dict(),
-            "critic_state_dict": self.critic.state_dict(),
-            "critic_target_state_dict": self.critic_target.state_dict(),
-            "critic_optimizer_state_dict": self.critic_optim.state_dict(),
-            "policy_optimizer_state_dict": self.policy_optim.state_dict(),
+            "policy_state_dict": self._policy.state_dict(),
+            "critic_state_dict": self._critic.state_dict(),
+            "critic_target_state_dict": self._critic_target.state_dict(),
+            "critic_optimizer_state_dict": self._critic_optim.state_dict(),
+            "policy_optimizer_state_dict": self._policy_optim.state_dict(),
         }
-        if self.automatic_entropy_tuning:
-            data["log_alpha"] = self.log_alpha
-            data["log_alpha_optim_state_dict"] = self.alpha_optim.state_dict()
+        if self._automatic_entropy_tuning:
+            data["log_alpha"] = self._log_alpha
+            data["log_alpha_optim_state_dict"] = self._alpha_optim.state_dict()
 
         return data
 
     # Load model parameters
     def load(self, model, evaluate=False):
-        self.policy.load_state_dict(model["policy_state_dict"])
-        self.critic.load_state_dict(model["critic_state_dict"])
-        self.critic_target.load_state_dict(model["critic_target_state_dict"])
-        self.critic_optim.load_state_dict(model["critic_optimizer_state_dict"])
-        self.policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
-        self.old_q_net.load_state_dict(model["critic_state_dict"])
+        self._policy.load_state_dict(model["policy_state_dict"])
+        self._critic.load_state_dict(model["critic_state_dict"])
+        self._critic_target.load_state_dict(model["critic_target_state_dict"])
+        self._critic_optim.load_state_dict(model["critic_optimizer_state_dict"])
+        self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if (
             "log_alpha" in model and "log_alpha_optim_state_dict" in model
         ):  # the model was trained with automatic entropy tuning
-            self.log_alpha = model["log_alpha"]
-            self.alpha = self.log_alpha.exp()
-            self.alpha_optim.load_state_dict(model["log_alpha_optim_state_dict"])
+            self._log_alpha = model["log_alpha"]
+            self._alpha = self._log_alpha.exp()
+            self._alpha_optim.load_state_dict(model["log_alpha_optim_state_dict"])
 
         if evaluate:
-            self.policy.eval()
-            self.critic.eval()
-            self.critic_target.eval()
+            self._policy.eval()
+            self._critic.eval()
+            self._critic_target.eval()
         else:
-            self.policy.train()
-            self.critic.train()
-            self.critic_target.train()
+            self._policy.train()
+            self._critic.train()
+            self._critic_target.train()
 
         return True

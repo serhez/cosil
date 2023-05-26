@@ -1,0 +1,14 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+
+method:
+  # CoSIL
+  normalization_type: z_score
+  normalization_mode: min
+  normalization_gamma: 1.0
+
+logger:
+  group_name: "11-05-2023_normalization"
+  experiment_name: "zscore-min-1"

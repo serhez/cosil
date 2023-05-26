@@ -7,6 +7,7 @@ LOG_SIG_MAX = 2
 LOG_SIG_MIN = -20
 epsilon = 1e-6
 
+
 # Initialize Policy weights
 def weights_init_(m):
     if isinstance(m, nn.Linear):
@@ -37,25 +38,29 @@ class EnsembleQNetwork(nn.Module):
 
         n_nets = 2
 
-        self.nets = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(num_inputs + num_actions, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, 1)
-            )
-         for _ in range(n_nets)])
+        self.nets = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(num_inputs + num_actions, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, 1),
+                )
+                for _ in range(n_nets)
+            ]
+        )
 
     def min(self, state, action):
         xu = torch.cat([state, action], -1)
         return torch.min(torch.stack([net(xu) for net in self.nets]), 0)[0]
-    
+
     def forward(self, state, action):
         xu = torch.cat([state, action], -1)
         return [net(xu) for net in self.nets]
+
 
 class QNetwork(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim):
@@ -75,7 +80,7 @@ class QNetwork(nn.Module):
 
     def forward(self, state, action):
         xu = torch.cat([state, action], -1)
-        
+
         x1 = F.relu(self.linear1(xu))
         x1 = F.relu(self.linear2(x1))
         x1 = self.linear3(x1)
@@ -85,6 +90,7 @@ class QNetwork(nn.Module):
         x2 = self.linear6(x2)
 
         return x1, x2
+
 
 class Discriminator(nn.Module):
     def __init__(self, n_obs) -> None:
@@ -100,7 +106,7 @@ class Discriminator(nn.Module):
             nn.Linear(n_hidden, n_hidden),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(n_hidden, 1)
+            nn.Linear(n_hidden, 1),
         )
 
     def forward(self, state):
@@ -110,7 +116,7 @@ class Discriminator(nn.Module):
 class MorphoValueFunction(nn.Module):
     def __init__(self, n_morpho) -> None:
         super().__init__()
-        '''
+        """
         n_hidden = 64
 
         self.net = nn.Sequential(
@@ -120,12 +126,13 @@ class MorphoValueFunction(nn.Module):
             nn.ReLU(),
             nn.Linear(n_hidden, 1)
         )
-        '''
-        self.net = nn.Linear(n_morpho*3, 1)
+        """
+        self.net = nn.Linear(n_morpho * 3, 1)
 
     def forward(self, state):
         feats = torch.cat((state, state**2, state**3), -1)
         return self.net(feats)
+
 
 class WassersteinCritic(nn.Module):
     def __init__(self, n_obs, obs_normalizers=None) -> None:
@@ -140,13 +147,14 @@ class WassersteinCritic(nn.Module):
             nn.ReLU(),
             nn.Linear(n_hidden, n_hidden),
             nn.ReLU(),
-            nn.Linear(n_hidden, 1)
+            nn.Linear(n_hidden, 1),
         )
 
     def forward(self, state):
         if self.obs_normalizers is not None:
             state = (state - self.obs_normalizers[0]) / (self.obs_normalizers[1] + 1e-6)
         return self.net(state)
+
 
 class InverseDynamics(nn.Module):
     def __init__(self, n_obs, n_actions, action_space=None) -> None:
@@ -160,18 +168,22 @@ class InverseDynamics(nn.Module):
             nn.Linear(n_hidden, n_hidden),
             nn.ReLU(),
             nn.Linear(n_hidden, n_actions),
-            nn.Tanh()
+            nn.Tanh(),
         )
 
         # action rescaling
         if action_space is None:
-            self.action_scale = 1.
-            self.action_bias = 0.
+            self.action_scale = 1.0
+            self.action_bias = 0.0
         else:
-            self.register_buffer('action_scale', torch.FloatTensor(
-                (action_space.high - action_space.low) / 2.))
-            self.register_buffer('action_bias', torch.FloatTensor(
-                (action_space.high + action_space.low) / 2.))
+            self.register_buffer(
+                "action_scale",
+                torch.FloatTensor((action_space.high - action_space.low) / 2.0),
+            )
+            self.register_buffer(
+                "action_bias",
+                torch.FloatTensor((action_space.high + action_space.low) / 2.0),
+            )
 
     def forward(self, state, next_state, morpho_params):
         xu = torch.cat([state, next_state, morpho_params], -1)
@@ -179,10 +191,11 @@ class InverseDynamics(nn.Module):
         action = y_t * self.action_scale + self.action_bias
         return action
 
+
 class GaussianPolicy(nn.Module):
     def __init__(self, num_inputs, num_actions, hidden_dim, action_space=None):
         super(GaussianPolicy, self).__init__()
-        
+
         self.linear1 = nn.Linear(num_inputs, hidden_dim)
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, hidden_dim)
@@ -194,19 +207,21 @@ class GaussianPolicy(nn.Module):
 
         # action rescaling
         if action_space is None:
-            self.action_scale = torch.tensor(1.)
-            self.action_bias = torch.tensor(0.)
+            self.action_scale = torch.tensor(1.0)
+            self.action_bias = torch.tensor(0.0)
         else:
             self.action_scale = torch.FloatTensor(
-                (action_space.high - action_space.low) / 2.)
+                (action_space.high - action_space.low) / 2.0
+            )
             self.action_bias = torch.FloatTensor(
-                (action_space.high + action_space.low) / 2.)
+                (action_space.high + action_space.low) / 2.0
+            )
 
     def forward(self, state):
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         x = F.relu(self.linear3(x))
-        
+
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
@@ -246,13 +261,15 @@ class DeterministicPolicy(nn.Module):
 
         # action rescaling
         if action_space is None:
-            self.action_scale = 1.
-            self.action_bias = 0.
+            self.action_scale = 1.0
+            self.action_bias = 0.0
         else:
             self.action_scale = torch.FloatTensor(
-                (action_space.high - action_space.low) / 2.)
+                (action_space.high - action_space.low) / 2.0
+            )
             self.action_bias = torch.FloatTensor(
-                (action_space.high + action_space.low) / 2.)
+                (action_space.high + action_space.low) / 2.0
+            )
 
     def forward(self, state):
         x = F.relu(self.linear1(state))
@@ -262,10 +279,10 @@ class DeterministicPolicy(nn.Module):
 
     def sample(self, state):
         mean = self.forward(state)
-        noise = self.noise.normal_(0., std=0.1)
+        noise = self.noise.normal_(0.0, std=0.1)
         noise = noise.clamp(-0.25, 0.25)
         action = mean + noise
-        return action, torch.tensor(0.), mean
+        return action, torch.tensor(0.0), mean
 
     def to(self, device):
         self.action_scale = self.action_scale.to(device)

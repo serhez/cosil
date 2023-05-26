@@ -1,0 +1,13 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+  - override /method/rewarder: gail
+
+method:
+  rewarder:
+    reward_style: gail
+
+logger:
+  group_name: "11-05-2023_rewarders"
+  experiment_name: "gail"

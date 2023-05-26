@@ -1,121 +1,161 @@
 import os
+import random
 import time
+from typing import List
 
 import gym
+import hydra
 import numpy as np
 import torch
 from gait_track_envs import register_env
+from omegaconf import DictConfig
 
 from agents import SAC
-from config import parse_args
+from config import setup_config
+from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
+from rewarders import EnvReward
 from utils.model import load_model
+from utils.rl import gen_obs
 
 
-def add_obs(obs_list, info, done):
-    obs_list["dones"] = np.append(
-        obs_list["dones"],
-        done,
-    )
+def gen_model_obs(
+    config: DictConfig, env: gym.Env, logger: Logger, logger_mask: List[str] = ["wandb"]
+) -> dict:
+    """
+    Generates observations using the trained model.
 
-    for key, val in info.items():
-        if key not in obs_list:
-            obs_list[key] = np.empty((0, *val.shape))
+    The result is a dictionary containing each dimension of the observations as keys and
+    a list of that dimension's values for each observation as values.
 
-        assert (
-            len(obs_list[key]) == len(obs_list["dones"]) - 1
-        ), "Observations must yield the same info"
+    Note that the trajectories are flattened, so that each dict item contains the total number of observations.
 
-        obs_list[key] = np.append(obs_list[key], np.array([val]), axis=0)
+    Parameters
+    ----------
+    config -> the configuration.
+    env -> the environment.
+    logger -> the logger.
+    logger_mask -> the loggers to mask when logging.
 
+    Returns
+    -------
+    obs_dict -> the dictionary containing the observations.
+    """
 
-def gen_obs(args, env):
-    assert args.resume is not None, "Must provide model path to generate observations"
-
-    obs_list = {
-        "dones": np.array([]),
-    }
+    assert config.resume is not None, "Must provide model path to generate trajectories"
 
     obs_size = env.observation_space.shape[0]
-    if args.absorbing_state:
+    if config.absorbing_state:
         obs_size += 1
+
+    rewarder = EnvReward(config.device)
     agent = SAC(
-        obs_size,
+        config,
+        logger,
         env.action_space,
+        obs_size + env.morpho_params.shape[0] if config.morpho_in_state else obs_size,
         env.morpho_params.shape[0],
-        len(env.morpho_params),
-        args,
+        rewarder,
     )
 
-    load_model(args.resume, env, agent, co_adapt=False, evaluate=True)
+    load_model(config.resume, env, agent, co_adapt=False, evaluate=True)
 
-    # Generate observations
-    for episode in range(args.num_steps):
-        state, _ = env.reset()
-        feat = np.concatenate([state, env.morpho_params])
-        if args.absorbing_state:
-            feat = np.concatenate([feat, np.zeros(1)])
-
-        tot_reward = 0
-        num_obs = 0
-        done = False
-        while not done:
-            action = agent.select_action(feat, evaluate=True)
-            next_state, reward, terminated, truncated, info = env.step(action)
-
-            next_feat = np.concatenate([next_state, env.morpho_params])
-            if args.absorbing_state:
-                next_feat = np.concatenate([next_feat, np.zeros(1)])
-
-            add_obs(obs_list, info, terminated or truncated)
-            num_obs += 1
-
-            feat = next_feat
-
-            tot_reward += reward
-            done = terminated or truncated
-
-        print(f"Episode: {episode}")
-        print(f"\tReward: {tot_reward:.3f}")
-        print(f"\tGenerated {num_obs} observations")
-
-    return obs_list
+    return gen_obs(
+        config.num_obs,
+        env,
+        agent,
+        config.morpho_in_state,
+        config.absorbing_state,
+        logger,
+        logger_mask,
+    )
 
 
-def save(obs_list: dict, path: str):
+def save(obs: dict, path: str, id: str, logger: Logger):
+    """
+    Saves the observations to a file.
+
+    Parameters
+    ----------
+    obs -> the observations.
+    path -> the path to save the observations.
+    id -> the id of the observations.
+    logger -> the logger.
+    """
+
     assert path is not None, "Must provide path to save observations"
     try:
-        split_path = os.path.split(path)
-        dir_path = split_path[0]
-        if not os.path.exists(dir_path):
-            os.makedirs(dir_path)
-    except:
+        if not os.path.exists(path):
+            os.makedirs(path)
+    except Exception:
         raise ValueError("Invalid path")
 
-    torch.save(obs_list, path)
+    if path[-1] != "/":
+        path += "/"
+
+    file_name = f"{path}demos_{id}.pt"
+
+    logger.info(f"Saving demonstrations to {file_name}")
+    torch.save(obs, file_name)
 
 
-def main():
-    args = parse_args()
-
-    np.random.seed(args.seed)
-
-    args.run_id = str(int(time.time()))
-    args.name = f"{args.run_name}-{args.env_name}-{str(args.seed)}-{args.run_id}"
-    args.group = f"{args.run_name}-{args.env_name}"
-    args.dir_path = f"{args.run_name}/{args.env_name}/{args.seed}"
+@hydra.main(version_base=None, config_path="configs", config_name="gen_obs")
+def main(config: DictConfig):
+    config.logger.run_id = str(int(time.time()))
+    config.models_dir_path = f"{config.env_name}/{config.seed}"
+    if config.logger.group_name != "":
+        config.models_dir_path = f"{config.logger.group_name}/" + config.models_dir_path
+    if config.logger.project_name != "":
+        config.models_dir_path = (
+            f"{config.logger.project_name}/" + config.models_dir_path
+        )
 
     # Set up environment
-    register_env(args.env_name)
-    env = gym.make(args.env_name)
-    env.seed(args.seed)
-    env.action_space.seed(args.seed)
-    torch.manual_seed(args.seed)
+    register_env(config.env_name)
+    env = gym.make(config.env_name)
 
-    obs = gen_obs(args, env)
+    # Seeding
+    env.seed(config.seed)
+    env.action_space.seed(config.seed)
+    random.seed(config.seed)
+    np.random.seed(config.seed)
+    torch.manual_seed(config.seed)
+    if config.device == "cuda":
+        torch.cuda.manual_seed(config.seed)
+        torch.cuda.manual_seed_all(config.seed)
+
+    # Set up the logger
+    loggers_list = config.logger.loggers.split(",")
+    loggers = {}
+    for logger in loggers_list:
+        if logger == "console":
+            loggers["console"] = ConsoleLogger()
+        elif logger == "file":
+            loggers["file"] = FileLogger(
+                config.logger.project_name,
+                config.logger.group_name,
+                config.logger.experiment_name,
+                config.logger.run_id,
+            )
+        elif logger == "wandb":
+            loggers["wandb"] = WandbLogger(
+                config.logger.project_name,
+                config.logger.group_name,
+                config.logger.experiment_name,
+                config.logger.run_id,
+                config,
+            )
+        elif logger == "":
+            pass
+        else:
+            print(f'[WARNING] Logger "{logger}" is not supported')
+    logger = MultiLogger(loggers, config.logger.default_mask.split(","))
+
+    obs = gen_model_obs(config, env, logger)
     env.close()
 
-    save(obs, args.obs_save_path)
+    save(obs, config.save_path, config.logger.run_id, logger)
 
 
 if __name__ == "__main__":
+    setup_config()
     main()

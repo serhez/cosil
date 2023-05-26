@@ -2,34 +2,32 @@ import itertools
 import time
 from types import SimpleNamespace
 
+import GPyOpt
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import ot
 import pyswarms as ps
 import torch
+from bo_mat.models.bo_gpymodel import GPDext
+from bo_mat.models.build_gpy_model import get_kernel_module, get_mean_module
 from sklearn.decomposition import PCA
 
 matplotlib.use("agg")
-import GPyOpt
-import matplotlib.pyplot as plt
-import numpy as np
-import torch
-from bo_mat.models.bo_gpymodel import GPDext
-from bo_mat.models.build_gpy_model import get_kernel_module, get_mean_module
-from sklearn.preprocessing import MinMaxScaler
 
 
-def create_GPBO_model(args, X, Y):
+def create_GPBO_model(config, X, Y):
     # Create a specific mean function - linear mean function
-    mean_module = get_mean_module(args.mean, X, Y)
+    mean_module = get_mean_module(config.mean, X, Y)
 
     # Create a specific kernel function - rbf + linear
-    covar_module = get_kernel_module(args.kernel, X, args.add_bias, args.add_linear)
+    covar_module = get_kernel_module(
+        config.kernel, X, config.add_bias, config.add_linear
+    )
 
     # Create the GP-BO model
     model = GPDext(
-        kernel=covar_module, mean_function=mean_module, optimizer=args.optimizer
+        kernel=covar_module, mean_function=mean_module, optimizer=config.optimizer
     )
 
     return model
@@ -227,10 +225,8 @@ def obj(
         morpho_params = morpho_params.view(len(morpho_params), 1, -1)
     states_torch[..., agent.morpho_slice] = morpho_params
 
-    _, _, action, _ = agent.policy.sample(states_torch)
-
-    q_val = agent.critic.min(states_torch, action)
-
+    _, _, action, _ = agent._policy.sample(states_torch)
+    q_val = agent.get_value(states_torch, action)
     loss = -q_val.mean(-1).mean(-1)
 
     if evaluate_grads:
@@ -248,17 +244,18 @@ def obj_morpho_value(
 ):
     if not type(morpho_params) == torch.Tensor:
         morpho_params = torch.as_tensor(
-            morpho_params, device=agent.device, dtype=torch.float32
+            morpho_params, device=agent._device, dtype=torch.float32
         )
 
-    loss = agent.morpho_value(morpho_params).mean(-1)
+    # TODO: morpho_value should not be part of the agent
+    loss = agent._morpho_value(morpho_params).mean(-1)
 
     return loss
 
 
 @torch.no_grad()
-def plot_full_q_fn(fn, bounds, current_optima, real_lengths=None):
-    optima = torch.as_tensor(current_optima).float()
+def plot_full_q_fn(fn, bounds, current_optima, real_lengths=None, device="cpu"):
+    optima = torch.as_tensor(current_optima, device=device).float()
     optima = optima.repeat(100, 1)
 
     fig = plt.figure(figsize=(12, 12), dpi=100)
@@ -305,7 +302,7 @@ def optimize_morpho_params_pso(
                 .numpy()
             )
         else:
-            losses = obj(x, None, initial_states_torch, agent).cpu().numpy()
+            losses = obj(x, initial_states_torch, agent).cpu().numpy()
 
         assert losses.shape == (x.shape[0],)
         torch.cuda.synchronize()
@@ -318,17 +315,17 @@ def optimize_morpho_params_pso(
         n_particles=250,
         dimensions=bounds.shape[0],
         options=options,
-        bounds=(bounds[:, 0].numpy(), bounds[:, 1].numpy()),
+        bounds=(bounds[:, 0].cpu().numpy(), bounds[:, 1].cpu().numpy()),
         ftol=1e-7,
         ftol_iter=30,
     )
     cost, pos = optimizer.optimize(fn, iters=250)
 
     # print gradients. They should be zero-ish if we are at local optimum
-    # _, grads_abs_sum = obj(pos, None, initial_states_torch, policy, q_function, evaluate_grads=True)
+    # _, grads_abs_sum = obj(pos, initial_states_torch, policy, q_function, evaluate_grads=True)
 
-    fig = plot_full_q_fn(fn, bounds, pos)
-    morpho_params = torch.tensor(pos)
+    fig = plot_full_q_fn(fn, bounds, pos, device)
+    morpho_params = torch.tensor(pos, device=device)
 
     return cost, morpho_params, fig, 0
 
@@ -420,7 +417,9 @@ def handle_absorbing(
     return to_push
 
 
-def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5000):
+def create_replay_data(
+    env, marker_info_fn, agent, absorbing_state=True, steps=5000, morpho_in_state=True
+):
     to_push = []
     start_time = time.time()
     step = 0
@@ -431,7 +430,10 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
         rsum = 0
 
         while not done:
-            feats = np.concatenate([state, env.morpho_params])
+            feats = state
+            if morpho_in_state:
+                feats = np.concatenate([feats, env.morpho_params])
+
             if absorbing_state:
                 feats = np.concatenate([feats, np.zeros(1)])
 
@@ -442,7 +444,10 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
             rsum += info["reward_run"]
 
             next_marker_obs, _ = marker_info_fn(info)
-            next_feats = np.concatenate([next_state, env.morpho_params])
+
+            next_feats = next_state
+            if morpho_in_state:
+                next_feats = np.concatenate([next_state, env.morpho_params])
 
             mask = 1.0
 
@@ -456,7 +461,7 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
                         mask,
                         marker_obs,
                         next_marker_obs,
-                        agent.num_inputs + agent.num_morpho_obs,
+                        feats.shape[0],
                     )
                 )
             else:
@@ -482,41 +487,39 @@ def create_replay_data(env, marker_info_fn, agent, absorbing_state=True, steps=5
     return to_push
 
 
-def bo_step(args, morphos, num_morpho, pos_train_distances, env):
-    bo_args = SimpleNamespace()
-    bo_args.mean = args.bo_gp_mean
-    bo_args.kernel = "Matern52"
-    bo_args.optimizer = "lbfgsb"
-    bo_args.gp_type = "GPR"
-    bo_args.acq_type = "LCB"
-    bo_args.add_bias = 0
-    bo_args.add_linear = 0
+def bo_step(config, morphos, num_morpho, pos_train_distances, env):
+    bo_config = SimpleNamespace()
+    bo_config.mean = config.method.co_adaptation.bo_gp_mean
+    bo_config.kernel = "Matern52"
+    bo_config.optimizer = "lbfgsb"
+    bo_config.gp_type = "GPR"
+    bo_config.acq_type = "LCB"
+    bo_config.add_bias = 0
+    bo_config.add_linear = 0
 
     # TODO change when resuming from pretrained
     prev_morphos_to_consider = 200
-    if args.env_name == "GaitTrackHalfCheetah-v0":
+    if config.env_name == "GaitTrackHalfCheetah-v0":
         prev_morphos_to_consider = 200
 
-    X = np.array(morphos).reshape(-1, args.episodes_per_morpho, num_morpho)[:, 0][
-        -prev_morphos_to_consider:
-    ]
+    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[
+        :, 0
+    ][-prev_morphos_to_consider:]
     Y = (
         np.array(pos_train_distances)
-        .reshape(-1, args.episodes_per_morpho)
+        .reshape(-1, config.method.episodes_per_morpho)
         .mean(1, keepdims=True)[-prev_morphos_to_consider:]
     )
 
-    model = create_GPBO_model(bo_args, X, Y)
+    model = create_GPBO_model(bo_config, X, Y)
     x_next, x_exploit_next, _ = get_new_candidates_BO(
         model,
         X,
         Y,
-        args.env_name,
+        config.env_name,
         env.min_task,
         env.max_task,
-        args.acq_weight,
-        None,
-        acq_type="LCB",
+        config.method.co_adaptation.acq_weight,
     )
     morpho_params_np = x_next.flatten()
     optimized_morpho_params = x_exploit_next.flatten()
@@ -525,12 +528,14 @@ def bo_step(args, morphos, num_morpho, pos_train_distances, env):
     return morpho_params_np, optimized_morpho_params
 
 
-def rs_step(args, num_morpho, morphos, pos_train_distances, min_task, max_task):
+def rs_step(config, num_morpho, morphos, pos_train_distances, min_task, max_task):
     # Average over same morphologies
-    X = np.array(morphos).reshape(-1, args.episodes_per_morpho, num_morpho)[:, 0]
+    X = np.array(morphos).reshape(-1, config.method.episodes_per_morpho, num_morpho)[
+        :, 0
+    ]
     Y = (
         np.array(pos_train_distances)
-        .reshape(-1, args.episodes_per_morpho)
+        .reshape(-1, config.method.episodes_per_morpho)
         .mean(1, keepdims=True)
     )
 

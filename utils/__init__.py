@@ -1,9 +1,4 @@
-from . import co_adaptation
-from . import imitation
-from . import logger
-from . import math
-from . import model
-from . import rl
+from . import co_adaptation, imitation, math, model, rl
 
 
 def dict_add(target, new_data):
