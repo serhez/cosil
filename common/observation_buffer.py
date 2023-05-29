@@ -11,6 +11,7 @@ import torch
 class ObservationBuffer:
     """
     An observation buffer which can be used as a replay buffer or imitation buffer.
+    The buffer is generic, which means that any object can be stored in it as an observation.
     It stores observations in a circular buffer and assigns a weight to each observation, depending on its time of arrival.
     Sampling from the buffer is done using the weights as probabilities.
     The weights of old observations are reduced by a diminishing ratio when new observations are added to the buffer.
@@ -78,16 +79,21 @@ class ObservationBuffer:
 
         return distribution
 
-    def get_element_shapes(self) -> Optional[List[torch.Size]]:
+    def get_element_shapes(self) -> List[torch.Size]:
         """
         Returns the shape of the elements in the buffer.
-        Returns None if any of the elements is not a torch tensor.
+
+        Raises
+        ------
+        `TypeError` -> if any of the elements is not a `torch.Tensor` or a `numpy.ndarray`.
         """
 
         shapes = []
         for element in self._buffer:
-            if not torch.is_tensor(element):
-                return None
+            if not isinstance(element, (torch.Tensor, np.ndarray)):
+                raise TypeError(
+                    "The elements of an observation buffer must be either torch.Tensors or numpy.ndarrays."
+                )
             shapes.append(element.shape)
         return shapes
 
@@ -111,6 +117,7 @@ class ObservationBuffer:
     def replace(self, observations: List[Any]) -> None:
         """
         Sets the contents of the buffer to the given observations.
+        Do not group the observations using the first dimension of each element, but instead let each element represent a single observation and group observations using a `list`. If observations are grouped by the first dimensions of its tensors/ndarrays, then it is impossible for the buffer to discern if the meaning of that first dimension is such.
         If the length of the observations list is greater than the buffer's capacity, the oldest observations are discarded.
         As a side effect, the buffer's position is set to 0 if the length of the observations equals the capacity of the buffer.
         """
@@ -126,7 +133,7 @@ class ObservationBuffer:
 
         Parameters
         ----------
-        observation -> the observation to push into the buffer.
+        `observation` -> the observation to push into the buffer.
         """
 
         if len(self._buffer) < self._capacity:
@@ -137,6 +144,7 @@ class ObservationBuffer:
     def push(self, observations: Union[Any, List[Any]]) -> None:
         """
         Pushes an observation or a list of observations into the buffer, replacing the oldest observations if the buffer is full.
+        If the intent is to push a batch/list of observations into the buffer, do not group the observations using the first dimension of each element, but instead let each element represent a single observation and group observations using a `list`. If observations are grouped by the first dimensions of its tensors/ndarrays, then it is impossible for the buffer to discern if the meaning of that first dimension is such.
         It also reduces the weights of previous observations by the `diminishing_ratio`.
         Given a list of observations, it assigns the same weight to all new observations, regardless of their position in the list.
         If the number of observations to push into the buffer is greater than the buffer's capacity, an AssertionError is raised.
@@ -144,11 +152,11 @@ class ObservationBuffer:
 
         Parameters
         ----------
-        observations -> the observation/s to push into the buffer.
+        `observations` -> the observation/s to push into the buffer.
 
         Raises
         ----------
-        AssertionError -> if the number of observations to push into the buffer is greater than the buffer's capacity.
+        `AssertionError` -> if the number of observations to push into the buffer is greater than the buffer's capacity.
         """
 
         if isinstance(observations, list):
@@ -178,22 +186,22 @@ class ObservationBuffer:
         else:
             self._push_impl(observations)
 
-    def sample(self, n: int = 1) -> Optional[Tuple[Any, ...]]:
+    def sample(self, n: int = 1) -> Tuple[Any, ...]:
         """
-        Samples n observations from the buffer.
-        The sampling is done without replacement, unless the buffer contains less than n observations.
+        Samples `n` observations from the buffer.
+        The sampling is done without replacement, unless the buffer contains less than `n` observations.
 
         Parameters
         ----------
-        n -> the number of observations to sample.
+        `n` -> the number of observations to sample.
 
         Returns
         ----------
-        A tuple of n observations sampled from the buffer.
+        A tuple of `n` observations sampled from the buffer.
 
         Raises
         ----------
-        ValueError -> if the buffer is empty.
+        `ValueError` -> if the buffer is empty.
         """
 
         buffer_len = len(self._buffer)
@@ -223,9 +231,9 @@ class ObservationBuffer:
 
         Parameters
         ----------
-        env_name -> the name of the environment.
-        suffix -> the suffix to append to the file name.
-        save_path -> the path to save the buffer to. If None, saves to "checkpoints/sac_buffer_{env_name}_{suffix}".
+        `env_name` -> the name of the environment.
+        `suffix` -> the suffix to append to the file name.
+        `save_path` -> the path to save the buffer to. If None, saves to "checkpoints/sac_buffer_{env_name}_{suffix}".
         """
 
         if not os.path.exists("checkpoints/"):
@@ -244,7 +252,7 @@ class ObservationBuffer:
 
         Parameters
         ----------
-        save_path -> the path to load the buffer from.
+        `save_path` -> the path to load the buffer from.
         """
 
         with open(save_path, "rb") as f:

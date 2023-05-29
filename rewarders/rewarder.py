@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import torch
 
+from common.batch import Batch
 from normalizers import Normalizer
 
 
@@ -40,7 +41,7 @@ class Rewarder(ABC):
         return rewards
 
     @abstractmethod
-    def train(self, batch, expert_obs) -> Tuple[float, float, float]:
+    def train(self, batch: Batch, expert_obs) -> Tuple[float, float, float]:
         """
         Train the rewarder and update the rewarder's parameters.
 
@@ -58,9 +59,10 @@ class Rewarder(ABC):
         pass
 
     @abstractmethod
-    def compute_rewards(self, batch, expert_obs) -> torch.Tensor:
+    def _compute_rewards_impl(self, batch: Batch, expert_obs) -> torch.Tensor:
         """
-        Compute the rewards for a batch of data.
+        The internal child-class-specfic implementation of `compute_rewards`.
+        Do not call this method directly.
 
         Parameters
         ----------
@@ -72,6 +74,23 @@ class Rewarder(ABC):
         The rewards.
         """
         pass
+
+    def compute_rewards(self, batch: Batch, expert_obs) -> torch.Tensor:
+        """
+        Compute the rewards for a batch of data and return them normalized.
+
+        Parameters
+        ----------
+        `batch` -> a batch of data.
+        `expert_obs` -> the demonstrator's observations.
+
+        Returns
+        -------
+        The normalized rewards.
+        """
+
+        rewards = self._compute_rewards_impl(batch, expert_obs)
+        return self._normalize(rewards)
 
     @abstractmethod
     def get_model_dict(self) -> Dict[str, Any]:

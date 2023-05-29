@@ -3,6 +3,7 @@ from typing import Optional
 import torch
 from torch import optim
 
+from common.batch import Batch
 from common.models import Discriminator
 from normalizers import Normalizer
 from utils.imitation import train_disc
@@ -26,7 +27,7 @@ class GAIL(Rewarder):
             weight_decay=config.method.rewarder.disc_weight_decay,
         )
 
-    def train(self, batch, expert_obs):
+    def train(self, batch: Batch, expert_obs):
         return train_disc(
             self.disc_opt,
             self.disc,
@@ -35,11 +36,10 @@ class GAIL(Rewarder):
             use_transitions=self.learn_disc_transitions,
         )
 
-    def compute_rewards(self, batch, _):
-        _, _, _, _, _, _, marker_batch, next_marker_batch = batch
-        feats = torch.FloatTensor(next_marker_batch).to(self.device)
+    def _compute_rewards_impl(self, batch: Batch, _):
+        feats = batch.safe_next_markers
         if self.learn_disc_transitions:
-            feats = torch.cat((marker_batch, next_marker_batch), dim=1)
+            feats = torch.cat((batch.safe_markers, batch.safe_next_markers), dim=1)
 
         self.disc.train(False)
 
@@ -58,8 +58,6 @@ class GAIL(Rewarder):
         else:
             if self.log_scale_rewards:
                 rewards = rewards.log()
-
-        rewards = self._normalize(rewards)
 
         return rewards
 

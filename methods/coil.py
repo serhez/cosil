@@ -14,6 +14,7 @@ from omegaconf import DictConfig
 
 import wandb
 from agents import SAC
+from common.batch import Batch
 from common.observation_buffer import ObservationBuffer
 from loggers import Logger
 from rewarders import GAIL, PWIL, SAIL, EnvReward
@@ -334,7 +335,8 @@ class CoIL(object):
                     # Number of updates per step in environment
                     for i in range(self.config.method.updates_per_step):
                         # Different algo variants discriminator update (pseudocode line 8-9)
-                        batch = self.replay_buffer.sample(self.rewarder_batch_size)
+                        sample = self.replay_buffer.sample(self.rewarder_batch_size)
+                        batch = Batch.from_numpy(*sample, device=self.device)
                         disc_loss, expert_probs, policy_probs = self.rewarder.train(
                             batch, self.expert_obs
                         )
@@ -407,19 +409,12 @@ class CoIL(object):
                 if self.config.method.omit_done:
                     mask = 1.0
 
-                if self.config.morpho_in_state:
-                    feats = np.concatenate([state, self.env.morpho_params])
-                    next_feats = np.concatenate([next_state, self.env.morpho_params])
-                else:
-                    feats = state
-                    next_feats = next_state
-
                 if self.absorbing_state:
                     obs_list = handle_absorbing(
-                        feats,
+                        state,
                         action,
                         reward,
-                        next_feats,
+                        next_state,
                         mask,
                         marker_obs,
                         next_marker_obs,
@@ -427,21 +422,22 @@ class CoIL(object):
                         pwil_rewarder=(pwil_rewarder),
                     )
                     for obs in obs_list:
-                        self.replay_buffer.push(obs)
+                        self.replay_buffer.push(obs + (self.env.morpho_params,))
                 else:
                     if pwil_rewarder is not None:
                         reward = pwil_rewarder.compute_reward(
                             {"observation": next_marker_obs}
                         )
                     obs = (
-                        feats,
-                        action,
-                        reward,
-                        next_feats,
-                        mask,
-                        mask,
+                        state,
+                        next_state,
                         marker_obs,
                         next_marker_obs,
+                        action,
+                        reward,
+                        mask,
+                        mask,
+                        self.env.morpho_params,
                     )
                     self.replay_buffer.push(obs)
 
@@ -588,17 +584,20 @@ class CoIL(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        memory.push(*obs)
+                        memory.push(obs + (self.env.morpho_params,))
                 else:
                     memory.push(
-                        state,
-                        action,
-                        reward,
-                        next_state,
-                        mask,
-                        mask,
-                        marker_obs,
-                        next_marker_obs,
+                        (
+                            state,
+                            action,
+                            reward,
+                            next_state,
+                            mask,
+                            mask,
+                            marker_obs,
+                            next_marker_obs,
+                            self.env.morpho_params,
+                        )
                     )
 
                 state = next_state

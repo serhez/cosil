@@ -18,10 +18,6 @@ def hard_update(target, source):
         target_param.data.copy_(param.data)
 
 
-def merge_batches(first_batch, second_batch):
-    return [np.concatenate([a, b], axis=0) for a, b in zip(first_batch, second_batch)]
-
-
 def _add_obs(obs_dict, info, done):
     """
     Adds an observation to the observations dictionary.

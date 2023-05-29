@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 import torch
 
+from common.batch import Batch
 from common.observation_buffer import ObservationBuffer
 
 
@@ -18,12 +19,12 @@ class Agent(ABC):
 
         Parameters
         ----------
-        state -> the state
-        evaluate -> whether to evaluate the policy or sample from it
+        `state` -> the state.
+        `evaluate` -> whether to evaluate the policy or sample from it.
 
         Returns
         -------
-        The action
+        The action.
         """
 
         pass
@@ -35,8 +36,8 @@ class Agent(ABC):
 
         Parameters
         ----------
-        state -> the state.
-        action -> the action.
+        `state` -> the state.
+        `action` -> the action.
 
         Returns
         -------
@@ -55,13 +56,13 @@ class Agent(ABC):
 
         Parameters
         ----------
-        memory -> the memory
-        batch_size -> the batch size
-        n_epochs -> the number of epochs
+        `memory` -> the memory.
+        `batch_size` -> the batch size.
+        `n_epochs` -> the number of epochs.
 
         Returns
         -------
-        The mean loss
+        The mean loss.
         """
 
         pass
@@ -73,33 +74,29 @@ class Agent(ABC):
 
         Parameters
         ----------
-        rewarder -> the rewarder
-        memory -> the memory
-        batch_size -> the batch size
-
-        Returns
-        -------
-        None
+        `rewarder` -> the rewarder.
+        `memory` -> the memory.
+        `batch_size` -> the batch size.
         """
 
         pass
 
     @abstractmethod
     def update_parameters(
-        self, batch: torch.Tensor, updates: int, update_value_only: bool = False
+        self, batch: Batch, updates: int, update_value_only: bool = False
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
 
         Parameters
         ----------
-        batch -> the batch of data
-        updates -> the number of updates
-        update_value_only -> whether to update the value function only
+        `batch` -> the batch of data.
+        `updates` -> the number of updates.
+        `update_value_only` -> whether to update the value function only.
 
         Returns
         -------
-        A dict reporting the losses for the different components of the agent, as well as the mean and std of the rewards
+        A dict reporting the losses for the different components of the agent, as well as the mean and std of the rewards.
         """
 
         pass
@@ -111,23 +108,19 @@ class Agent(ABC):
 
         Returns
         -------
-        The agent's parameters
+        The agent's parameters.
         """
 
         pass
 
     @abstractmethod
-    def load(self, model: Dict[str, Any]):
+    def load(self, model: Dict[str, Any]) -> None:
         """
         Load the agent's parameters from a model.
 
         Parameters
         ----------
-        model -> the model
-
-        Returns
-        -------
-        None
+        `model` -> the model.
         """
 
         pass

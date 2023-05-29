@@ -363,6 +363,8 @@ def compute_distance(training_transitions, demo, to_match):
     return pos_distance, vel_distance
 
 
+# FIX: This is completely wrong! We should not return a list, but a single tuple
+#      Also, the reward is set to 0.0?
 def handle_absorbing(
     feats,
     action,
@@ -411,7 +413,7 @@ def handle_absorbing(
         reward = pwil_reward
 
     to_push.append(
-        (feats, action, reward, next_feats, 1.0, 1.0, marker_obs, next_marker_obs)
+        (feats, next_feats, marker_obs, next_marker_obs, action, reward, 1.0, 1.0)
     )
 
     return to_push

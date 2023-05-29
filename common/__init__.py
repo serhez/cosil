@@ -1,3 +1,1 @@
-from . import models
-from . import observation_buffer
-from . import vae
+from . import batch, models, observation_buffer, vae

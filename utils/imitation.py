@@ -2,10 +2,13 @@ import numpy as np
 import torch
 from torch import nn
 
+from common.batch import Batch
 from common.models import Discriminator
 
 
-def train_wgan_critic(opt, critic, expert_obs: list, batch, use_transitions=True):
+def train_wgan_critic(
+    opt, critic, expert_obs: list, batch: Batch, use_transitions=True
+):
     opt.zero_grad()
     device = expert_obs[0].device
 
@@ -19,20 +22,15 @@ def train_wgan_critic(opt, critic, expert_obs: list, batch, use_transitions=True
     correct_inds = torch.cat(correct_inds)
 
     expert_obs = torch.cat(expert_obs, dim=0)
-    expert_inds = correct_inds[torch.randint(0, len(correct_inds), (len(batch[0]),))]
+    expert_inds = correct_inds[torch.randint(0, len(correct_inds), (len(batch),))]
     expert_feats = expert_obs[expert_inds]
 
     if use_transitions:
         expert_feats = torch.cat((expert_feats, expert_obs[expert_inds + 1]), dim=1)
 
-    _, _, _, _, _, _, marker_samples, next_marker_samples = batch
-    marker_feats = marker_samples
-
+    marker_samples = batch.safe_markers
     if use_transitions:
-        marker_feats = np.concatenate((marker_feats, next_marker_samples), axis=1)
-
-    marker_samples = torch.as_tensor(marker_feats).float().to(device)
-
+        marker_samples = torch.cat((marker_samples, batch.safe_next_markers), dim=1)
     assert expert_feats.shape == marker_samples.shape
 
     expert_scores = critic(expert_feats)
@@ -70,15 +68,18 @@ def train_wgan_critic(opt, critic, expert_obs: list, batch, use_transitions=True
 
 
 def train_disc(
-    opt, disc: Discriminator, expert_obs: torch.Tensor, batch, use_transitions=False
+    opt,
+    disc: Discriminator,
+    expert_obs: torch.Tensor,
+    batch: Batch,
+    use_transitions=False,
 ):
     opt.zero_grad()
     disc.train()
 
     disc_loss = nn.BCEWithLogitsLoss()
 
-    batch_size = len(batch[0])
-    device = expert_obs[0].device
+    batch_size = len(batch)
 
     episode_lengths = [len(ep) for ep in expert_obs]
     correct_inds = []
@@ -96,14 +97,9 @@ def train_disc(
     if use_transitions:
         expert_feats = torch.cat((expert_feats, expert_obs[expert_inds + 1]), dim=1)
 
-    _, _, _, _, _, _, marker_samples, next_marker_samples = batch
-    marker_feats = marker_samples
-
+    marker_samples = batch.safe_markers
     if use_transitions:
-        marker_feats = np.concatenate((marker_feats, next_marker_samples), axis=1)
-
-    marker_samples = torch.as_tensor(marker_feats).float().to(device)
-
+        marker_samples = np.concatenate((marker_samples, batch.safe_next_markers), axis=1)
     assert expert_feats.shape == marker_samples.shape
 
     expert_disc = disc(expert_feats)
@@ -113,7 +109,7 @@ def train_disc(
         len(expert_feats), 1, device=expert_obs.device
     )  # NOTE: Shouldn't expert labels be all ones?
     policy_labels = 0.2 * torch.ones(
-        len(marker_feats), 1, device=expert_obs.device
+        len(marker_samples), 1, device=expert_obs.device
     )  # NOTE: Shouldn't policy labels be all zeros?
     # NOTE: This is so the discriminator learns to distinguish between expert and policy samples
 

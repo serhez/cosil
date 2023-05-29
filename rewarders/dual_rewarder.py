@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import torch
 
+from common.batch import Batch
 from common.schedulers import Scheduler
 
 from .rewarder import Rewarder
@@ -38,16 +39,7 @@ class DualRewarder(Rewarder):
 
     def train(
         self,
-        batch: Tuple[
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-        ],
+        batch: Batch,
         expert_obs: List[torch.Tensor],
     ) -> Tuple[float, float, float]:
         """
@@ -56,11 +48,12 @@ class DualRewarder(Rewarder):
 
         Parameters
         ----------
-        `batch` -> the batch of data
+        `batch` -> the batch of data.
+        `expert_obs` -> the expert observations.
 
         Returns
         -------
-        The loss, the expert probability, and the policy probability
+        The loss, the expert probability, and the policy probability.
         """
 
         loss_1, expert_probs_1, policy_probs_1 = self.rewarder_1.train(
@@ -75,18 +68,9 @@ class DualRewarder(Rewarder):
             float(np.mean([policy_probs_1, policy_probs_2], dtype=np.float32)),
         )
 
-    def compute_rewards(
+    def _compute_rewards_impl(
         self,
-        batch: Tuple[
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-            torch.FloatTensor,
-        ],
+        batch: Batch,
         expert_obs: List[torch.Tensor],
     ) -> torch.Tensor:
         """
@@ -95,11 +79,12 @@ class DualRewarder(Rewarder):
 
         Parameters
         ----------
-        batch -> the batch of data
+        `batch` -> the batch of data.
+        `expert_obs` -> the expert observations.
 
         Returns
         -------
-        The rewards
+        The rewards.
         """
 
         rewards_1 = self.rewarder_1.compute_rewards(batch, expert_obs)

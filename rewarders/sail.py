@@ -5,6 +5,7 @@ import torch
 from torch import optim
 from torch.optim import Adam
 
+from common.batch import Batch
 from common.models import InverseDynamics, WassersteinCritic
 from common.observation_buffer import ObservationBuffer
 from common.vae import VAE
@@ -64,7 +65,12 @@ class SAIL(Rewarder):
         )
 
     def train(self, batch, expert_obs):
-        (disc_loss, expert_probs, policy_probs, _,) = train_wgan_critic(
+        (
+            disc_loss,
+            expert_probs,
+            policy_probs,
+            _,
+        ) = train_wgan_critic(
             self.disc_opt,
             self.disc,
             expert_obs,
@@ -76,11 +82,10 @@ class SAIL(Rewarder):
 
         return disc_loss, expert_probs, policy_probs
 
-    def compute_rewards(self, batch, expert_obs):
-        _, _, _, _, _, _, marker_batch, next_marker_batch = batch
-        feats = torch.FloatTensor(next_marker_batch).to(self.device)
+    def _compute_rewards_impl(self, batch: Batch, expert_obs):
+        feats = batch.safe_next_markers
         if self.learn_disc_transitions:
-            feats = torch.cat((marker_batch, next_marker_batch), dim=1)
+            feats = torch.cat((batch.safe_markers, batch.safe_next_markers), dim=1)
 
         # Sample expert data as reference for the reward
         episode_lengths = [len(ep) for ep in expert_obs]
@@ -110,8 +115,6 @@ class SAIL(Rewarder):
 
             # Avoid negative rewards when running with termination
             rewards = rewards + 1
-
-        rewards = self._normalize(rewards)
 
         return rewards
 
@@ -196,21 +199,13 @@ class SAIL(Rewarder):
 
         return mean_loss
 
-    def _update_g_inv(self, batch):
+    def _update_g_inv(self, batch: Batch):
         loss_fn = torch.nn.MSELoss()
         self.g_inv_optim.zero_grad()
 
-        state_batch, action_batch, _, _, _, _, marker_batch, next_marker_batch = batch
+        pred = self.g_inv(batch.safe_markers, batch.safe_next_markers, batch.safe_morphos)
 
-        state_batch = torch.FloatTensor(state_batch).to(self.device)
-        marker_batch = torch.FloatTensor(marker_batch).to(self.device)
-        action_batch = torch.FloatTensor(action_batch).to(self.device)
-        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self.device)
-
-        morpho_params = state_batch[..., self.morpho_slice]
-        pred = self.g_inv(marker_batch, next_marker_batch, morpho_params)
-
-        loss = loss_fn(pred, action_batch)
+        loss = loss_fn(pred, batch.safe_actions)
 
         loss.backward()
 

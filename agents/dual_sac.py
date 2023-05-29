@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.optim import Adam
 
+from common.batch import Batch
 from common.models import (
     DeterministicPolicy,
     EnsembleQNetwork,
@@ -60,6 +61,7 @@ class DualSAC(Agent):
 
         self._target_update_interval = config.method.agent.target_update_interval
         self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
+        self._morpho_in_state = config.morpho_in_state
 
         self._imit_rewarder = imitation_rewarder
         self._rein_rewarder = reinforcement_rewarder
@@ -210,17 +212,15 @@ class DualSAC(Agent):
             for _ in range(n_batches):
                 self._policy_optim.zero_grad()
 
-                state_batch, action_batch, _, _, _, _, marker_batch, _ = memory.sample(
-                    batch_size
+                sample = memory.sample(batch_size)
+                batch = Batch.from_numpy(*sample, device=self._device)
+
+                prior_mean = rewarder.get_prior_mean(
+                    batch.safe_markers, batch.safe_morphos
                 )
-
-                state_batch = torch.FloatTensor(state_batch).to(self._device)
-                marker_batch = torch.FloatTensor(marker_batch).to(self._device)
-                action_batch = torch.FloatTensor(action_batch).to(self._device)
-
-                morpho_params = state_batch[..., self._morpho_slice]
-                prior_mean = rewarder.get_prior_mean(marker_batch, morpho_params)
-                _, _, policy_mean, _ = self._policy.sample(state_batch)
+                _, _, policy_mean, _ = self._policy.sample(
+                    batch.safe_features if self._morpho_in_state else batch.safe_states
+                )
 
                 loss = loss_fn(policy_mean, prior_mean)
 
@@ -242,7 +242,8 @@ class DualSAC(Agent):
     ):
         self._logger.info("Pretraining value")
         for i in range(3000):
-            batch = memory.sample(batch_size)
+            sample = memory.sample(batch_size)
+            batch = Batch.from_numpy(*sample, device=self._device)
             loss = self.update_parameters(batch, i, expert_obs, True)[0]
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
@@ -296,16 +297,16 @@ class DualSAC(Agent):
         )
 
     def update_parameters(
-        self, batch, updates: int, expert_obs=[], update_value_only=False
+        self, batch: Batch, updates: int, expert_obs=[], update_value_only=False
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
 
         Parameters
         ----------
-        batch -> the batch of data.
-        updates -> the number of updates.
-        update_value_only -> whether to update the value function only.
+        `batch` -> the batch of data.
+        `updates` -> the number of updates.
+        `update_value_only` -> whether to update the value function only.
 
         Returns
         -------
@@ -322,54 +323,37 @@ class DualSAC(Agent):
         - "entropy_temperature/entropy"
         """
 
-        (
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
-            terminated_batch,
-            truncated_batch,
-            marker_batch,
-            next_marker_batch,
-        ) = batch
-
-        state_batch = torch.FloatTensor(state_batch).to(self._device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
-        action_batch = torch.FloatTensor(action_batch).to(self._device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
-        terminated_batch = (
-            torch.FloatTensor(terminated_batch).to(self._device).unsqueeze(1)
-        )
-        truncated_batch = (
-            torch.FloatTensor(truncated_batch).to(self._device).unsqueeze(1)
-        )
-        marker_batch = torch.FloatTensor(marker_batch).to(self._device)
-        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
-
         imit_rewards = self._imit_rewarder.compute_rewards(batch, expert_obs)
         rein_rewards = self._rein_rewarder.compute_rewards(batch, None)
-        assert reward_batch.shape == imit_rewards.shape
-        assert reward_batch.shape == rein_rewards.shape
+        assert batch.safe_rewards.shape == imit_rewards.shape
+        assert batch.safe_rewards.shape == rein_rewards.shape
+
+        if self._morpho_in_state:
+            states = batch.safe_features
+            next_states = batch.safe_next_features
+        else:
+            states = batch.safe_states
+            next_states = batch.safe_next_states
 
         # Compute the next Q-values
         with torch.no_grad():
             dones = torch.logical_or(
-                terminated_batch,
-                truncated_batch,
+                batch.safe_terminateds,
+                batch.safe_truncateds,
                 out=torch.empty(
-                    terminated_batch.shape,
-                    dtype=terminated_batch.dtype,
-                    device=terminated_batch.device,
+                    batch.safe_terminateds.shape,
+                    dtype=batch.safe_terminateds.dtype,
+                    device=batch.safe_terminateds.device,
                 ),
             )
 
             next_state_action, next_state_log_pi, _, _ = self._policy.sample(
-                next_state_batch
+                next_states
             )
             ent = self._alpha * next_state_log_pi
 
             imit_q_next_target = self._imit_critic_target.min(
-                next_state_batch, next_state_action
+                next_states, next_state_action
             )
             imit_min_qf_next_target = imit_q_next_target - ent
             imit_next_q_value = (
@@ -377,7 +361,7 @@ class DualSAC(Agent):
             )
 
             rein_q_next_target = self._rein_critic_target.min(
-                next_state_batch, next_state_action
+                next_states, next_state_action
             )
             rein_min_qf_next_target = rein_q_next_target - ent
             rein_next_q_value = (
@@ -385,17 +369,19 @@ class DualSAC(Agent):
             )
 
         # Plot absorbing rewards
-        marker_feats = next_marker_batch
+        marker_feats = batch.safe_next_markers
         if self._learn_disc_transitions:
-            marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
-        absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
+            marker_feats = torch.cat(
+                (batch.safe_markers, batch.safe_next_markers), dim=1
+            )
+        absorbing_rewards = batch.safe_rewards[marker_feats[:, -1] == 1.0].mean()
 
         # Critics losses
-        imit_qfs = self._imit_critic(state_batch, action_batch)
+        imit_qfs = self._imit_critic(states, batch.safe_actions)
         imit_qf_loss = sum(
             [F.mse_loss(q_value, imit_next_q_value) for q_value in imit_qfs]
         )
-        rein_qfs = self._rein_critic(state_batch, action_batch)
+        rein_qfs = self._rein_critic(states, batch.safe_actions)
         rein_qf_loss = sum(
             [F.mse_loss(q_value, rein_next_q_value) for q_value in rein_qfs]
         )
@@ -410,7 +396,7 @@ class DualSAC(Agent):
         torch.nn.utils.clip_grad.clip_grad_norm_(self._rein_critic.parameters(), 10)
         self._rein_critic_optim.step()
 
-        pi, log_pi, policy_mean, dist = self._policy.sample(state_batch)
+        pi, log_pi, policy_mean, dist = self._policy.sample(states)
 
         # Metrics
         std = (
@@ -426,14 +412,14 @@ class DualSAC(Agent):
             imit_q_value_norm,
             rein_q_value,
             rein_q_value_norm,
-        ) = self.get_value(state_batch, pi)
+        ) = self.get_value(states, pi)
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
         # VAE term
         vae_loss = torch.tensor(0.0, device=self._device)
         if isinstance(self._imit_rewarder, SAIL):
             vae_loss = self._imit_rewarder.get_vae_loss(
-                state_batch, marker_batch, policy_mean
+                states, batch.safe_markers, policy_mean
             )
             policy_loss += vae_loss
 
@@ -442,7 +428,7 @@ class DualSAC(Agent):
         # is proportional to the usefulness of the imitation loss/Q-value in our transfer learning case.
         bc_loss = torch.tensor(0.0, device=self._device)
         if self._bc_regul:
-            bc_loss = -torch.square(policy_mean - action_batch).mean()
+            bc_loss = -torch.square(policy_mean - batch.safe_actions).mean()
             policy_loss = (
                 1 - self._omega_scheduler.value
             ) * policy_loss + self._omega_scheduler.value * bc_loss
