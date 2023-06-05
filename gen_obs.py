@@ -15,7 +15,7 @@ from config import setup_config
 from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
 from rewarders import EnvReward
 from utils.model import load_model
-from utils.rl import gen_obs
+from utils.rl import gen_obs_dict
 
 
 def gen_model_obs(
@@ -59,7 +59,7 @@ def gen_model_obs(
 
     load_model(config.resume, env, agent, co_adapt=False, evaluate=True)
 
-    return gen_obs(
+    return gen_obs_dict(
         config.num_obs,
         env,
         agent,

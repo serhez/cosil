@@ -282,15 +282,15 @@ class CoIL(object):
             )
 
             if self.config.morpho_in_state:
-                # Morphology parameters xi are included in state in the code
+                # Morphology parameters xi are included in the state
                 feats = np.concatenate([state, self.env.morpho_params])
             else:
                 feats = state
 
             if self.absorbing_state:
-                self.initial_states_memory.append(np.concatenate([feats, np.zeros(1)]))
-            else:
-                self.initial_states_memory.append(feats)
+                feats = np.concatenate([feats, np.zeros(1)])
+
+            self.initial_states_memory.append(feats)
 
             train_marker_obs_history = []
             (

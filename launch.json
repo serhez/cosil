@@ -42,6 +42,15 @@
             "args": ["+experiment=train_with_new_demos"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Experiment: cosil2",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=11-05-2023/methods/cosil2"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

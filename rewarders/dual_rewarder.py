@@ -40,7 +40,7 @@ class DualRewarder(Rewarder):
     def train(
         self,
         batch: Batch,
-        expert_obs: List[torch.Tensor],
+        expert_obs: List[Any],
     ) -> Tuple[float, float, float]:
         """
         Trains the rewarder using the given batch.
@@ -71,7 +71,7 @@ class DualRewarder(Rewarder):
     def _compute_rewards_impl(
         self,
         batch: Batch,
-        expert_obs: List[torch.Tensor],
+        demos: List[Any],
     ) -> torch.Tensor:
         """
         Computes the rewards using the given batch and returns the combined rewards.

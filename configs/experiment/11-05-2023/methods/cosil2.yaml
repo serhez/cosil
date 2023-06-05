@@ -1,0 +1,16 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: sac
+  - override /method/rewarder: env
+
+method:
+  co_adaptation:
+    dist_optimizer: pso
+
+logger:
+  group_name: "11-05-2023_methods"
+  experiment_name: "cosil2"

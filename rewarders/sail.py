@@ -82,13 +82,13 @@ class SAIL(Rewarder):
 
         return disc_loss, expert_probs, policy_probs
 
-    def _compute_rewards_impl(self, batch: Batch, expert_obs):
+    def _compute_rewards_impl(self, batch: Batch, demos):
         feats = batch.safe_next_markers
         if self.learn_disc_transitions:
             feats = torch.cat((batch.safe_markers, batch.safe_next_markers), dim=1)
 
         # Sample expert data as reference for the reward
-        episode_lengths = [len(ep) for ep in expert_obs]
+        episode_lengths = [len(ep) for ep in demos]
         correct_inds = []
         len_sum = 0
         for length in episode_lengths:
@@ -97,7 +97,7 @@ class SAIL(Rewarder):
 
         correct_inds = torch.cat(correct_inds)
 
-        expert_obs = torch.cat(expert_obs, dim=0)
+        expert_obs = torch.cat(demos, dim=0)
         expert_inds = correct_inds[
             torch.randint(0, len(correct_inds), (len(feats[0]),))
         ]
@@ -203,7 +203,9 @@ class SAIL(Rewarder):
         loss_fn = torch.nn.MSELoss()
         self.g_inv_optim.zero_grad()
 
-        pred = self.g_inv(batch.safe_markers, batch.safe_next_markers, batch.safe_morphos)
+        pred = self.g_inv(
+            batch.safe_markers, batch.safe_next_markers, batch.safe_morphos
+        )
 
         loss = loss_fn(pred, batch.safe_actions)
 

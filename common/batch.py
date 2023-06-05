@@ -7,44 +7,48 @@ import numpy as np
 import torch
 
 
+# TODO: Remove the `safe_*` prefix from the properties, given that the properties shadow the attribute variables (test this).
 @dataclass
 class Batch:
     """
     A batch of observations.
+    ---
     The first dimension of each tensor represents the different observations of the batch.
     A single-observation batch is represented by the first dimension of each tensor being 1.
-    Each of the tensors of the `Batch` (besides the device) can be `None`.
+    ---
+    Each of the tensors of the batch can be `None`; this allows the user to create batches with only the tensors they need.
+    Each of the tensors of the batch can be safely retrieved by using the `safe_*` properties, without the need to check for `None` values.
     """
-
-    states: Optional[torch.Tensor]
-    """The states of the batch."""
-
-    next_states: Optional[torch.Tensor]
-    """The next states of the batch."""
-
-    markers: Optional[torch.Tensor]
-    """The markers of the batch common across all morphologies."""
-
-    next_markers: Optional[torch.Tensor]
-    """The next markers of the batch common across all morphologies."""
-
-    actions: Optional[torch.Tensor]
-    """The actions of the batch."""
-
-    rewards: Optional[torch.Tensor]
-    """The rewards of the batch."""
-
-    terminateds: Optional[torch.Tensor]
-    """The termination flags of the batch."""
-
-    truncateds: Optional[torch.Tensor]
-    """The truncation flags of the batch."""
-
-    morphos: Optional[torch.Tensor]
-    """The morphology parameters of the batch."""
 
     device: Union[torch.device, str]
     """The device on which the tensors of the batch are stored."""
+
+    states: Optional[torch.Tensor] = None
+    """The states of the batch."""
+
+    next_states: Optional[torch.Tensor] = None
+    """The next states of the batch."""
+
+    markers: Optional[torch.Tensor] = None
+    """The markers of the batch common across all morphologies."""
+
+    next_markers: Optional[torch.Tensor] = None
+    """The next markers of the batch common across all morphologies."""
+
+    actions: Optional[torch.Tensor] = None
+    """The actions of the batch."""
+
+    rewards: Optional[torch.Tensor] = None
+    """The rewards of the batch."""
+
+    terminateds: Optional[torch.Tensor] = None
+    """The termination flags of the batch."""
+
+    truncateds: Optional[torch.Tensor] = None
+    """The truncation flags of the batch."""
+
+    morphos: Optional[torch.Tensor] = None
+    """The morphology parameters of the batch."""
 
     def __post_init__(self):
         assert (
@@ -198,8 +202,7 @@ class Batch:
         The concatenation of the states and the morphology parameters.
         """
 
-        assert self.states is not None, "The states of the batch must be not None."
-        assert self.morphos is not None, "The morphos of the batch must be not None."
+        assert self.features is not None, "The features of the batch must be not None."
         return self.features
 
     @property
@@ -209,10 +212,41 @@ class Batch:
         """
 
         assert (
+            self.next_features is not None
+        ), "The next features of the batch must be not None."
+        return self.next_features
+
+    def safe_features_with(self, morpho: torch.Tensor) -> torch.Tensor:
+        """
+        The concatenation of the states and the morphology parameters.
+
+        Parameters
+        ----------
+        morpho -> the morphology parameters to concatenate to the states.
+        """
+
+        assert self.states is not None, "The states of the batch must be not None."
+
+        rep_shape = [self._len] + ([1] * len(morpho.shape))
+        rep_morpho = morpho.unsqueeze(0).repeat(*rep_shape)
+        return torch.cat((self.states, rep_morpho), dim=1)
+
+    def safe_next_features_with(self, morpho: torch.Tensor) -> torch.Tensor:
+        """
+        The concatenation of the next states and the morphology parameters.
+
+        Parameters
+        ----------
+        morpho -> the morphology parameters to concatenate to the next states.
+        """
+
+        assert (
             self.next_states is not None
         ), "The next states of the batch must be not None."
-        assert self.morphos is not None, "The morphos of the batch must be not None."
-        return self.next_features
+
+        rep_shape = [self._len] + ([1] * len(morpho.shape))
+        rep_morpho = morpho.unsqueeze(0).repeat(*rep_shape)
+        return torch.cat((self.next_states, rep_morpho), dim=1)
 
     def to_list(self) -> list[Batch]:
         """
@@ -330,16 +364,16 @@ class Batch:
     @classmethod
     def from_numpy(
         cls,
-        states: np.ndarray,
-        next_states: np.ndarray,
-        markers: np.ndarray,
-        next_markers: np.ndarray,
-        actions: np.ndarray,
-        rewards: np.ndarray,
-        terminateds: np.ndarray,
-        truncateds: np.ndarray,
-        morphos: np.ndarray,
-        device: torch.device,
+        states: Optional[np.ndarray],
+        next_states: Optional[np.ndarray],
+        markers: Optional[np.ndarray],
+        next_markers: Optional[np.ndarray],
+        actions: Optional[np.ndarray],
+        rewards: Optional[np.ndarray],
+        terminateds: Optional[np.ndarray],
+        truncateds: Optional[np.ndarray],
+        morphos: Optional[np.ndarray],
+        device: Union[torch.device, str],
     ) -> Batch:
         """
         Creates a `Batch` object from a batch of observations represented as `np.ndarray` objects.

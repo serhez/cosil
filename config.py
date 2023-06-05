@@ -511,6 +511,39 @@ class CoSILConfig(CoILConfig):
 
 
 @dataclass(kw_only=True)
+class CoSIL2Config(CoILConfig):
+    """
+    Configuration for the CoSIL2 method.
+    """
+
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            {
+                "agent": "sac",
+            },
+            {
+                "rewarder": "env",
+            },
+        ]
+    )
+
+    name: str = "cosil2"
+    """Name of the method."""
+
+    num_transfer_steps: int = 1000
+    """The number of steps performed to collect the observations using the new morphology to perform transfer learning."""
+
+    transfer_updates: int = 1000
+    """The number of updates performed to train the policy using the collected observations collected."""
+
+    transfer_batch_size: int = 256
+    """The batch size used to train the policy during the transfer learning phase."""
+
+    optimized_demonstrator: bool = False
+    """Whether to use an optimized demonstrator (True) or a previously seen morphology."""
+
+
+@dataclass(kw_only=True)
 class Config:
     """
     Base configuration.
@@ -556,7 +589,7 @@ class TrainConfig(Config):
     defaults: List[Any] = field(
         default_factory=lambda: [
             "_self_",
-            {"method": "cosil"},
+            {"method": "cosil2"},
         ]
     )
 
@@ -606,6 +639,7 @@ def setup_config() -> None:
     cs.store(name="base_co_adaptation", node=CoAdaptationConfig)
     cs.store(group="method", name="base_coil", node=CoILConfig)
     cs.store(group="method", name="base_cosil", node=CoSILConfig)
+    cs.store(group="method", name="base_cosil2", node=CoSIL2Config)
     cs.store(group="method/agent", name="base_sac", node=SACConfig)
     cs.store(group="method/agent", name="base_dual_sac", node=DualSACConfig)
     cs.store(group="method/rewarder", name="base_env_rewarder", node=EnvRewarderConfig)

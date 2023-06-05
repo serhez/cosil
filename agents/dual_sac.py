@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -297,7 +297,11 @@ class DualSAC(Agent):
         )
 
     def update_parameters(
-        self, batch: Batch, updates: int, expert_obs=[], update_value_only=False
+        self,
+        batch: Batch,
+        updates: int,
+        expert_obs: Optional[list] = None,
+        update_value_only=False,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -322,6 +326,13 @@ class DualSAC(Agent):
         - "entropy_temperature/alpha"
         - "entropy_temperature/entropy"
         """
+
+        # NOTE: Is this correct?
+        self._policy.train()
+        self._imit_critic.train()
+        self._rein_critic.train()
+        self._imit_critic_target.train()
+        self._rein_critic_target.train()
 
         imit_rewards = self._imit_rewarder.compute_rewards(batch, expert_obs)
         rein_rewards = self._rein_rewarder.compute_rewards(batch, None)

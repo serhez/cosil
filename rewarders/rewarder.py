@@ -59,7 +59,7 @@ class Rewarder(ABC):
         pass
 
     @abstractmethod
-    def _compute_rewards_impl(self, batch: Batch, expert_obs) -> torch.Tensor:
+    def _compute_rewards_impl(self, batch: Batch, demos) -> torch.Tensor:
         """
         The internal child-class-specfic implementation of `compute_rewards`.
         Do not call this method directly.
@@ -67,7 +67,7 @@ class Rewarder(ABC):
         Parameters
         ----------
         `batch` -> a batch of data.
-        `expert_obs` -> the demonstrator's observations.
+        `demos` -> the demonstrator's observations.
 
         Returns
         -------

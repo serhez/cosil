@@ -33,7 +33,7 @@ from utils.co_adaptation import (
     optimize_morpho_params_pso,
     rs_step,
 )
-from utils.rl import gen_obs
+from utils.rl import gen_obs_dict
 
 
 # TODO: Encapsulate the morphology in a class
@@ -403,9 +403,9 @@ class CoSIL(object):
                 feats = state
 
             if self.absorbing_state:
-                self.initial_states_memory.append(np.concatenate([feats, np.zeros(1)]))
-            else:
-                self.initial_states_memory.append(feats)
+                feats = np.concatenate([feats, np.zeros(1)])
+
+            self.initial_states_memory.append(feats)
 
             train_marker_obs_history = []
             (
@@ -444,14 +444,6 @@ class CoSIL(object):
 
                 # Sample action from policy
                 else:
-                    if self.config.morpho_in_state:
-                        feats = np.concatenate([state, self.env.morpho_params])
-                    else:
-                        feats = state
-
-                    if self.absorbing_state:
-                        feats = np.concatenate([feats, np.zeros(1)])
-
                     action = self.agent.select_action(feats)
 
                 # Select the demonstrations to imitate in the next updates
@@ -637,7 +629,7 @@ class CoSIL(object):
                     if self.config.method.clear_imitation:
                         self.logger.info("Clearing the imitation buffer")
                         self.imitation_buffer.clear()
-                    obs_dict = gen_obs(
+                    obs_dict = gen_obs_dict(
                         self.config.method.obs_per_morpho,
                         self.env,
                         self.agent,
