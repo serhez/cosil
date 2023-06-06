@@ -1,6 +1,7 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
@@ -13,7 +14,8 @@ from common.models import (
 )
 from common.observation_buffer import ObservationBuffer
 from loggers import Logger
-from rewarders import SAIL, Rewarder
+from rewarders import MBC, SAIL, Rewarder
+from utils import dict_add, dict_div
 from utils.rl import hard_update, soft_update
 
 from .agent import Agent
@@ -174,11 +176,74 @@ class SAC(Agent):
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
+    def transfer_morpho_behavior(
+        self,
+        buffer: ObservationBuffer,
+        mbc_rewarder: MBC,
+        prev_morphos: list[np.ndarray],
+        n_updates: int,
+        updates: int,
+        batch_size: int,
+    ) -> dict[str, Any]:
+        self._logger.info("Transferring morpho behavior")
+
+        all_batch = buffer.sample(len(buffer))
+
+        mbc_rewarder.co_adapt(
+            all_batch, prev_morphos, self._critic, self._policy, self._gamma
+        )
+
+        demonstrator = mbc_rewarder.demonstrator
+        if len(demonstrator.shape) == 1:
+            demonstrator = demonstrator.unsqueeze(0)
+
+        if demonstrator.shape[0] != batch_size:
+            new_shape = [batch_size] + ([1] * len(demonstrator.shape[1:]))
+            demonstrator = demonstrator.repeat(*new_shape)
+
+        demonstrator_size = demonstrator.shape[1]
+
+        log_dict, logged = {}, 0
+
+        for update in range(n_updates):
+            batch = buffer.sample(batch_size)
+            feats_batch = torch.FloatTensor(batch[0]).to(self._device)
+            states_batch = feats_batch[:, :-demonstrator_size]
+            demo_feats_batch = torch.cat([states_batch, demonstrator], dim=1)
+
+            _, _, demo_actions, _ = self._policy.sample(demo_feats_batch)
+            demos = (
+                None,
+                demo_actions,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+
+            rewards = mbc_rewarder.compute_rewards(batch, demos)
+
+            new_log = self._train(batch, updates + update, rewards, False)
+            dict_add(log_dict, new_log)
+            logged += 1
+
+        dict_div(log_dict, logged)
+        log_dict["general/episode_steps"] = len(buffer)
+
+        return log_dict
+
     def get_value(self, state, action) -> torch.FloatTensor:
         return self._critic.min(state, action)
 
     def update_parameters(
-        self, batch, updates: int, expert_obs=[], update_value_only=False
+        self,
+        batch: tuple,
+        updates: int,
+        expert_obs: Optional[List] = None,
+        update_value_only=False,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -203,34 +268,41 @@ class SAC(Agent):
             - "entropy_temperature/entropy"
         """
 
+        rewards = self._rewarder.compute_rewards(batch, expert_obs).to(self._device)
+        (_, _, reward_batch, *_) = batch
+        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
+        assert reward_batch.shape == rewards.shape
+
+        return self._train(batch, updates, rewards, update_value_only)
+
+    def _train(
+        self, batch: tuple, updates: int, rewards: torch.Tensor, update_value_only=False
+    ) -> Dict[str, Any]:
         (
             state_batch,
             action_batch,
-            reward_batch,
+            _,
             next_state_batch,
             terminated_batch,
             truncated_batch,
             marker_batch,
             next_marker_batch,
+            _,
         ) = batch
 
         state_batch = torch.FloatTensor(state_batch).to(self._device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
         action_batch = torch.FloatTensor(action_batch).to(self._device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
         terminated_batch = (
             torch.FloatTensor(terminated_batch).to(self._device).unsqueeze(1)
         )
         truncated_batch = (
             torch.FloatTensor(truncated_batch).to(self._device).unsqueeze(1)
         )
-        marker_batch = torch.FloatTensor(marker_batch).to(self._device)
-        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
+        if marker_batch is not None and marker_batch[0] is not None:
+            marker_batch = torch.FloatTensor(marker_batch).to(self._device)
 
-        new_rewards = self._rewarder.compute_rewards(batch, expert_obs)
-
-        assert reward_batch.shape == new_rewards.shape
-        reward_batch = new_rewards
+        reward_batch = rewards
 
         # Compute the next Q-values
         with torch.no_grad():
@@ -251,10 +323,10 @@ class SAC(Agent):
             next_q_value = reward_batch + dones * self._gamma * (min_qf_next_target)
 
         # Plot absorbing rewards
-        marker_feats = next_marker_batch
-        if self._learn_disc_transitions:
-            marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
-        absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
+        # marker_feats = next_marker_batch
+        # if self._learn_disc_transitions:
+        #     marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
+        # absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
         qfs = self._critic(state_batch, action_batch)
         qf_loss = sum([F.mse_loss(q_value, next_q_value) for q_value in qfs])
@@ -313,10 +385,10 @@ class SAC(Agent):
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
         # TODO: we could include also the "reward/reinforcement_mean" and "reward/imitation_mean" if we are using a dual rewarder
         return {
-            "reward/balanced_mean": reward_batch.mean().item(),
-            "reward/absorbing_mean": absorbing_rewards.item(),
-            "q-value/q-value": q_value.mean().item(),
-            "loss/critic": qf_loss,
+            "reward/mean": reward_batch.mean().item(),
+            # "reward/absorbing_mean": absorbing_rewards.item(),
+            "q-value/mean": q_value.mean().item(),
+            "loss/critic": qf_loss.item(),
             "loss/policy": policy_loss.item(),
             "loss/alpha": alpha_loss.item(),
             "loss/vae": vae_loss.item(),

@@ -331,6 +331,7 @@ class DualSAC(Agent):
             truncated_batch,
             marker_batch,
             next_marker_batch,
+            _,
         ) = batch
 
         state_batch = torch.FloatTensor(state_batch).to(self._device)

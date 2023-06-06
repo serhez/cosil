@@ -114,7 +114,7 @@ class CoIL(object):
             self.expert_obs = [
                 torch.from_numpy(x).float().to(self.device) for x in expert_obs_np
             ]
-            self.logger.info(f"Expert obs {len(self.expert_obs)} episodes loaded")
+            self.logger.info(f"Demonstrator obs {len(self.expert_obs)} episodes loaded")
 
         # For terminating environments like Humanoid it is important to use absorbing state
         # From paper Discriminator-actor-critic: Addressing sample inefficiency and reward bias in adversarial imitation learning
@@ -141,9 +141,7 @@ class CoIL(object):
             {"Expert observation shapes": [x.shape for x in self.expert_obs]},
         )
 
-        self.logger.info(
-            f"Training using imitation rewarder {config.method.rewarder.name}"
-        )
+        self.logger.info(f"Training using rewarder {config.method.rewarder.name}")
         if config.method.rewarder.name == "gail":
             self.rewarder = GAIL(self.demo_dim, config)
         elif config.method.rewarder.name == "sail":
@@ -159,8 +157,8 @@ class CoIL(object):
             raise NotImplementedError
         self.rewarder_batch_size = self.config.method.rewarder.batch_size
 
-        self.logger.info(f"Training using agent {config.method.agent.name}")
         if config.method.agent.name == "sac":
+            self.logger.info("Using agent SAC")
             self.agent = SAC(
                 self.config,
                 self.logger,
@@ -257,7 +255,10 @@ class CoIL(object):
             es_buffer = None
 
         # Main loop
-        for i_episode in range(1, self.config.method.num_episodes + 1):
+        # NOTE: We begin counting the episodes at 1, not 0
+        episode = 1
+        morpho_episode = 1
+        while episode <= self.config.method.num_episodes:
             start = time.time()
 
             if self.config.method.co_adapt:
@@ -281,7 +282,7 @@ class CoIL(object):
             )
 
             if self.config.morpho_in_state:
-                # Morphology parameters xi are included in state in the code
+                # Morphology parameters xi are included in the state
                 feats = np.concatenate([state, self.env.morpho_params])
             else:
                 feats = state
@@ -332,7 +333,7 @@ class CoIL(object):
 
                 if len(self.replay_buffer) > self.batch_size:
                     # Number of updates per step in environment
-                    for i in range(self.config.method.updates_per_step):
+                    for _ in range(self.config.method.updates_per_step):
                         # Different algo variants discriminator update (pseudocode line 8-9)
                         batch = self.replay_buffer.sample(self.rewarder_batch_size)
                         disc_loss, expert_probs, policy_probs = self.rewarder.train(
@@ -344,7 +345,7 @@ class CoIL(object):
                             self.total_numsteps > self.config.method.disc_warmup
                             and len(self.replay_buffer) > self.batch_size
                         ):
-                            # Update parameters of all the networks
+                            # Update parameters of all the agent's networks
                             batch = self.replay_buffer.sample(self.batch_size)
                             new_log = self.agent.update_parameters(
                                 batch, self.updates, self.expert_obs
@@ -397,7 +398,8 @@ class CoIL(object):
 
                 # Ignore the "done" signal if it comes from hitting the time horizon.
                 # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
-                # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when the episode is done, as well as meaning "done" for `self.memory.push()`
+                # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when
+                # the episode is done, as well as meaning "done" for `self.memory.push()`
                 mask = (
                     1
                     if episode_steps == self.env._max_episode_steps
@@ -427,7 +429,7 @@ class CoIL(object):
                         pwil_rewarder=(pwil_rewarder),
                     )
                     for obs in obs_list:
-                        self.replay_buffer.push(obs)
+                        self.replay_buffer.push(obs + (self.env.morpho_params,))
                 else:
                     if pwil_rewarder is not None:
                         reward = pwil_rewarder.compute_reward(
@@ -442,6 +444,7 @@ class CoIL(object):
                         mask,
                         marker_obs,
                         next_marker_obs,
+                        self.env.morpho_params,
                     )
                     self.replay_buffer.push(obs)
 
@@ -483,14 +486,18 @@ class CoIL(object):
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
             log_dict["general/episode_steps"] = episode_steps
 
-            # Adapt the morphology
+            # Morphology evolution
+            new_morpho_episode = morpho_episode + 1
             optimized_morpho_params = None
             if self.config.method.co_adapt and (
-                i_episode % self.config.method.episodes_per_morpho == 0
+                episode % self.config.method.episodes_per_morpho == 0
             ):
+                # Adapt the morphology using the specified optimizing method
                 optimized_morpho_params = self._adapt_morphology(
                     epsilon, es, es_buffer, log_dict
                 )
+
+                new_morpho_episode = 1
 
             log_dict["reward/env_total"] = episode_reward
 
@@ -504,10 +511,11 @@ class CoIL(object):
 
             self.logger.info(
                 {
-                    "Episode": i_episode,
-                    "Total numsteps": self.total_numsteps,
+                    "Episode": episode,
+                    "Morpho episode": morpho_episode,
+                    "Total steps": self.total_numsteps,
                     "Episode steps": episode_steps,
-                    "Reward": episode_reward,
+                    "Episode reward": episode_reward,
                     "Took": took,
                 },
             )
@@ -516,29 +524,36 @@ class CoIL(object):
             # Also used to make plots
             if (
                 self.config.method.eval
-                and i_episode % self.config.method.eval_per_episodes == 0
+                and episode % self.config.method.eval_per_episodes == 0
             ):
-                self._evaluate(i_episode, optimized_morpho_params, log_dict)
+                self._evaluate(episode, optimized_morpho_params, log_dict)
                 train_marker_obs_history = []
 
             log_dict["general/total_steps"] = self.total_numsteps
-
             self.logger.info(log_dict, ["console"])
-
             log_dict, logged = {}, 0
+
+            episode += 1
+            morpho_episode = new_morpho_episode
 
         return self.agent, self.env.morpho_params
 
-    def _pretrain_sail(self, sail: SAIL, co_adapt=True, steps=50000):
-        assert isinstance(sail, SAIL), "SAIL rewarder required for pretraining"
+    def _pretrain_sail(
+        self, sail: SAIL, co_adapt=True, steps=50000, save=False, load=False
+    ):
+        self.logger.info(f"Pretraining SAIL for {steps} steps")
 
         g_inv_file_name = "pretrained_models/g_inv.pt"
         policy_file_name = "pretrained_models/policy.pt"
 
-        if os.path.exists(g_inv_file_name):
+        if load:
+            if not os.path.exists(g_inv_file_name):
+                raise ValueError(
+                    f"Could not find pretrained G_INV at {g_inv_file_name}",
+                )
             self.logger.info("Loading pretrained G_INV from disk")
             sail.load_g_inv(g_inv_file_name)
-            return 0
+            return
 
         marker_info_fn = lambda x: get_marker_info(
             x,
@@ -562,6 +577,7 @@ class CoIL(object):
             state, _ = self.env.reset()
             if self.config.morpho_in_state:
                 state = np.concatenate([state, self.env.morpho_params])
+
             marker_obs, _ = marker_info_fn(self.env.get_track_dict())
             done = False
 
@@ -588,17 +604,20 @@ class CoIL(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        memory.push(*obs)
+                        memory.push(obs + (self.env.morpho_params,))
                 else:
                     memory.push(
-                        state,
-                        action,
-                        reward,
-                        next_state,
-                        mask,
-                        mask,
-                        marker_obs,
-                        next_marker_obs,
+                        (
+                            state,
+                            action,
+                            reward,
+                            next_state,
+                            mask,
+                            mask,
+                            marker_obs,
+                            next_marker_obs,
+                            self.env.morpho_params,
+                        )
                     )
 
                 state = next_state
@@ -606,21 +625,26 @@ class CoIL(object):
 
                 step += 1
 
-        self.logger.info(
-            {
-                "Pretraining": "SAIL",
-                "Took": time.time() - start_t,
-                "Steps": step,
-            },
-        )
+            self.logger.info(
+                {
+                    "Steps": step,
+                    "Total steps": self.total_numsteps,
+                    "Took": time.time() - start_t,
+                },
+            )
+
+            start_t = time.time()
 
         g_inv_loss = sail.pretrain_g_inv(memory, self.batch_size, n_epochs=300)
         policy_pretrain_loss = self.agent.pretrain_policy(
             sail, memory, self.batch_size, n_epochs=300
         )
 
-        torch.save(sail.get_g_inv_dict(), g_inv_file_name)
-        torch.save(self.agent.get_model_dict()["policy_state_dict"], policy_file_name)
+        if save:
+            torch.save(sail.get_g_inv_dict(), g_inv_file_name)
+            torch.save(
+                self.agent.get_model_dict()["policy_state_dict"], policy_file_name
+            )
 
         return g_inv_loss, policy_pretrain_loss
 
@@ -641,7 +665,7 @@ class CoIL(object):
             morpho_params = self.morpho_dist.sample()
             self.morpho_params_np = morpho_params.cpu().numpy()
 
-        # Bayesian optimization (Algorithm 2)
+        # Bayesian optimization
         elif self.config.method.co_adaptation.dist_optimizer == "bo":
             start_t = time.time()
             self.morpho_params_np, optimized_morpho_params = bo_step(

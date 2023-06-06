@@ -7,7 +7,7 @@ device: cpu
 env_name: GaitTrackHalfCheetah-v0
 
 method:
-  reset_omega: true
+  # reset_omega: true
   num_episodes: 2
   morpho_warmup: 0
 

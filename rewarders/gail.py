@@ -35,8 +35,8 @@ class GAIL(Rewarder):
             use_transitions=self.learn_disc_transitions,
         )
 
-    def compute_rewards(self, batch, _):
-        _, _, _, _, _, _, marker_batch, next_marker_batch = batch
+    def _compute_rewards_impl(self, batch, _):
+        _, _, _, _, _, _, marker_batch, next_marker_batch, _ = batch
         feats = torch.FloatTensor(next_marker_batch).to(self.device)
         if self.learn_disc_transitions:
             feats = torch.cat((marker_batch, next_marker_batch), dim=1)
@@ -58,8 +58,6 @@ class GAIL(Rewarder):
         else:
             if self.log_scale_rewards:
                 rewards = rewards.log()
-
-        rewards = self._normalize(rewards)
 
         return rewards
 

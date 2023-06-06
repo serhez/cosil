@@ -34,12 +34,11 @@ class EnvReward(Rewarder):
     def train(self, *_):
         return 0.0, 0.0, 0.0
 
-    def compute_rewards(self, batch, _):
-        _, _, reward_batch, _, _, _, _, _ = batch
+    def _compute_rewards_impl(self, batch, _):
+        _, _, reward_batch, _, _, _, _, _, _ = batch
         reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
         if self._sparse_mask is not None:
             reward_batch[reward_batch < self._sparse_mask] = 0.0
-        reward_batch = self._normalize(reward_batch)
         return reward_batch
 
     def get_model_dict(self):

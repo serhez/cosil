@@ -10,7 +10,7 @@ from omegaconf import DictConfig
 
 from config import setup_config
 from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
-from methods import CoIL, CoSIL
+from methods import CoIL, CoSIL, CoSIL2
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="train")
@@ -74,6 +74,8 @@ def main(config: DictConfig) -> None:
             method = CoIL(config, logger, env)
         elif config.method.name == "cosil":
             method = CoSIL(config, logger, env)
+        elif config.method.name == "cosil2":
+            method = CoSIL2(config, logger, env)
         else:
             raise ValueError(f"Invalid training method: {config.method.name}")
 

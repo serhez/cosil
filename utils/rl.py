@@ -43,7 +43,97 @@ def _add_obs(obs_dict, info, done):
         obs_dict[key] = np.append(obs_dict[key], np.array([val]), axis=0)
 
 
-def gen_obs(
+def gen_obs_list(
+    num_obs: int,
+    env: gym.Env,
+    agent: Agent,
+    morpho_in_state: bool,
+    absorbing_state: bool,
+    logger: Logger,
+    logger_mask: List[str] = ["wandb"],
+) -> list:
+    """
+    Generates a batch of data using the trained model.
+
+    Parameters
+    ----------
+    num_obs -> the number of observations to generate.
+    env -> the environment.
+    agent -> the agent.
+    morpho_in_state -> whether to add the morphology parameters to the state.
+    absorbing_state -> whether to add an absorbing state to the observations.
+    logger -> the logger.
+    logger_mask -> the loggers to mask when logging.
+
+    Returns
+    -------
+    batch -> the batch of data.
+    """
+
+    logger.info(f"Generating {num_obs} observations", logger_mask)
+
+    obs_list = []
+
+    # Generate trajectories
+    for traj in itertools.count(1):
+        if len(obs_list) >= num_obs:
+            break
+
+        state, _ = env.reset()
+
+        tot_reward = 0
+        traj_num_obs = 0
+        done = False
+
+        while not done and len(obs_list) < num_obs:
+            feats = state
+            if morpho_in_state:
+                feats = np.concatenate([feats, env.morpho_params])
+            if absorbing_state:
+                feats = np.concatenate([feats, np.zeros(1)])
+
+            action = agent.select_action(feats, evaluate=True)
+            next_state, reward, terminated, truncated, _ = env.step(action)
+            next_feats = next_state
+            if morpho_in_state:
+                next_feats = np.concatenate([next_feats, env.morpho_params])
+            if absorbing_state:
+                next_feats = np.concatenate([next_feats, np.zeros(1)])
+
+            obs_list.append(
+                (
+                    feats,
+                    action,
+                    reward,
+                    next_feats,
+                    terminated,
+                    truncated,
+                    None,
+                    None,
+                    env.morpho_params,
+                )
+            )
+
+            done = terminated or truncated
+            traj_num_obs += 1
+
+            state = next_state
+
+            tot_reward += reward
+
+        logger.info(
+            {
+                "Trajectory": traj,
+                "Reward": tot_reward,
+                "Generated observations": traj_num_obs,
+            },
+            logger_mask,
+        )
+
+    return obs_list
+
+
+def gen_obs_dict(
     num_obs: int,
     env: gym.Env,
     agent: Agent,

@@ -178,7 +178,7 @@ class ObservationBuffer:
         else:
             self._push_impl(observations)
 
-    def sample(self, n: int = 1) -> Optional[Tuple[Any, ...]]:
+    def sample(self, n: int = 1) -> Tuple[Any, ...]:
         """
         Samples n observations from the buffer.
         The sampling is done without replacement, unless the buffer contains less than n observations.

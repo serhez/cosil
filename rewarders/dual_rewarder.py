@@ -75,7 +75,7 @@ class DualRewarder(Rewarder):
             float(np.mean([policy_probs_1, policy_probs_2], dtype=np.float32)),
         )
 
-    def compute_rewards(
+    def _compute_rewards_impl(
         self,
         batch: Tuple[
             torch.FloatTensor,

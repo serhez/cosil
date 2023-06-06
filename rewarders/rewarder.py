@@ -58,9 +58,25 @@ class Rewarder(ABC):
         pass
 
     @abstractmethod
-    def compute_rewards(self, batch, expert_obs) -> torch.Tensor:
+    def _compute_rewards_impl(self, batch: tuple, demos) -> torch.Tensor:
         """
-        Compute the rewards for a batch of data.
+        The internal child-class-specfic implementation of `compute_rewards`.
+        Do not call this method directly.
+
+        Parameters
+        ----------
+        `batch` -> a batch of data.
+        `demos` -> the demonstrator's observations.
+
+        Returns
+        -------
+        The rewards.
+        """
+        pass
+
+    def compute_rewards(self, batch: tuple, expert_obs) -> torch.Tensor:
+        """
+        Compute the rewards for a batch of data and return them normalized.
 
         Parameters
         ----------
@@ -69,9 +85,11 @@ class Rewarder(ABC):
 
         Returns
         -------
-        The rewards.
+        The normalized rewards.
         """
-        pass
+
+        rewards = self._compute_rewards_impl(batch, expert_obs)
+        return self._normalize(rewards)
 
     @abstractmethod
     def get_model_dict(self) -> Dict[str, Any]:

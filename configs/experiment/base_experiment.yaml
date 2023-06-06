@@ -53,22 +53,22 @@ method:
   fixed_morpho: null
 
   # CoSIL
-  omega_init: 1.0
-  omega_scheduler: exponential
-  reset_omega: true  # could be tested
-  imitation_capacity: 100000
-  imitation_dim_ratio: 0.8  # could be tested
-  imitate_morphos: true  # variable
-  clear_imitation: true  # variable
-  obs_per_morpho: 10000
-  morpho_policy_warmup: 0  # could be tested
-  dual_mode: q  # variable
-  normalization_type: z_score  # variable
-  normalization_mode: mean  # variable
-  normalization_gamma: 1.0  # variable
-  normalization_beta: 0.0  # could be tested
-  normalization_low_clip: null  # could be tested
-  normalization_high_clip: null  # could be tested
+  # omega_init: 1.0
+  # omega_scheduler: exponential
+  # reset_omega: true  # could be tested
+  # imitation_capacity: 100000
+  # imitation_dim_ratio: 0.8  # could be tested
+  # imitate_morphos: true  # variable
+  # clear_imitation: true  # variable
+  # obs_per_morpho: 10000
+  # morpho_policy_warmup: 0  # could be tested
+  # dual_mode: q  # variable
+  # normalization_type: z_score  # variable
+  # normalization_mode: mean  # variable
+  # normalization_gamma: 1.0  # variable
+  # normalization_beta: 0.0  # could be tested
+  # normalization_low_clip: null  # could be tested
+  # normalization_high_clip: null  # could be tested
 
   agent:
     gamma: 0.99
@@ -102,4 +102,4 @@ logger:
   group_name: "11-05-2023_GROUP"
   experiment_name: "NAME"
   run_id: ""
-  loggers: file,wandb
+  loggers: console,file

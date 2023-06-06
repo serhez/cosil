@@ -64,7 +64,12 @@ class SAIL(Rewarder):
         )
 
     def train(self, batch, expert_obs):
-        (disc_loss, expert_probs, policy_probs, _,) = train_wgan_critic(
+        (
+            disc_loss,
+            expert_probs,
+            policy_probs,
+            _,
+        ) = train_wgan_critic(
             self.disc_opt,
             self.disc,
             expert_obs,
@@ -76,7 +81,7 @@ class SAIL(Rewarder):
 
         return disc_loss, expert_probs, policy_probs
 
-    def compute_rewards(self, batch, expert_obs):
+    def _compute_rewards_impl(self, batch, expert_obs):
         _, _, _, _, _, _, marker_batch, next_marker_batch = batch
         feats = torch.FloatTensor(next_marker_batch).to(self.device)
         if self.learn_disc_transitions:
@@ -110,8 +115,6 @@ class SAIL(Rewarder):
 
             # Avoid negative rewards when running with termination
             rewards = rewards + 1
-
-        rewards = self._normalize(rewards)
 
         return rewards
 

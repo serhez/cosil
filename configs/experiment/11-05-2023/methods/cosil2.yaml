@@ -3,13 +3,16 @@
 ---
 defaults:
   - base_experiment
-  - override /method: coil
+  - override /method: cosil2
   - override /method/agent: sac
   - override /method/rewarder: env
 
 method:
   disc_warmup: 0
+  co_adaptation:
+    dist_optimizer: pso
 
 logger:
   group_name: "11-05-2023_methods"
-  experiment_name: "coil-rl"
+  experiment_name: "cosil2"
+  loggers: console,file,wandb
