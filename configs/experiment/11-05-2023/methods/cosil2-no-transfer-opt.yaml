@@ -9,10 +9,12 @@ defaults:
 
 method:
   disc_warmup: 0
+  transfer: false
+  optimized_demonstrator: true
   co_adaptation:
     dist_optimizer: pso
 
 logger:
   group_name: "11-05-2023_methods"
-  experiment_name: "cosil2"
+  experiment_name: "cosil2-no-transfer-opt"
   loggers: console,file,wandb

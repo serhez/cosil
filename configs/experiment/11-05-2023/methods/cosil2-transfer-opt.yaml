@@ -1,0 +1,20 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: sac
+  - override /method/rewarder: env
+
+method:
+  disc_warmup: 0
+  transfer: true
+  optimized_demonstrator: true
+  co_adaptation:
+    dist_optimizer: pso
+
+logger:
+  group_name: "11-05-2023_methods"
+  experiment_name: "cosil2-transfer-opt"
+  loggers: console,file,wandb

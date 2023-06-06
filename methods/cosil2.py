@@ -487,6 +487,7 @@ class CoSIL2(object):
                 episode % self.config.method.episodes_per_morpho == 0
             ):
                 # Adapt the morphology using the specified optimizing method
+                self.logger.info("Adapting morphology")
                 optimized_morpho_params = self._adapt_morphology(
                     epsilon, es, es_buffer, log_dict
                 )
@@ -527,17 +528,17 @@ class CoSIL2(object):
             self.logger.info(log_dict, ["console"])
             log_dict, logged = {}, 0
 
-            episode += 1
-            morpho_episode = new_morpho_episode
-
             # Perform transfer learning from previous morphos to the new morpho via MBC.
             # This represents an additional episode, and it is logged as such.
             # We code this episode differently because we don't perform updates after every step in the env, but
             # instead perform updates after the entire episode is done, because we need to first collect enough observations
             # from the new morphology before we can perform the transfer learning (i.e., we need to fill the demos buffer).
-            if self.config.method.co_adapt and (
-                episode % self.config.method.episodes_per_morpho == 0
+            if (
+                self.config.method.transfer
+                and self.config.method.co_adapt
+                and (episode % self.config.method.episodes_per_morpho == 0)
             ):
+                self.logger.info("Performing transfer learning")
                 start_transfer = time.time()
 
                 obs_list = gen_obs_list(
@@ -585,7 +586,10 @@ class CoSIL2(object):
                 log_dict, logged = {}, 0
 
                 episode += 1
-                morpho_episode += 1
+                new_morpho_episode += 1
+
+            episode += 1
+            morpho_episode = new_morpho_episode
 
         return self.agent, self.env.morpho_params
 

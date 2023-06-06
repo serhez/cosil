@@ -530,6 +530,9 @@ class CoSIL2Config(CoILConfig):
     name: str = "cosil2"
     """Name of the method."""
 
+    transfer: bool = True
+    """Whether to perform transfer learning."""
+
     num_transfer_steps: int = 1000
     """The number of steps performed to collect the observations using the new morphology to perform transfer learning."""
 
@@ -539,7 +542,7 @@ class CoSIL2Config(CoILConfig):
     transfer_batch_size: int = 256
     """The batch size used to train the policy during the transfer learning phase."""
 
-    optimized_demonstrator: bool = False
+    optimized_demonstrator: bool = True
     """Whether to use an optimized demonstrator (True) or a previously seen morphology."""
 
 
@@ -631,10 +634,39 @@ class GenTrajectoriesConfig(Config):
     """Number of trajectories to generate."""
 
 
+@dataclass(kw_only=True)
+class GenBufferConfig(Config):
+    """
+    Configuration for generating observation buffers with a single morphology.
+    """
+
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            "_self_",
+            {
+                "method": "coil",
+            },
+        ]
+    )
+
+    task: str = "gen_buffer"
+    """Name of the task."""
+
+    method: MethodConfig = MISSING
+    """Configuration for the method."""
+
+    save_path: str = MISSING
+    """Path to save the buffer."""
+
+    num_agents: int = 1
+    """Number of agents to train."""
+
+
 def setup_config() -> None:
     cs = ConfigStore.instance()
     cs.store(name="base_train", node=TrainConfig)
     cs.store(name="base_gen_obs", node=GenTrajectoriesConfig)
+    cs.store(name="base_gen_buffer", node=GenBufferConfig)
     cs.store(name="base_logger", node=LoggerConfig)
     cs.store(name="base_co_adaptation", node=CoAdaptationConfig)
     cs.store(group="method", name="base_coil", node=CoILConfig)

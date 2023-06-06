@@ -61,6 +61,7 @@ class CoIL(object):
             self.optimized_morpho = False
 
         self.morpho_params_np = np.array(self.env.morpho_params)
+        self.logger.info(f"Initial morphology is {self.morpho_params_np}")
         self.num_morpho = self.env.morpho_params.shape[0]
 
         self.batch_size = self.config.method.batch_size
