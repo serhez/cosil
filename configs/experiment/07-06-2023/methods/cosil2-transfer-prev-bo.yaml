@@ -1,0 +1,25 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: sac
+  - override /method/rewarder: env
+
+method:
+  # We perform learning over only one morphology,
+  # since we have a prefilled replay buffer
+  replay_buffer_path: data/replay_buffers/merged/buffer_1686142307.pt
+  num_episodes: 50
+
+  disc_warmup: 0
+  transfer: true
+  optimized_demonstrator: false
+  co_adaptation:
+    dist_optimizer: bo
+
+logger:
+  group_name: "11-05-2023_methods"
+  experiment_name: "cosil2-transfer-prev"
+  loggers: console,file,wandb

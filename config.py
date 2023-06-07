@@ -316,6 +316,9 @@ class MethodConfig:
     start_steps: int = 10000
     """Number of steps to take before training."""
 
+    replay_buffer_path: Optional[str] = None
+    """Path to a pre-filled replay buffer."""
+
     replay_capacity: int = 2000000
     """Size of the replay buffer."""
 

@@ -73,6 +73,17 @@ class CoSIL2(object):
             self.config.method.replay_dim_ratio,
             self.config.seed,
         )
+        if config.method.replay_buffer_path is not None:
+            obs = torch.load(config.method.replay_buffer_path)
+            self.logger.info(
+                {
+                    "Loading pre-filled replay buffer": None,
+                    "Path": config.method.replay_buffer_path,
+                    "Number of observations": len(obs),
+                }
+            )
+            self.replay_buffer.replace(obs)
+
         self.initial_states_memory = []
 
         self.total_numsteps = 0
@@ -250,10 +261,67 @@ class CoSIL2(object):
             es_buffer = None
 
         # Main loop
-        # NOTE: We begin counting the episodes at 1, not 0
         episode = 1
         morpho_episode = 1
+        perform_transfer = not (self.config.method.replay_buffer_path is None)
         while episode <= self.config.method.num_episodes:
+            # Perform transfer learning from previous morphos to the new morpho via MBC.
+            # This represents an additional episode, and it is logged as such.
+            # We code this episode differently because we don't perform updates after every step in the env, but
+            # instead perform updates after the entire episode is done, because we need to first collect enough observations
+            # from the new morphology before we can perform the transfer learning (i.e., we need to fill the demos buffer).
+            if perform_transfer and self.config.method.transfer:
+                self.logger.info("Performing transfer learning")
+
+                perform_transfer = False
+                start_transfer = time.time()
+
+                obs_list = gen_obs_list(
+                    self.config.method.num_transfer_steps,
+                    self.env,
+                    self.agent,
+                    self.config.morpho_in_state,
+                    self.absorbing_state,
+                    self.logger,
+                )
+                demos_buffer = ObservationBuffer(
+                    self.config.method.num_transfer_steps, seed=self.config.seed
+                )
+                demos_buffer.push(obs_list)
+                log_dict = self.agent.transfer_morpho_behavior(
+                    demos_buffer,
+                    self.transfer_rewarder,
+                    self.morphos[:-1],
+                    self.config.method.transfer_updates,
+                    self.updates,
+                    self.config.method.transfer_batch_size,
+                )
+
+                self.total_numsteps += self.config.method.num_transfer_steps
+                self.updates += self.config.method.transfer_updates
+
+                took_transfer = time.time() - start_transfer
+                transfer_reward = np.sum(
+                    [reward for _, _, reward, _, _, _, _, _, _ in obs_list]
+                )
+                log_dict["general/episode_time"] = took_transfer
+                log_dict["reward/env_total"] = transfer_reward
+                log_dict["general/total_steps"] = self.total_numsteps
+                self.logger.info(
+                    {
+                        "Episode (transfer)": episode,
+                        "Morpho episode": morpho_episode,
+                        "Total steps": self.total_numsteps,
+                        "Episode steps": self.config.method.num_transfer_steps,
+                        "Episode reward": transfer_reward,
+                        "Took": took_transfer,
+                    },
+                )
+                self.logger.info(log_dict, ["console"])
+
+                episode += 1
+                morpho_episode += 1
+
             start = time.time()
 
             if self.config.method.co_adapt:
@@ -494,6 +562,7 @@ class CoSIL2(object):
                 )
 
                 new_morpho_episode = 1
+                perform_transfer = True
 
             log_dict["reward/env_total"] = episode_reward
 
@@ -528,66 +597,6 @@ class CoSIL2(object):
             log_dict["general/total_steps"] = self.total_numsteps
             self.logger.info(log_dict, ["console"])
             log_dict, logged = {}, 0
-
-            # Perform transfer learning from previous morphos to the new morpho via MBC.
-            # This represents an additional episode, and it is logged as such.
-            # We code this episode differently because we don't perform updates after every step in the env, but
-            # instead perform updates after the entire episode is done, because we need to first collect enough observations
-            # from the new morphology before we can perform the transfer learning (i.e., we need to fill the demos buffer).
-            if (
-                self.config.method.transfer
-                and self.config.method.co_adapt
-                and (episode % self.config.method.episodes_per_morpho == 0)
-            ):
-                self.logger.info("Performing transfer learning")
-                start_transfer = time.time()
-
-                obs_list = gen_obs_list(
-                    self.config.method.num_transfer_steps,
-                    self.env,
-                    self.agent,
-                    self.config.morpho_in_state,
-                    self.absorbing_state,
-                    self.logger,
-                )
-                demos_buffer = ObservationBuffer(
-                    self.config.method.num_transfer_steps, seed=self.config.seed
-                )
-                demos_buffer.push(obs_list)
-                self.agent.transfer_morpho_behavior(
-                    demos_buffer,
-                    self.transfer_rewarder,
-                    self.morphos[:-1],
-                    self.config.method.transfer_updates,
-                    self.updates,
-                    self.config.method.transfer_batch_size,
-                )
-
-                self.total_numsteps += self.config.method.num_transfer_steps
-                self.updates += self.config.method.transfer_updates
-
-                took_transfer = time.time() - start_transfer
-                transfer_reward = np.sum(
-                    [reward for _, _, reward, _, _, _, _, _, _ in obs_list]
-                )
-                log_dict["general/episode_time"] = took_transfer
-                log_dict["reward/env_total"] = transfer_reward
-                log_dict["general/total_steps"] = self.total_numsteps
-                self.logger.info(
-                    {
-                        "Episode (transfer)": episode,
-                        "Morpho episode": morpho_episode,
-                        "Total steps": self.total_numsteps,
-                        "Episode steps": self.config.method.num_transfer_steps,
-                        "Episode reward": transfer_reward,
-                        "Took": took_transfer,
-                    },
-                )
-                self.logger.info(log_dict, ["console"])
-                log_dict, logged = {}, 0
-
-                episode += 1
-                new_morpho_episode += 1
 
             episode += 1
             morpho_episode = new_morpho_episode
