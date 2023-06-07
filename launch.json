@@ -60,6 +60,15 @@
             "args": ["+experiment=11-05-2023/normalization/range-mean-100"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Experiment: cosil2 opt",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=11-05-2023/methods/cosil2-transfer-opt-bo.yaml"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

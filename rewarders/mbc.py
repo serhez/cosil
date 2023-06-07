@@ -57,40 +57,49 @@ class MBC(Rewarder):
     def _loss(
         self,
         batch: tuple,
-        morpho: torch.Tensor,
+        morphos: torch.Tensor,
         q_function: EnsembleQNetwork,
         policy: GaussianPolicy,
         gamma: float,
-    ):
+    ) -> np.ndarray:
         q_function.eval()
         policy.eval()
 
         (feats_batch, action_batch, reward_batch, next_feats_batch, *_) = batch
-
-        if len(morpho.shape) == 1:
-            morpho = morpho.unsqueeze(0)
-
         batch_shape = feats_batch.shape[0]
-        if morpho.shape[0] != batch_shape:
+
+        if len(morphos.shape) == 1:
+            morphos = morphos.unsqueeze(0)
+        n_morphos = morphos.shape[0]
+
+        losses = np.zeros(n_morphos)
+        for i in range(n_morphos):
+            morpho = morphos[i]
+
+            morpho = morpho.unsqueeze(0)
             new_shape = [batch_shape] + ([1] * len(morpho.shape[1:]))
             morpho = morpho.repeat(*new_shape)
 
-        morpho_size = morpho.shape[1]
+            morpho_size = morpho.shape[1]
 
-        states_batch = feats_batch[:, :-morpho_size]
-        next_states_batch = next_feats_batch[:, :-morpho_size]
-        morpho_feats_batch = torch.cat([states_batch, morpho], dim=1)
-        morpho_next_feats_batch = torch.cat([next_states_batch, morpho], dim=1)
+            states_batch = feats_batch[:, :-morpho_size]
+            next_states_batch = next_feats_batch[:, :-morpho_size]
+            morpho_feats_batch = torch.cat([states_batch, morpho], dim=1)
+            morpho_next_feats_batch = torch.cat([next_states_batch, morpho], dim=1)
 
-        q_vals = q_function.min(morpho_feats_batch, action_batch)
+            q_vals = q_function.min(morpho_feats_batch, action_batch)
 
-        _, _, next_actions, _ = policy.sample(morpho_next_feats_batch)
-        next_q_vals = q_function.min(morpho_next_feats_batch, next_actions)
+            _, _, next_actions, _ = policy.sample(morpho_next_feats_batch)
+            next_q_vals = q_function.min(morpho_next_feats_batch, next_actions)
 
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
 
-        return torch.mean(torch.pow(q_vals - gamma * next_q_vals - reward_batch, 2))
+            losses[i] = torch.mean(
+                torch.pow(q_vals - gamma * next_q_vals - reward_batch, 2)
+            ).item()
+
+        return losses
 
     def _search_best_demonstrator(
         self,
@@ -114,7 +123,7 @@ class MBC(Rewarder):
 
         for prev_morpho in prev_morphos_t:
             prev_morpho = prev_morpho.to(self._device)
-            loss = self._loss(batch, prev_morpho, q_function, policy, gamma)
+            loss = self._loss(batch, prev_morpho, q_function, policy, gamma)[0]
             if loss < best_loss:
                 best_loss = loss
                 best_demonstrator = prev_morpho
@@ -123,6 +132,10 @@ class MBC(Rewarder):
 
     def _optimize_best_demonstrator(
         self,
+        batch: tuple,
+        q_function: EnsembleQNetwork,
+        policy: GaussianPolicy,
+        gamma: float,
     ) -> torch.Tensor:
         options = {"c1": 0.5, "c2": 0.3, "w": 0.9}
         optimizer = ps.single.GlobalBestPSO(
@@ -133,8 +146,21 @@ class MBC(Rewarder):
             ftol=1e-7,
             ftol_iter=30,
         )
-        _, pos = optimizer.optimize(self._loss, iters=250)
-        optimized_demonstrator = torch.tensor(pos, device=self._device)
+
+        @torch.no_grad()
+        def fn(morphos: np.ndarray):
+            morpho_t = torch.tensor(morphos, dtype=torch.float32, device=self._device)
+            losses = self._loss(batch, morpho_t, q_function, policy, gamma)
+
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            return losses
+
+        _, pos = optimizer.optimize(fn, iters=250)
+        optimized_demonstrator = torch.tensor(
+            pos, dtype=torch.float32, device=self._device
+        )
 
         return optimized_demonstrator
 
@@ -178,7 +204,9 @@ class MBC(Rewarder):
         )
 
         if self._optimized_demonstrator:
-            self._demonstrator = self._optimize_best_demonstrator()
+            self._demonstrator = self._optimize_best_demonstrator(
+                batch, q_function, policy, gamma
+            )
         else:
             self._demonstrator = self._search_best_demonstrator(
                 batch, prev_morphos, q_function, policy, gamma
