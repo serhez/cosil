@@ -7,7 +7,7 @@ defaults:
   - override /method/rewarder: gail  # variable
 
 seed: 123456
-device: cpu
+device: cuda
 env_name: GaitTrackHalfCheetah-v0
 models_dir_path: models
 learn_disc_transitions: false

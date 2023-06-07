@@ -8,6 +8,7 @@ defaults:
 
 env_name: GaitTrackHalfCheetah-v0
 save_path: data/replay_buffers/individual/
+device: cuda
 
 method:
   eval: false
