@@ -1,0 +1,23 @@
+---
+defaults:
+  - base_gen_buffer
+  - override /method: coil
+  - override /method/rewarder: env
+  - override /method/agent: sac
+  - _self_
+
+env_name: GaitTrackHalfCheetah-v0
+save_path: data/replay_buffers/individual/
+
+method:
+  eval: false
+  save_final: false
+  num_episodes: 50
+  replay_capacity: 50000
+  episodes_per_morpho: 200
+  morpho_warmup: 0
+  disc_warmup: 0
+
+logger:
+  run_id: ""
+  loggers: console
