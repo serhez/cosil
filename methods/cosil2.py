@@ -188,6 +188,7 @@ class CoSIL2(object):
                 raise ValueError(f"Failed to load {self.config.resume}")
 
     def train(self):
+        self.adapt_morphos = []
         self.distances = []
         self.pos_train_distances = []
         self.optimized_or_not = [False]
@@ -461,7 +462,7 @@ class CoSIL2(object):
                 train_marker_obs_history, all_demos, self.to_match
             )
             train_distance = pos_train_distance + vel_train_distance
-            self.morphos.append(self.env.morpho_params.flatten())
+            self.adapt_morphos.append(self.env.morpho_params.flatten())
             self.distances.append(train_distance)
             self.pos_train_distances.append(pos_train_distance)
 
@@ -725,7 +726,7 @@ class CoSIL2(object):
             start_t = time.time()
             self.morpho_params_np, optimized_morpho_params = bo_step(
                 self.config,
-                self.morphos,
+                self.adapt_morphos,
                 self.num_morpho,
                 self.pos_train_distances,
                 self.env,
@@ -753,7 +754,7 @@ class CoSIL2(object):
             self.morpho_params_np, optimized_morpho_params = rs_step(
                 self.config,
                 self.num_morpho,
-                self.morphos,
+                self.adapt_morphos,
                 self.pos_train_distances,
                 self.env.min_task,
                 self.env.max_task,
@@ -775,7 +776,7 @@ class CoSIL2(object):
             self.optimized_morpho = False
 
             # Average over same morphologies
-            X = np.array(self.morphos).reshape(
+            X = np.array(self.adapt_morphos).reshape(
                 -1, self.config.method.episodes_per_morpho, self.num_morpho
             )[:, 0]
             Y = (
