@@ -2,6 +2,7 @@ wandb/
 models/
 logs/
 outputs/
+data/replay_buffers/
 report.log
 imitator.pt
 metrics.pt
