@@ -74,15 +74,23 @@ class CoSIL2(object):
             self.config.seed,
         )
         if config.method.replay_buffer_path is not None:
-            obs = torch.load(config.method.replay_buffer_path)
+            obs_list = torch.load(config.method.replay_buffer_path)
             self.logger.info(
                 {
                     "Loading pre-filled replay buffer": None,
                     "Path": config.method.replay_buffer_path,
-                    "Number of observations": len(obs),
+                    "Number of observations": len(obs_list),
                 }
             )
-            self.replay_buffer.replace(obs)
+            # TODO: Record the morphologies in the .pt file, so we don't have to extract them
+            self.replay_buffer.replace(obs_list)
+            for obs in obs_list:
+                morpho = obs[8]
+                if not next(
+                    (True for m in self.morphos if np.array_equal(m, morpho)),
+                    False,
+                ):
+                    self.morphos.append(morpho)
 
         self.initial_states_memory = []
 
