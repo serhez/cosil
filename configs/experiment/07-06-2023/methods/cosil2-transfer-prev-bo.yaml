@@ -20,6 +20,6 @@ method:
     dist_optimizer: bo
 
 logger:
-  group_name: "11-05-2023_methods"
+  group_name: "07-06-2023_methods"
   experiment_name: "cosil2-transfer-prev-bo"
   loggers: console,file,wandb
