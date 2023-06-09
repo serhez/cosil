@@ -171,6 +171,34 @@ class CoSIL2(object):
         )
         self.rewarder_batch_size = self.config.method.rewarder.batch_size
 
+        # We reset after `episodes_per_morpho` episodes if we are co-adapting and resetting omega.
+        # This reset is done automatically by the schedulers using the `T_0` parameter.
+        # If we are not co-adapting or not resetting omega, then we calculate the schedulers'
+        # hyper-parameters using an episode horizon equal to `num_episodes`.
+        # Note that the `morpho_warmup` episodes don't matter towards the reset, as we still
+        # change the morphology (even if it's randomly) during the warmup.
+        n_reset_episodes = (
+            self.config.method.episodes_per_morpho
+            if self.config.method.co_adapt
+            else self.config.method.num_episodes
+        )
+        if self.config.method.omega_scheduler == "exponential":
+            # This choice of gamma seems reasonable for omega, but other choices are possible
+            gamma = 1 - np.sqrt(n_reset_episodes - 1) / (n_reset_episodes - 1)
+            self.omega_scheduler = ExponentialScheduler(
+                self.config.method.omega_init, gamma, T_0=n_reset_episodes
+            )
+        elif self.config.method.omega_scheduler == "cosine_annealing":
+            self.omega_scheduler = CosineAnnealingScheduler(
+                0.0, self.config.method.omega_init, n_reset_episodes, 1.0
+            )
+        elif self.config.method.omega_scheduler == "constant":
+            self.omega_scheduler = ConstantScheduler(self.config.method.omega_init)
+        else:
+            raise ValueError(
+                f"Omega scheduler is not supported: {self.config.method.omega_scheduler}"
+            )
+
         if config.method.agent.name == "sac":
             self.logger.info("Using agent SAC")
             self.agent = SAC(
@@ -182,6 +210,7 @@ class CoSIL2(object):
                 else self.obs_size,
                 self.num_morpho,
                 self.rewarder,
+                self.transfer_rewarder,
             )
         else:
             raise ValueError("Invalid agent")
@@ -206,11 +235,67 @@ class CoSIL2(object):
             else:
                 raise ValueError(f"Failed to load {self.config.resume}")
 
+    def pretrain(self):
+        self.logger.info(
+            "Pre-training the agent and the rewarders using a pre-filled buffer"
+        )
+
+        start = time.time()
+        log_dict, logged = {}, 0
+
+        for step in range(self.config.method.pretrain_updates):
+            # Train the rewarder
+            batch = self.replay_buffer.sample(self.rewarder_batch_size)
+            disc_loss, expert_probs, policy_probs = self.rewarder.train(
+                batch, self.expert_obs
+            )
+
+            # Train the agent
+            batch = self.replay_buffer.sample(self.rewarder_batch_size)
+            new_log = self.agent.update_parameters(batch, self.updates, self.expert_obs)
+            new_log.update(
+                {
+                    "loss/disc_loss": disc_loss,
+                    "loss/g_inv_loss": self.g_inv_loss,
+                    "probs/expert_disc": expert_probs,
+                    "probs/policy_disc": policy_probs,
+                }
+            )
+
+            self.logger.info(
+                {
+                    "Pre-training step": step,
+                    "Policy loss": new_log["loss/policy"],
+                    "Critic loss": new_log["loss/critic"],
+                    "Discriminator loss": disc_loss,
+                },
+            )
+
+            self.updates += 1
+
+        dict_div(log_dict, logged)
+
+        took = time.time() - start
+        log_dict["general/episode_time"] = took
+        log_dict["general/total_updates"] = self.config.method.pretrain_updates
+        self.logger.info(
+            {
+                "Pre-training": None,
+                "Num. updates": self.config.method.pretrain_updates,
+                "Took": took,
+            },
+        )
+
+        return log_dict
+
     def train(self):
         self.adapt_morphos = []
         self.distances = []
         self.pos_train_distances = []
         self.optimized_or_not = [False]
+
+        if len(self.replay_buffer) > 0 and self.config.method.pretrain:
+            self.pretrain()
 
         # Compute the mean distance between expert demonstrations
         # This is "demonstrations" in the paper plots
@@ -271,15 +356,19 @@ class CoSIL2(object):
         # Main loop
         episode = 1
         morpho_episode = 1
-        perform_transfer = not (self.config.method.replay_buffer_path is None)
+        perform_transfer = self.config.method.replay_buffer_path is not None
         while episode <= self.config.method.num_episodes:
             # Perform transfer learning from previous morphos to the new morpho via MBC.
             # This represents an additional episode, and it is logged as such.
             # We code this episode differently because we don't perform updates after every step in the env, but
             # instead perform updates after the entire episode is done, because we need to first collect enough observations
             # from the new morphology before we can perform the transfer learning (i.e., we need to fill the demos buffer).
-            if perform_transfer and self.config.method.transfer:
-                self.logger.info("Performing transfer learning")
+            if (
+                perform_transfer
+                and self.config.method.transfer
+                and self.config.method.transfer_type == "episodic"
+            ):
+                self.logger.info("Performing transfer learning episode")
 
                 perform_transfer = False
                 start_transfer = time.time()

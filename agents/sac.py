@@ -32,13 +32,15 @@ class SAC(Agent):
         state_dim: int,
         morpho_dim: int,
         rewarder: Rewarder,
+        transfer_rewarder: MBC,
     ):
+        self._device = torch.device(config.device)
         self._logger = logger
         self._gamma = config.method.agent.gamma
         self._tau = config.method.agent.tau
         self._alpha = config.method.agent.alpha
         self._learn_disc_transitions = config.learn_disc_transitions
-        self._device = torch.device(config.device)
+        self._transfer_type = config.method.transfer_type
 
         self._target_update_interval = config.method.agent.target_update_interval
         self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
@@ -48,6 +50,7 @@ class SAC(Agent):
             self._morpho_slice = slice(-morpho_dim - 1, -1)
 
         self._rewarder = rewarder
+        self._transfer_rewarder = transfer_rewarder
 
         self._critic = EnsembleQNetwork(
             state_dim,
@@ -176,10 +179,27 @@ class SAC(Agent):
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
+    def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
+        morpho_size = morpho.shape[1]
+        feats_batch = torch.FloatTensor(batch[0]).to(self._device)
+        states_batch = feats_batch[:, :-morpho_size]
+        demo_feats_batch = torch.cat([states_batch, morpho], dim=1)
+        _, _, demo_actions, _ = self._policy.sample(demo_feats_batch)
+        return (
+            None,
+            demo_actions,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+
     def transfer_morpho_behavior(
         self,
         buffer: ObservationBuffer,
-        mbc_rewarder: MBC,
         prev_morphos: list[np.ndarray],
         n_updates: int,
         updates: int,
@@ -189,11 +209,11 @@ class SAC(Agent):
 
         all_batch = buffer.sample(len(buffer))
 
-        mbc_rewarder.co_adapt(
+        self._transfer_rewarder.co_adapt(
             all_batch, prev_morphos, self._critic, self._policy, self._gamma
         )
 
-        demonstrator = mbc_rewarder.demonstrator
+        demonstrator = self._transfer_rewarder.demonstrator
         if len(demonstrator.shape) == 1:
             demonstrator = demonstrator.unsqueeze(0)
 
@@ -201,30 +221,15 @@ class SAC(Agent):
             new_shape = [batch_size] + ([1] * len(demonstrator.shape[1:]))
             demonstrator = demonstrator.repeat(*new_shape)
 
-        demonstrator_size = demonstrator.shape[1]
-
         log_dict, logged = {}, 0
 
         for update in range(n_updates):
             batch = buffer.sample(batch_size)
-            feats_batch = torch.FloatTensor(batch[0]).to(self._device)
-            states_batch = feats_batch[:, :-demonstrator_size]
-            demo_feats_batch = torch.cat([states_batch, demonstrator], dim=1)
+            demos = self._get_demos_for(demonstrator, batch)
 
-            _, _, demo_actions, _ = self._policy.sample(demo_feats_batch)
-            demos = (
-                None,
-                demo_actions,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-
-            rewards = mbc_rewarder.compute_rewards(batch, demos)
+            rewards = self._transfer_rewarder.compute_rewards(
+                batch, demos
+            )  # BUG: should this be neg?
 
             new_log = self._train(batch, updates + update, rewards, False)
             dict_add(log_dict, new_log)
@@ -286,8 +291,7 @@ class SAC(Agent):
             terminated_batch,
             truncated_batch,
             marker_batch,
-            next_marker_batch,
-            _,
+            *_,
         ) = batch
 
         state_batch = torch.FloatTensor(state_batch).to(self._device)
@@ -355,6 +359,17 @@ class SAC(Agent):
                 state_batch, marker_batch, policy_mean
             )
             policy_loss += vae_loss
+
+        # BC term (look at the TD3+BC paper).
+        # We reuse omega as the BC weighting hyperparameter, since the usefullness of the BC term
+        # is proportional to the usefulness of the imitation loss/Q-value in our transfer learning case.
+        bc_loss = torch.tensor(0.0, device=self._device)
+        if self._transfer_type == "regul":
+            demos = self._get_demos_for(self._transfer_rewarder.demonstrator, batch)
+            bc_loss = -self._transfer_rewarder.compute_rewards(batch, demos).mean()
+            policy_loss = (
+                1 - self._omega_scheduler.value
+            ) * policy_loss + self._omega_scheduler.value * bc_loss
 
         self._policy_optim.zero_grad()
         policy_loss.backward()

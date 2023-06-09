@@ -221,7 +221,7 @@ class MBC(Rewarder):
         action_batch = torch.FloatTensor(batch[1]).to(self._device)
         (_, action_demos, *_) = demos
 
-        return torch.mean(torch.pow(action_batch - action_demos, 2))
+        return -torch.square(action_batch - action_demos)
 
     def get_model_dict(self) -> Dict[str, Any]:
         raise NotImplementedError()
