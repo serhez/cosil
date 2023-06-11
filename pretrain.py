@@ -74,7 +74,7 @@ def train(
             {
                 "Pre-training step": step,
                 "Mean reward": new_log["reward/mean"],
-                "Policy loss": new_log["loss/policy"],
+                "Policy loss": new_log["loss/policy_mean"],
                 "Critic loss": new_log["loss/critic"],
             },
         )
@@ -170,9 +170,6 @@ def main(config: DictConfig) -> None:
             print(f'[WARNING] Logger "{logger}" is not supported')
     logger = MultiLogger(loggers, config.logger.default_mask.split(","))
 
-    highs = torch.tensor(env.max_task, device=config.device)
-    lows = torch.tensor(env.min_task, device=config.device)
-    bounds = torch.stack([lows, highs], dim=1)
     obs_size = env.observation_space.shape[0]
     num_morpho = env.morpho_params.shape[0]
     if config.absorbing_state:
