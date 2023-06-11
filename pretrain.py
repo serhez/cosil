@@ -70,6 +70,7 @@ def train(
         dict_add(log_dict, new_log)
         logged += 1
 
+        logger.info(new_log, ["console"])
         logger.info(
             {
                 "Pre-training step": step,
