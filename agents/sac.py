@@ -32,7 +32,7 @@ class SAC(Agent):
         state_dim: int,
         morpho_dim: int,
         rl_rewarder: Rewarder,
-        il_rewarder: MBC,
+        il_rewarder: Optional[MBC],
         omega_scheduler: Scheduler,
     ):
         """
@@ -231,6 +231,11 @@ class SAC(Agent):
         )
 
     def _get_il_loss(self, batch: tuple) -> torch.Tensor:
+        if self._il_rewarder is None:
+            il_loss = torch.tensor(0.0, device=self._device)
+            il_loss_norm = il_loss
+            return il_loss, il_loss_norm
+
         if isinstance(self._il_rewarder, MBC):
             demos = self._get_demos_for(self._il_rewarder.batch_demonstrator, batch)
             il_loss = -self._il_rewarder.compute_rewards(batch, demos)
@@ -291,6 +296,7 @@ class SAC(Agent):
         state_batch = torch.FloatTensor(state_batch).to(self._device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
         action_batch = torch.FloatTensor(action_batch).to(self._device)
+        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
         terminated_batch = (
             torch.FloatTensor(terminated_batch).to(self._device).unsqueeze(1)
         )

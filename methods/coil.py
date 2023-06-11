@@ -158,7 +158,6 @@ class CoIL(object):
 
         if config.method.agent.name == "sac":
             self.logger.info("Using agent SAC")
-            mbc = MBC(self.device, self.bounds)
             omega_scheduler = ConstantScheduler(0.0)
             self.agent = SAC(
                 self.config,
@@ -169,7 +168,7 @@ class CoIL(object):
                 else self.obs_size,
                 self.num_morpho,
                 self.rewarder,
-                mbc,
+                None,
                 omega_scheduler,
             )
         else:
