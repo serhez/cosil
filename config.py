@@ -60,7 +60,7 @@ class HeadWrtTypes(StrEnum):
 
 class DualModes(StrEnum):
     q = "q"
-    r = "r"
+    loss_term = "loss_term"
 
 
 class NormalizationTypes(StrEnum):
@@ -81,6 +81,12 @@ class Schedulers(StrEnum):
     cosine_annealing = "cosine_annealing"
     exponential = "exponential"
     step = "step"
+
+
+class TransferRewarders(StrEnum):
+    gail = "gail"
+    sail = "sail"
+    mbc = "mbc"
 
 
 @dataclass(kw_only=True)
@@ -313,6 +319,15 @@ class MethodConfig:
     updates_per_step: int = 1
     """Number of updates per environment step."""
 
+    pretrain: bool = False
+    """
+    Whether to pre-train using a pre-filled replay buffer.
+    If no replay buffer is provided, no pre-training will be performed.
+    """
+
+    pretrain_updates: int = 500
+    """Number of updates per environment step."""
+
     start_steps: int = 10000
     """Number of steps to take before training."""
 
@@ -536,17 +551,48 @@ class CoSIL2Config(CoILConfig):
     transfer: bool = True
     """Whether to perform transfer learning."""
 
-    num_transfer_steps: int = 1000
-    """The number of steps performed to collect the observations using the new morphology to perform transfer learning."""
+    transfer_episodes: int = 1
+    """Number of episodes to perform transfer learning for."""
 
-    transfer_updates: int = 1000
-    """The number of updates performed to train the policy using the collected observations collected."""
-
-    transfer_batch_size: int = 256
-    """The batch size used to train the policy during the transfer learning phase."""
+    transfer_rewarder: TransferRewarders = (  # pyright: ignore[reportGeneralTypeIssues]
+        "mbc"
+    )
+    """Which rewarder to use for transfer learning."""
 
     optimized_demonstrator: bool = True
-    """Whether to use an optimized demonstrator (True) or a previously seen morphology."""
+    """Whether to use an optimized demonstrator (True) or a previously seen morphology, when using MBC."""
+
+    dual_mode: DualModes = "loss_term"  # pyright: ignore[reportGeneralTypeIssues]
+    """The dual mode, either a duality of Q-values or an IL loss term."""
+
+    omega_init: float = 1.0
+    """Initial value for omega."""
+
+    omega_scheduler: Schedulers = (  # pyright: ignore[reportGeneralTypeIssues]
+        "exponential"
+    )
+
+    normalization_type: NormalizationTypes = (  # pyright: ignore[reportGeneralTypeIssues]
+        "z_score"
+    )
+    """Normalization type for the reward or Q-values."""
+
+    normalization_mode: NormalizationModes = (  # pyright: ignore[reportGeneralTypeIssues]
+        "mean"
+    )
+    """Normalization mode for the reward or Q-values."""
+
+    normalization_gamma: float = 1.0
+    """Normalization gamma for the reward or Q-values."""
+
+    normalization_beta: float = 0.0
+    """Normalization beta for the reward or Q-values."""
+
+    normalization_low_clip: Optional[float] = None
+    """Normalization lower bound for the clipping of the reward or Q-values."""
+
+    normalization_high_clip: Optional[float] = None
+    """Normalization upper bound for the clipping of the reward or Q-values."""
 
 
 @dataclass(kw_only=True)
@@ -663,6 +709,31 @@ class GenBufferConfig(Config):
 
     num_agents: int = 1
     """Number of agents to train."""
+
+
+@dataclass(kw_only=True)
+class PretrainConfig(Config):
+    """
+    Configuration for generating observation buffers with a single morphology.
+    """
+
+    method: MethodConfig = SACConfig()
+    """Configuration for the method."""
+
+    task: str = "pretrain"
+    """Name of the task."""
+
+    models_dir_path: str = "models/pretrained"
+    """Path to the directory where to save the models."""
+
+    updates: int = 500
+    """Number of updates to perform."""
+
+    rewarder_batch_size: int = 256
+    """Batch size for the rewarder."""
+
+    batch_size: int = 256
+    """Batch size for the agent."""
 
 
 def setup_config() -> None:

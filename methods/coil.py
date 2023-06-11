@@ -15,8 +15,9 @@ from omegaconf import DictConfig
 import wandb
 from agents import SAC
 from common.observation_buffer import ObservationBuffer
+from common.schedulers import ConstantScheduler
 from loggers import Logger
-from rewarders import GAIL, PWIL, SAIL, EnvReward
+from rewarders import GAIL, MBC, PWIL, SAIL, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
     bo_step,
@@ -147,9 +148,6 @@ class CoIL(object):
             self.rewarder = GAIL(self.demo_dim, config)
         elif config.method.rewarder.name == "sail":
             self.rewarder = SAIL(self.logger, self.env, self.demo_dim, config)
-        elif config.method.rewarder.name == "pwil":
-            # TODO: add PWIL
-            raise NotImplementedError
         elif config.method.rewarder.name == "env":
             self.rewarder = EnvReward(
                 config.device, sparse_mask=config.method.sparse_mask
@@ -160,6 +158,8 @@ class CoIL(object):
 
         if config.method.agent.name == "sac":
             self.logger.info("Using agent SAC")
+            mbc = MBC(self.device, self.bounds)
+            omega_scheduler = ConstantScheduler(0.0)
             self.agent = SAC(
                 self.config,
                 self.logger,
@@ -169,6 +169,8 @@ class CoIL(object):
                 else self.obs_size,
                 self.num_morpho,
                 self.rewarder,
+                mbc,
+                omega_scheduler,
             )
         else:
             raise ValueError("Invalid agent")

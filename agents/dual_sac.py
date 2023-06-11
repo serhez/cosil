@@ -56,7 +56,6 @@ class DualSAC(Agent):
         self._alpha = config.method.agent.alpha
         self._omega_scheduler = omega_scheduler
         self._learn_disc_transitions = config.learn_disc_transitions
-        self._bc_regul = config.method.agent.bc_regularization
 
         self._target_update_interval = config.method.agent.target_update_interval
         self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
@@ -438,18 +437,6 @@ class DualSAC(Agent):
             )
             policy_loss += vae_loss
 
-        # BC term (look at the TD3+BC paper).
-        # We reuse omega as the BC weighting hyperparameter, since the usefullness of the BC term
-        # is proportional to the usefulness of the imitation loss/Q-value in our transfer learning case.
-        bc_loss = torch.tensor(0.0, device=self._device)
-        if self._bc_regul:
-            bc_loss = torch.square(
-                policy_mean - action_batch
-            ).mean()  # BUG: should this be neg?
-            policy_loss = (
-                1 - self._omega_scheduler.value
-            ) * policy_loss + self._omega_scheduler.value * bc_loss
-
         self._policy_optim.zero_grad()
         policy_loss.backward()
         torch.nn.utils.clip_grad.clip_grad_norm_(self._policy.parameters(), 10)
@@ -482,17 +469,16 @@ class DualSAC(Agent):
             "reward/imitation_mean": imit_rewards.mean().item(),
             "reward/reinforcement_mean": rein_rewards.mean().item(),
             "reward/absorbing_mean": absorbing_rewards.item(),
-            "q-value/balanced_mean": q_value.mean().item(),
+            "q-value/mean": q_value.mean().item(),
             "q-value/imitation_mean": imit_q_value.mean().item(),
             "q-value/imitation_norm_mean": imit_q_value_norm.mean().item(),
             "q-value/reinforcement_mean": rein_q_value.mean().item(),
             "q-value/reinforcement_norm_mean": rein_q_value_norm.mean().item(),
             "loss/imitation_critic": imit_qf_loss.item(),
             "loss/reinforcement_critic": rein_qf_loss.item(),
-            "loss/policy": policy_loss.item(),
+            "loss/policy_mean": policy_loss.item(),
             "loss/vae": vae_loss.item(),
             "loss/alpha": alpha_loss.item(),
-            "loss/behavioral_cloning": bc_loss.item(),
             "entropy/alpha": alpha_tlogs.item(),
             "entropy/entropy": entropy,
             "entropy/action_std": std,

@@ -103,12 +103,16 @@ class Rewarder(ABC):
         pass
 
     @abstractmethod
-    def load(self, model: Dict[str, Any]) -> None:
+    def load(self, model: Dict[str, Any]) -> bool:
         """
         Load the rewarder's parameters from a model.
 
         Parameters
         ----------
         `model` -> a dictionary of the rewarder's parameters.
+
+        Returns
+        -------
+        Whether the model was successfully loaded.
         """
         pass

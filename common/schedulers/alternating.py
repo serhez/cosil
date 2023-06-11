@@ -5,14 +5,15 @@ from .scheduler import Scheduler
 
 class AlternatingScheduler(Scheduler):
     """
-    A scheduler which toggles between an initial and alternative value at every step, or automatically after every period of steps.
+    A scheduler which toggles between an initial and alternative value after every period of steps.
     """
 
     def __init__(
         self,
         init_value: float,
         alt_value: float,
-        period: Optional[int] = None,
+        init_period: int = 1,
+        alt_period: int = 1,
     ):
         """
         Initializes the alternating scheduler and sets the current value to the minimum.
@@ -21,14 +22,15 @@ class AlternatingScheduler(Scheduler):
         ----------
         `init_value` -> the parameter's initial value.
         `alt_value` -> the parameter's alternative value.
-        `period` -> the number of steps before the parameter is toggled to the other value.
-        - If `None`, the parameter will be toggled at every step.
+        `init_period` -> the number of steps before the parameter is toggled to `alt _value`.
+        `alt_period` -> the number of steps before the parameter is toggled to `init_value`.
         """
 
         self._value = init_value
         self._init_value = init_value
         self._alt_value = alt_value
-        self._period = period
+        self._init_period = init_period
+        self._alt_period = alt_period
         self._step = 0
 
     @property
@@ -36,12 +38,12 @@ class AlternatingScheduler(Scheduler):
         return self._value
 
     def step(self) -> float:
-        if self._period is not None and self._step % self._period == 0:
-            self._value = (
-                self._alt_value if self._value == self._init_value else self._init_value
-            )
-
         self._step += 1
+
+        if self.value == self._init_value and self._step % self._init_period == 0:
+            self._value = self._alt_value
+        elif self.value == self._alt_value and self._step % self._alt_period == 0:
+            self._value = self._init_value
 
         return self._value
 
@@ -60,13 +62,20 @@ class AlternatingScheduler(Scheduler):
                     f"The scheduler's alt_value must be a float, but got {new_value}"
                 )
             self._alt_value = new_value
-        if "period" in new_hyper_params:
-            new_value = new_hyper_params["period"]
+        if "init_period" in new_hyper_params:
+            new_value = new_hyper_params["init_period"]
             if new_value is not None and not isinstance(new_value, int):
                 raise ValueError(
-                    f"The scheduler's period must be an int, but got {new_value}"
+                    f"The scheduler's init_period must be an int, but got {new_value}"
                 )
-            self._period = new_value
+            self._init_period = new_value
+        if "alt_period" in new_hyper_params:
+            new_value = new_hyper_params["alt_period"]
+            if new_value is not None and not isinstance(new_value, int):
+                raise ValueError(
+                    f"The scheduler's alt_period must be an int, but got {new_value}"
+                )
+            self._alt_period = new_value
 
         self._value = self._init_value
         self._step = 0

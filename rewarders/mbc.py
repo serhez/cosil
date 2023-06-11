@@ -19,7 +19,7 @@ class MBC(Rewarder):
         self,
         device: str,
         bounds: torch.Tensor,
-        optimized_demonstrator: bool = False,
+        optimized_demonstrator: bool = True,
         normalizer: Optional[Normalizer] = None,
     ):
         """
@@ -38,17 +38,28 @@ class MBC(Rewarder):
         self._bounds = bounds
 
         self._demonstrator = None
+        self._batch_demonstrator = None
 
     @property
     def demonstrator(self) -> torch.Tensor:
-        """
-        The demonstrator morphology parameters.
-        """
+        """The demonstrator morphology parameters."""
 
         assert (
             self._demonstrator is not None
         ), "Must call `co-adapt` before accessing the demonstrator morphology."
         return self._demonstrator
+
+    @property
+    def batch_demonstrator(self) -> torch.Tensor:
+        """
+        The demonstrator morphology parameters as a batch.
+        The first dimension is of the size of the `batch_size` parameter passed to the last `co-adapt` call.
+        """
+
+        assert (
+            self._batch_demonstrator is not None
+        ), "Must call `co-adapt` before accessing the demonstrator morphology."
+        return self._batch_demonstrator
 
     def train(self, *_) -> Tuple[float, float, float]:
         return 0.0, 0.0, 0.0
@@ -167,6 +178,7 @@ class MBC(Rewarder):
     def co_adapt(
         self,
         batch: tuple,
+        batch_size: int,
         prev_morphos: list[np.ndarray],
         q_function: EnsembleQNetwork,
         policy: GaussianPolicy,
@@ -178,6 +190,7 @@ class MBC(Rewarder):
         Parameters
         ----------
         `batch` -> a batch of data collected using the new morphology.
+        `batch_size` -> the size that will be used as the first dimension of the `batch_demonstrator` tensor.
         `prev_morphos` -> the previous morphologies.
         `q_function` -> the Q-function used by the agent to compute the Q-values.
         - It must be take as input the concatenation of the state and the morphology parameters, as well as the action, and return the Q-value.
@@ -212,6 +225,14 @@ class MBC(Rewarder):
                 batch, prev_morphos, q_function, policy, gamma
             )
 
+        batch_demonstrator = self._demonstrator
+        if len(batch_demonstrator.shape) == 1:
+            batch_demonstrator = batch_demonstrator.unsqueeze(0)
+        if batch_demonstrator.shape[0] != batch_size:
+            new_shape = [batch_size] + ([1] * len(batch_demonstrator.shape[1:]))
+            batch_demonstrator = batch_demonstrator.repeat(*new_shape)
+        self._batch_demonstrator = batch_demonstrator
+
     def _compute_rewards_impl(self, batch: tuple, demos: tuple) -> torch.Tensor:
         if self._demonstrator is None:
             raise RuntimeError(
@@ -224,7 +245,13 @@ class MBC(Rewarder):
         return -torch.square(action_batch - action_demos)
 
     def get_model_dict(self) -> Dict[str, Any]:
-        raise NotImplementedError()
+        data = {
+            "demonstrator": self.demonstrator,
+            "batch_demonstrator": self.batch_demonstrator,
+        }
+        return data
 
-    def load(self, model: Dict[str, Any]) -> None:
-        raise NotImplementedError()
+    def load(self, model: Dict[str, Any]) -> bool:
+        self.demonstrator = model["demonstrator"]
+        self.batch_demonstrator = model["batch_demonstrator"]
+        return True

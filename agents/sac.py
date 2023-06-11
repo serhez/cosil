@@ -1,7 +1,6 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
 from typing import Any, Dict, List, Optional
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
@@ -13,9 +12,10 @@ from common.models import (
     MorphoValueFunction,
 )
 from common.observation_buffer import ObservationBuffer
+from common.schedulers import Scheduler
 from loggers import Logger
+from normalizers import create_normalizer
 from rewarders import MBC, SAIL, Rewarder
-from utils import dict_add, dict_div
 from utils.rl import hard_update, soft_update
 
 from .agent import Agent
@@ -31,9 +31,25 @@ class SAC(Agent):
         action_space,
         state_dim: int,
         morpho_dim: int,
-        rewarder: Rewarder,
-        transfer_rewarder: MBC,
+        rl_rewarder: Rewarder,
+        il_rewarder: MBC,
+        omega_scheduler: Scheduler,
     ):
+        """
+        Initialize the SAC agent.
+
+        Parameters
+        ----------
+        `config` -> the configuration object.
+        `logger` -> the logger object.
+        `action_space` -> the action space.
+        `state_dim` -> the number of state features, which may include the morphology features.
+        `morpho_dim` -> the number of morphology features.
+        `rl_rewarder` -> the reinforcement rewarder.
+        `il_rewarder` -> the imitation rewarder.
+        `omega_scheduler` -> the scheduler for the omega parameter.
+        """
+
         self._device = torch.device(config.device)
         self._logger = logger
         self._gamma = config.method.agent.gamma
@@ -49,8 +65,26 @@ class SAC(Agent):
         if config.absorbing_state:
             self._morpho_slice = slice(-morpho_dim - 1, -1)
 
-        self._rewarder = rewarder
-        self._transfer_rewarder = transfer_rewarder
+        self._rl_rewarder = rl_rewarder
+        self._il_rewarder = il_rewarder
+        self._omega_scheduler = omega_scheduler
+
+        self._rl_norm = create_normalizer(
+            name=config.method.normalization_type,
+            mode=config.method.normalization_mode,
+            gamma=config.method.normalization_gamma,
+            beta=config.method.normalization_beta,
+            low_clip=config.method.normalization_low_clip,
+            high_clip=config.method.normalization_high_clip,
+        )
+        self._il_norm = create_normalizer(
+            name=config.method.normalization_type,
+            mode=config.method.normalization_mode,
+            gamma=config.method.normalization_gamma,
+            beta=config.method.normalization_beta,
+            low_clip=config.method.normalization_low_clip,
+            high_clip=config.method.normalization_high_clip,
+        )
 
         self._critic = EnsembleQNetwork(
             state_dim,
@@ -197,48 +231,19 @@ class SAC(Agent):
             None,
         )
 
-    def transfer_morpho_behavior(
-        self,
-        buffer: ObservationBuffer,
-        prev_morphos: list[np.ndarray],
-        n_updates: int,
-        updates: int,
-        batch_size: int,
-    ) -> dict[str, Any]:
-        self._logger.info("Transferring morpho behavior")
+    def _get_il_loss(self, batch: tuple) -> torch.Tensor:
+        if isinstance(self._il_rewarder, MBC):
+            demos = self._get_demos_for(self._il_rewarder.batch_demonstrator, batch)
+            il_loss = -self._il_rewarder.compute_rewards(batch, demos)
+            if self._il_norm is not None:
+                il_loss_norm = self._il_norm(il_loss)
+            else:
+                il_loss_norm = il_loss
+        else:
+            il_loss = torch.tensor(0.0, device=self._device)
+            il_loss_norm = il_loss
 
-        all_batch = buffer.sample(len(buffer))
-
-        self._transfer_rewarder.co_adapt(
-            all_batch, prev_morphos, self._critic, self._policy, self._gamma
-        )
-
-        demonstrator = self._transfer_rewarder.demonstrator
-        if len(demonstrator.shape) == 1:
-            demonstrator = demonstrator.unsqueeze(0)
-
-        if demonstrator.shape[0] != batch_size:
-            new_shape = [batch_size] + ([1] * len(demonstrator.shape[1:]))
-            demonstrator = demonstrator.repeat(*new_shape)
-
-        log_dict, logged = {}, 0
-
-        for update in range(n_updates):
-            batch = buffer.sample(batch_size)
-            demos = self._get_demos_for(demonstrator, batch)
-
-            rewards = self._transfer_rewarder.compute_rewards(
-                batch, demos
-            )  # BUG: should this be neg?
-
-            new_log = self._train(batch, updates + update, rewards, False)
-            dict_add(log_dict, new_log)
-            logged += 1
-
-        dict_div(log_dict, logged)
-        log_dict["general/episode_steps"] = len(buffer)
-
-        return log_dict
+        return il_loss, il_loss_norm
 
     def get_value(self, state, action) -> torch.FloatTensor:
         return self._critic.min(state, action)
@@ -273,20 +278,10 @@ class SAC(Agent):
             - "entropy_temperature/entropy"
         """
 
-        rewards = self._rewarder.compute_rewards(batch, expert_obs).to(self._device)
-        (_, _, reward_batch, *_) = batch
-        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
-        assert reward_batch.shape == rewards.shape
-
-        return self._train(batch, updates, rewards, update_value_only)
-
-    def _train(
-        self, batch: tuple, updates: int, rewards: torch.Tensor, update_value_only=False
-    ) -> Dict[str, Any]:
         (
             state_batch,
             action_batch,
-            _,
+            reward_batch,
             next_state_batch,
             terminated_batch,
             truncated_batch,
@@ -306,6 +301,8 @@ class SAC(Agent):
         if marker_batch is not None and marker_batch[0] is not None:
             marker_batch = torch.FloatTensor(marker_batch).to(self._device)
 
+        rewards = self._rl_rewarder.compute_rewards(batch, expert_obs).to(self._device)
+        assert reward_batch.shape == rewards.shape
         reward_batch = rewards
 
         # Compute the next Q-values
@@ -351,26 +348,27 @@ class SAC(Agent):
         entropy = -log_pi.mean().item()
 
         q_value = self.get_value(state_batch, pi)
-        policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
-        vae_loss = torch.tensor(0.0, device=self._device)
-        if isinstance(self._rewarder, SAIL):
-            vae_loss = self._rewarder.get_vae_loss(
-                state_batch, marker_batch, policy_mean
-            )
-            policy_loss += vae_loss
+        rl_loss = (self._alpha * log_pi) - q_value
+        if self._rl_norm is not None:
+            rl_loss_norm = self._rl_norm(rl_loss)
+        else:
+            rl_loss_norm = rl_loss
+        # vae_loss = torch.tensor(0.0, device=self._device)
+        # if isinstance(self._rl_rewarder, SAIL):
+        #     vae_loss = self._rl_rewarder.get_vae_loss(
+        #         state_batch, marker_batch, policy_mean
+        #     )
+        #     rl_loss += vae_loss
 
-        # BC term (look at the TD3+BC paper).
-        # We reuse omega as the BC weighting hyperparameter, since the usefullness of the BC term
-        # is proportional to the usefulness of the imitation loss/Q-value in our transfer learning case.
-        bc_loss = torch.tensor(0.0, device=self._device)
-        if self._transfer_type == "regul":
-            demos = self._get_demos_for(self._transfer_rewarder.demonstrator, batch)
-            bc_loss = -self._transfer_rewarder.compute_rewards(batch, demos).mean()
-            policy_loss = (
-                1 - self._omega_scheduler.value
-            ) * policy_loss + self._omega_scheduler.value * bc_loss
+        # Imitation loss term (alike in the TD3+BC paper)
+        il_loss, il_loss_norm = self._get_il_loss(batch)
 
+        policy_loss = (
+            1 - self._omega_scheduler.value
+        ) * rl_loss_norm.mean() + self._omega_scheduler.value * il_loss_norm.mean()
+
+        # Update the policy
         self._policy_optim.zero_grad()
         policy_loss.backward()
         torch.nn.utils.clip_grad.clip_grad_norm_(self._policy.parameters(), 10)
@@ -394,6 +392,7 @@ class SAC(Agent):
                 self._alpha, device=self._device
             )  # For TensorboardX logs
 
+        # Soft update of the critic
         if updates % self._target_update_interval == 0:
             soft_update(self._critic_target, self._critic, self._tau)
 
@@ -404,16 +403,20 @@ class SAC(Agent):
             # "reward/absorbing_mean": absorbing_rewards.item(),
             "q-value/mean": q_value.mean().item(),
             "loss/critic": qf_loss.item(),
-            "loss/policy": policy_loss.item(),
+            "loss/policy_mean": policy_loss.item(),
+            "loss/reinforcement_norm_mean": rl_loss_norm.mean().item(),
+            "loss/imitation_norm_mean": il_loss_norm.mean().item(),
+            "loss/reinforcement_mean": rl_loss.mean().item(),
+            "loss/imitation_mean": il_loss.mean().item(),
             "loss/alpha": alpha_loss.item(),
-            "loss/vae": vae_loss.item(),
+            # "loss/vae": vae_loss.item(),
             "entropy/alpha": alpha_tlogs.item(),
             "entropy/entropy": entropy,
             "entropy/action_std": std,
         }
 
     # Return a dictionary containing the model state for saving
-    def get_model_dict(self):
+    def get_model_dict(self) -> Dict[str, Any]:
         data = {
             "policy_state_dict": self._policy.state_dict(),
             "critic_state_dict": self._critic.state_dict(),
@@ -428,7 +431,7 @@ class SAC(Agent):
         return data
 
     # Load model parameters
-    def load(self, model, evaluate=False):
+    def load(self, model: Dict[str, Any], evaluate: bool = False):
         self._policy.load_state_dict(model["policy_state_dict"])
         self._critic.load_state_dict(model["critic_state_dict"])
         self._critic_target.load_state_dict(model["critic_target_state_dict"])

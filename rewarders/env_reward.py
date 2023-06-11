@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 
@@ -41,14 +41,8 @@ class EnvReward(Rewarder):
             reward_batch[reward_batch < self._sparse_mask] = 0.0
         return reward_batch
 
-    def get_model_dict(self):
-        model = {
-            "env_rewarder/device": self._device,
-            "env_rewarder/sparse_mask": self._sparse_mask,
-        }
-        return model
+    def get_model_dict(self) -> Dict[str, Any]:
+        return {}
 
-    def load(self, model):
-        self._device = model["env_rewarder/device"]
-        self._sparse_mask = model["env_rewarder/sparse_mask"]
+    def load(self, model: Dict[str, Any]) -> bool:
         return True

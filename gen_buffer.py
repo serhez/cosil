@@ -15,7 +15,7 @@ from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
 from methods import CoIL
 
 
-def save(buffer: ObservationBuffer, path: str, id: str):
+def save(buffer: ObservationBuffer, morpho: np.ndarray, path: str, id: str):
     """
     Saves the buffer to a file.
 
@@ -34,7 +34,11 @@ def save(buffer: ObservationBuffer, path: str, id: str):
 
     buffer_path = os.path.join(path, f"buffer_{id}.pt")
 
-    torch.save(buffer.to_list(), buffer_path)
+    data = {
+        "buffer": buffer.to_list(),
+        "morpho": morpho,
+    }
+    torch.save(data, buffer_path)
 
     return buffer_path
 
@@ -100,13 +104,18 @@ def main(config: DictConfig):
         try:
             method.train()
         except Exception as e:
-            logger.error({"Exception occurred during training": e})
+            logger.error({"Exception occurred during training": str(e)})
             raise e
 
         env.close()
 
-        # Save the buffer
-        buffer_path = save(method.replay_buffer, config.save_path, config.logger.run_id)
+        # Save the buffer and the morphology
+        buffer_path = save(
+            method.replay_buffer,
+            env.morpho_params,
+            config.save_path,
+            config.logger.run_id,
+        )
         logger.info(f"Saved buffer to {buffer_path}")
 
         # Reset the seed for the next model

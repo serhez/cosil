@@ -1,12 +1,14 @@
 import os
 import time
+from typing import List
 
+import numpy as np
 import torch
 
 from common.observation_buffer import ObservationBuffer
 
 
-def save(buffer: ObservationBuffer, path: str, id: str):
+def save(buffer: ObservationBuffer, morphos: List[np.ndarray], path: str, id: str):
     """
     Saves the buffer to a file.
 
@@ -25,7 +27,11 @@ def save(buffer: ObservationBuffer, path: str, id: str):
 
     buffer_path = os.path.join(path, f"buffer_{id}.pt")
 
-    torch.save(buffer.to_list(), buffer_path)
+    data = {
+        "buffer": buffer.to_list(),
+        "morpho": morphos,
+    }
+    torch.save(data, buffer_path)
 
     return buffer_path
 
@@ -33,14 +39,17 @@ def save(buffer: ObservationBuffer, path: str, id: str):
 def main():
     """Merges all individual buffers present in data/replay_buffers/individual/ into a single buffer and saves it to data/replay_buffers/merged/."""
 
-    # Get individual buffers to merge
+    # Get individual buffers to merge and morphologies
     obs_list = []
+    morpho_list = []
     dir_path = "data/replay_buffers/individual/"
     for buffer_path in os.listdir(dir_path):
         if buffer_path.endswith(".pt"):
-            obs = torch.load(dir_path + buffer_path)
-            print(f"Loading buffer {buffer_path} with {len(obs)} observations")
+            data = torch.load(dir_path + buffer_path)
+            obs = data["buffer"]
+            print(f"Loading buffer {data} with {len(obs)} observations")
             obs_list.append(obs)
+            morpho_list.append(data["morpho"])
 
     # Merge buffers
     capacity = sum([len(obs) for obs in obs_list])
@@ -50,7 +59,9 @@ def main():
         buffer.push(obs)
 
     # Save the merged buffer
-    buffer_path = save(buffer, "data/replay_buffers/merged/", str(int(time.time())))
+    buffer_path = save(
+        buffer, morpho_list, "data/replay_buffers/merged/", str(int(time.time()))
+    )
     print(f"Saved merged buffer to {buffer_path}")
 
 

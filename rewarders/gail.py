@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 from torch import optim
@@ -61,14 +61,14 @@ class GAIL(Rewarder):
 
         return rewards
 
-    def get_model_dict(self):
+    def get_model_dict(self) -> Dict[str, Any]:
         data = {
-            "gail/disc_state_dict": self.disc.state_dict(),
-            "gail/disc_optim_state_dict": self.disc_opt.state_dict(),
+            "disc_state_dict": self.disc.state_dict(),
+            "disc_optim_state_dict": self.disc_opt.state_dict(),
         }
         return data
 
-    def load(self, model):
-        self.disc.load_state_dict(model["gail/disc_state_dict"])
-        self.disc_opt.load_state_dict(model["gail/disc_optim_state_dict"])
+    def load(self, model: Dict[str, Any]) -> bool:
+        self.disc.load_state_dict(model["disc_state_dict"])
+        self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
         return True

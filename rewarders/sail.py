@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import torch
 from torch import optim
@@ -118,7 +118,7 @@ class SAIL(Rewarder):
 
         return rewards
 
-    def get_model_dict(self):
+    def get_model_dict(self) -> Dict[str, Any]:
         data = {
             "disc_state_dict": self.disc.state_dict(),
             "disc_optim_state_dict": self.disc_opt.state_dict(),
@@ -129,7 +129,7 @@ class SAIL(Rewarder):
         }
         return data
 
-    def load(self, model):
+    def load(self, model: Dict[str, Any]) -> bool:
         self.disc.load_state_dict(model["disc_state_dict"])
         self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
         if "dynamics_state_dict" in model:
