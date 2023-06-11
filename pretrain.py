@@ -30,22 +30,39 @@ def train(
     start = time.time()
     log_dict, logged = {}, 0
 
+    # all_batch = replay_buffer.sample(len(replay_buffer))
+    # all_batch = (
+    #     torch.FloatTensor(all_batch[0]).to(config.device),
+    #     torch.FloatTensor(all_batch[1]).to(config.device),
+    #     torch.FloatTensor(all_batch[2]).to(config.device).unsqueeze(1),
+    #     torch.FloatTensor(all_batch[3]).to(config.device),
+    #     torch.FloatTensor(all_batch[4]).to(config.device).unsqueeze(1),
+    #     torch.FloatTensor(all_batch[5]).to(config.device).unsqueeze(1),
+    #     torch.FloatTensor(all_batch[6]).to(config.device),
+    #     torch.FloatTensor(all_batch[7]).to(config.device),
+    # )
+
     for step in range(config.updates):
         # Train the rewarder
         batch = replay_buffer.sample(config.rewarder_batch_size)
         for rewarder in rewarders:
-            all_batch = replay_buffer.sample(len(replay_buffer))
-            all_batch = (
-                torch.FloatTensor(all_batch[0]).to(config.device),
-                torch.FloatTensor(all_batch[1]).to(config.device),
-                torch.FloatTensor(all_batch[2]).to(config.device).unsqueeze(1),
-                torch.FloatTensor(all_batch[3]).to(config.device),
-                torch.FloatTensor(all_batch[4]).to(config.device).unsqueeze(1),
-                torch.FloatTensor(all_batch[5]).to(config.device).unsqueeze(1),
-                torch.FloatTensor(all_batch[6]).to(config.device),
-                torch.FloatTensor(all_batch[7]).to(config.device),
-            )
-            rewarder.train(batch, all_batch)
+            # expert_obs_np, self.to_match = get_marker_info(
+            #     info,
+            #     self.policy_legs,
+            #     self.policy_limb_indices,
+            #     pos_type=self.config.method.pos_type,
+            #     vel_type=self.config.method.vel_type,
+            #     torso_type=self.config.method.torso_type,
+            #     head_type=self.config.method.head_type,
+            #     head_wrt=self.config.method.head_wrt,
+            # )
+            # self.imitation_buffer.push(
+            #     [
+            #         torch.from_numpy(x).float().to(self.device)
+            #         for x in expert_obs_np
+            #     ]
+            # )
+            rewarder.train(batch, None)
 
         # Train the agent
         batch = replay_buffer.sample(config.batch_size)
@@ -162,18 +179,18 @@ def main(config: DictConfig) -> None:
         obs_size += 1
     if config.morpho_in_state:
         obs_size += num_morpho
-    demo_dim = 0
+    # demo_dim = 0
 
     # Rewarders
     rewarders = []
     rewarders.append(EnvReward(config.device))
     rewarders.append(MBC(config.device, bounds))
-    config_gail = config
-    config_gail.method.rewarder = GAILConfig()
-    rewarders.append(GAIL(demo_dim, config_gail))
-    config_sail = config
-    config_sail.method.rewarder = SAILConfig()
-    rewarders.append(SAIL(logger, env, demo_dim, config_sail))
+    # config_gail = config
+    # config_gail.method.rewarder = GAILConfig()
+    # rewarders.append(GAIL(demo_dim, config_gail))
+    # config_sail = config
+    # config_sail.method.rewarder = SAILConfig()
+    # rewarders.append(SAIL(logger, env, demo_dim, config_sail))
 
     # Agent
     omega_scheduler = ConstantScheduler(0.0)

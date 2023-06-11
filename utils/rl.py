@@ -133,6 +133,12 @@ def gen_obs_list(
     return obs_list
 
 
+def obs_to_dict(obs_list: list) -> dict:
+    obs_dict = {
+        "dones": np.array([]),
+    }
+
+
 def gen_obs_dict(
     num_obs: int,
     env: gym.Env,
@@ -181,7 +187,7 @@ def gen_obs_dict(
 
         feat = state
         if morpho_in_state:
-            feat = np.concatenate([state, env.morpho_params])
+            feat = np.concatenate([feat, env.morpho_params])
         if absorbing_state:
             feat = np.concatenate([feat, np.zeros(1)])
 
