@@ -359,6 +359,28 @@ class MethodConfig:
     If None, no mask is applied.
     """
 
+    normalization_type: NormalizationTypes = (  # pyright: ignore[reportGeneralTypeIssues]
+        "z_score"
+    )
+    """Normalization type for the reward or Q-values."""
+
+    normalization_mode: NormalizationModes = (  # pyright: ignore[reportGeneralTypeIssues]
+        "min"
+    )
+    """Normalization mode for the reward or Q-values."""
+
+    normalization_gamma: float = 1.0
+    """Normalization gamma for the reward or Q-values."""
+
+    normalization_beta: float = 0.0
+    """Normalization beta for the reward or Q-values."""
+
+    normalization_low_clip: Optional[float] = None
+    """Normalization lower bound for the clipping of the reward or Q-values."""
+
+    normalization_high_clip: Optional[float] = None
+    """Normalization upper bound for the clipping of the reward or Q-values."""
+
 
 @dataclass(kw_only=True)
 class CoILConfig(MethodConfig):
@@ -505,28 +527,6 @@ class CoSILConfig(CoILConfig):
     dual_mode: DualModes = "q"  # pyright: ignore[reportGeneralTypeIssues]
     """The dual mode, either a duality of Q-values or of reward signals."""
 
-    normalization_type: NormalizationTypes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "z_score"
-    )
-    """Normalization type for the reward or Q-values."""
-
-    normalization_mode: NormalizationModes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "mean"
-    )
-    """Normalization mode for the reward or Q-values."""
-
-    normalization_gamma: float = 1.0
-    """Normalization gamma for the reward or Q-values."""
-
-    normalization_beta: float = 0.0
-    """Normalization beta for the reward or Q-values."""
-
-    normalization_low_clip: Optional[float] = None
-    """Normalization lower bound for the clipping of the reward or Q-values."""
-
-    normalization_high_clip: Optional[float] = None
-    """Normalization upper bound for the clipping of the reward or Q-values."""
-
 
 @dataclass(kw_only=True)
 class CoSIL2Config(CoILConfig):
@@ -571,28 +571,6 @@ class CoSIL2Config(CoILConfig):
     omega_scheduler: Schedulers = (  # pyright: ignore[reportGeneralTypeIssues]
         "exponential"
     )
-
-    normalization_type: NormalizationTypes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "z_score"
-    )
-    """Normalization type for the reward or Q-values."""
-
-    normalization_mode: NormalizationModes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "mean"
-    )
-    """Normalization mode for the reward or Q-values."""
-
-    normalization_gamma: float = 1.0
-    """Normalization gamma for the reward or Q-values."""
-
-    normalization_beta: float = 0.0
-    """Normalization beta for the reward or Q-values."""
-
-    normalization_low_clip: Optional[float] = None
-    """Normalization lower bound for the clipping of the reward or Q-values."""
-
-    normalization_high_clip: Optional[float] = None
-    """Normalization upper bound for the clipping of the reward or Q-values."""
 
 
 @dataclass(kw_only=True)
