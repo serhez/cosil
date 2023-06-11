@@ -56,7 +56,6 @@ class SAC(Agent):
         self._tau = config.method.agent.tau
         self._alpha = config.method.agent.alpha
         self._learn_disc_transitions = config.learn_disc_transitions
-        self._transfer_type = config.method.transfer_type
 
         self._target_update_interval = config.method.agent.target_update_interval
         self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
