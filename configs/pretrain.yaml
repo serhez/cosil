@@ -1,0 +1,15 @@
+---
+defaults:
+  - base_pretrain
+  - override /method: coil
+  - override /method/rewarder: env
+  - override /method/agent: sac
+  - _self_
+
+env_name: GaitTrackHalfCheetah-v0
+device: cuda
+
+logger:
+  group_name: 11-06-2023_pretraining
+  experiment_name: test
+  loggers: console,file,wandb

@@ -717,7 +717,7 @@ class PretrainConfig(Config):
     Configuration for generating observation buffers with a single morphology.
     """
 
-    method: MethodConfig = SACConfig()
+    method: MethodConfig = CoILConfig()
     """Configuration for the method."""
 
     task: str = "pretrain"
@@ -741,6 +741,7 @@ def setup_config() -> None:
     cs.store(name="base_train", node=TrainConfig)
     cs.store(name="base_gen_obs", node=GenTrajectoriesConfig)
     cs.store(name="base_gen_buffer", node=GenBufferConfig)
+    cs.store(name="base_pretrain", node=PretrainConfig)
     cs.store(name="base_logger", node=LoggerConfig)
     cs.store(name="base_co_adaptation", node=CoAdaptationConfig)
     cs.store(group="method", name="base_coil", node=CoILConfig)

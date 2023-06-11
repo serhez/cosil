@@ -175,11 +175,11 @@ def main(config: DictConfig) -> None:
 
     # Replay buffer
     replay_buffer = ObservationBuffer(
-        config.replay_capacity,
-        config.replay_dim_ratio,
+        config.method.replay_capacity,
+        config.method.replay_dim_ratio,
         config.seed,
     )
-    obs_list = torch.load(config.replay_buffer_path)
+    obs_list = torch.load(config.method.replay_buffer_path)["buffer"]
     logger.info(
         {
             "Loading pre-filled replay buffer": None,
