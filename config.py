@@ -698,6 +698,17 @@ class PretrainConfig(Config):
     Configuration for generating observation buffers with a single morphology.
     """
 
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            {
+                "method/agent": "sac",
+            },
+            {
+                "method/rewarder": "env",
+            },
+        ]
+    )
+
     method: MethodConfig = CoILConfig()
     """Configuration for the method."""
 
