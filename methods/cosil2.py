@@ -18,7 +18,7 @@ from common.observation_buffer import ObservationBuffer
 from common.schedulers import create_scheduler
 from loggers import Logger
 from normalizers import create_normalizer
-from rewarders import MBC, SAIL, EnvReward
+from rewarders import GAIL, MBC, SAIL, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
     bo_step,
@@ -269,6 +269,25 @@ class CoSIL2(object):
             else:
                 raise ValueError(f"Failed to load {self.config.resume}")
 
+    def load_pretrained(self, path: str) -> None:
+        data = torch.load(path)
+
+        # Load agent
+        self.agent.load(data["agent"])
+
+        # Load rewarders
+        for rewarder in [self.rl_rewarder, self.il_rewarder]:
+            if isinstance(rewarder, EnvReward):
+                rewarder.load(data["env_reward"])
+            elif isinstance(rewarder, GAIL):
+                rewarder.load(data["gail"])
+            elif isinstance(rewarder, MBC):
+                rewarder.load(data["mbc"])
+            elif isinstance(rewarder, SAIL):
+                rewarder.load(data["sail"])
+            else:
+                raise ValueError(f"Invalid rewarder: {rewarder}")
+
     def pretrain(self):
         self.logger.info(
             "Pre-training the agent and the rewarders using a pre-filled buffer"
@@ -331,7 +350,9 @@ class CoSIL2(object):
         self.optimized_or_not = [False]
 
         transfer = False
-        if len(self.replay_buffer) > self.batch_size and self.config.method.pretrain:
+        if self.config.method.pretrain_path is not None:
+            self.load_pretrained(self.config.method.pretrain_path)
+        elif len(self.replay_buffer) > self.batch_size and self.config.method.pretrain:
             # If we have enough transitions in the buffer, we pretrain the agent and the rewarder
             # and perform transfer learning
             self.pretrain()

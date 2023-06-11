@@ -328,6 +328,9 @@ class MethodConfig:
     pretrain_updates: int = 500
     """Number of updates per environment step."""
 
+    pretrain_path: Optional[str] = None
+    """Path to pre-trained models"""
+
     start_steps: int = 10000
     """Number of steps to take before training."""
 

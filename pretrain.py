@@ -46,6 +46,7 @@ def train(
         logger.info(
             {
                 "Pre-training step": step,
+                "Mean reward": new_log["reward/mean"],
                 "Policy loss": new_log["loss/policy"],
                 "Critic loss": new_log["loss/critic"],
             },

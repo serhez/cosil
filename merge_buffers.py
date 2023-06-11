@@ -47,7 +47,7 @@ def main():
         if buffer_path.endswith(".pt"):
             data = torch.load(dir_path + buffer_path)
             obs = data["buffer"]
-            print(f"Loading buffer {data} with {len(obs)} observations")
+            print(f"Loading buffer {buffer_path} with {len(obs)} observations")
             obs_list.append(obs)
             morpho_list.append(data["morpho"])
 
