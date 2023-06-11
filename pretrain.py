@@ -35,6 +35,16 @@ def train(
         batch = replay_buffer.sample(config.rewarder_batch_size)
         for rewarder in rewarders:
             all_batch = replay_buffer.sample(len(replay_buffer))
+            all_batch = (
+                torch.FloatTensor(all_batch[0]).to(config.device),
+                torch.FloatTensor(all_batch[1]).to(config.device),
+                torch.FloatTensor(all_batch[2]).to(config.device).unsqueeze(1),
+                torch.FloatTensor(all_batch[3]).to(config.device),
+                torch.FloatTensor(all_batch[4]).to(config.device).unsqueeze(1),
+                torch.FloatTensor(all_batch[5]).to(config.device).unsqueeze(1),
+                torch.FloatTensor(all_batch[6]).to(config.device),
+                torch.FloatTensor(all_batch[7]).to(config.device),
+            )
             rewarder.train(batch, all_batch)
 
         # Train the agent
