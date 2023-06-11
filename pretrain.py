@@ -12,7 +12,7 @@ from omegaconf import DictConfig
 from agents import SAC
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import ConstantScheduler
-from config import setup_config
+from config import GAILConfig, SAILConfig, setup_config
 from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
 from rewarders import GAIL, MBC, SAIL, DualRewarder, EnvReward, Rewarder
 from utils import dict_add, dict_div
@@ -157,9 +157,13 @@ def main(config: DictConfig) -> None:
     # Rewarders
     rewarders = []
     rewarders.append(EnvReward(config.device))
-    rewarders.append(GAIL(demo_dim, config))
     rewarders.append(MBC(config.device, bounds))
-    rewarders.append(SAIL(logger, env, demo_dim, config))
+    config_gail = config
+    config_gail.method.rewarder = GAILConfig()
+    rewarders.append(GAIL(demo_dim, config_gail))
+    config_sail = config
+    config_sail.method.rewarder = SAILConfig()
+    rewarders.append(SAIL(logger, env, demo_dim, config_sail))
 
     # Agent
     omega_scheduler = ConstantScheduler(0.0)
