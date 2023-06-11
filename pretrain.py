@@ -183,14 +183,13 @@ def main(config: DictConfig) -> None:
 
     # Rewarders
     env_reward = EnvReward(config.device)
-    mbc = MBC(config.device, bounds)
     # config_gail = config
     # config_gail.method.rewarder = GAILConfig()
     # gail = GAIL(demo_dim, config_gail)
     # config_sail = config
     # config_sail.method.rewarder = SAILConfig()
     # sail = SAIL(logger, env, demo_dim, config_sail)
-    rewarders = [env_reward, mbc]
+    rewarders = [env_reward]
 
     # Agent
     omega_scheduler = ConstantScheduler(0.0)
@@ -201,7 +200,7 @@ def main(config: DictConfig) -> None:
         obs_size,
         num_morpho,
         env_reward,
-        mbc,
+        env_reward,
         omega_scheduler,
     )
 
