@@ -17,7 +17,7 @@ from agents import SAC
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import ConstantScheduler
 from loggers import Logger
-from rewarders import GAIL, MBC, PWIL, SAIL, EnvReward
+from rewarders import GAIL, MBC, SAIL, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
     bo_step,
@@ -229,21 +229,6 @@ class CoIL(object):
 
         prev_best_reward = -9999
 
-        # We experimented with Primal wasserstein imitation learning (Dadaishi et al. 2020)
-        # but did not include experiments in paper as it did not perform well
-        pwil_rewarder = None
-        if self.config.method.rewarder.name == "pwil":
-            pwil_rewarder = PWIL(
-                self.expert_obs,
-                False,
-                self.demo_dim,
-                num_demonstrations=len(self.expert_obs),
-                time_horizon=300.0,
-                alpha=5.0,
-                beta=5.0,
-                observation_only=True,
-            )
-
         # Morphology optimization via distribution distance (for ablations, main results use BO)
         if self.config.method.co_adaptation.dist_optimizer == "cma":
             cma_options = cma.evolution_strategy.CMAOptions()
@@ -312,10 +297,6 @@ class CoIL(object):
             ]:
                 x_pos_history = []
                 x_pos_index = self.to_match.index("track/abs/pos/torso") * 3
-
-            if pwil_rewarder is not None:
-                pwil_rewarder.reset()
-                self.disc = None
 
             while not done:
                 # Sample random action
@@ -429,15 +410,10 @@ class CoIL(object):
                         marker_obs,
                         next_marker_obs,
                         self.obs_size,
-                        pwil_rewarder=(pwil_rewarder),
                     )
                     for obs in obs_list:
                         self.replay_buffer.push(obs + (self.env.morpho_params,))
                 else:
-                    if pwil_rewarder is not None:
-                        reward = pwil_rewarder.compute_reward(
-                            {"observation": next_marker_obs}
-                        )
                     obs = (
                         feats,
                         action,
