@@ -182,15 +182,15 @@ def main(config: DictConfig) -> None:
     # demo_dim = 0
 
     # Rewarders
-    rewarders = []
-    rewarders.append(EnvReward(config.device))
-    rewarders.append(MBC(config.device, bounds))
+    env_reward = EnvReward(config.device)
+    mbc = MBC(config.device, bounds)
     # config_gail = config
     # config_gail.method.rewarder = GAILConfig()
-    # rewarders.append(GAIL(demo_dim, config_gail))
+    # gail = GAIL(demo_dim, config_gail)
     # config_sail = config
     # config_sail.method.rewarder = SAILConfig()
-    # rewarders.append(SAIL(logger, env, demo_dim, config_sail))
+    # sail = SAIL(logger, env, demo_dim, config_sail)
+    rewarders = [env_reward, mbc]
 
     # Agent
     omega_scheduler = ConstantScheduler(0.0)
@@ -200,8 +200,8 @@ def main(config: DictConfig) -> None:
         env.action_space,
         obs_size,
         num_morpho,
-        rewarders[0],
-        rewarders[2],
+        env_reward,
+        mbc,
         omega_scheduler,
     )
 
