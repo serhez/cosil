@@ -325,7 +325,7 @@ class MethodConfig:
     If no replay buffer is provided, no pre-training will be performed.
     """
 
-    pretrain_updates: int = 500
+    pretrain_updates: int = 50000
     """Number of updates per environment step."""
 
     pretrain_path: Optional[str] = None
@@ -718,7 +718,7 @@ class PretrainConfig(Config):
     models_dir_path: str = "models/pretrained"
     """Path to the directory where to save the models."""
 
-    updates: int = 500
+    updates: int = 50000
     """Number of updates to perform."""
 
     rewarder_batch_size: int = 256

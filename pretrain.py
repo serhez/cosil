@@ -82,14 +82,15 @@ def train(
         dict_add(log_dict, new_log)
         logged += 1
 
-        logger.info(new_log, ["console"])
-        logger.info(
-            {
-                "Pre-training step": step,
-                "Policy loss": new_log["loss/policy_mean"],
-                "Critic loss": new_log["loss/critic"],
-            },
-        )
+        if step % 1000 == 0:
+            logger.info(new_log, ["console"])
+            logger.info(
+                {
+                    "Pre-training step": step,
+                    "Policy loss": new_log["loss/policy_mean"],
+                    "Critic loss": new_log["loss/critic"],
+                },
+            )
 
     dict_div(log_dict, logged)
 
@@ -213,8 +214,12 @@ def main(config: DictConfig) -> None:
             print(f'[WARNING] Logger "{logger}" is not supported')
     logger = MultiLogger(loggers, config.logger.default_mask.split(","))
 
+    # Set up morphology
+    morpho = np.array(env.morpho_params)
+    env.set_task(*morpho)
+
     obs_size = env.observation_space.shape[0]
-    num_morpho = env.morpho_params.shape[0]
+    num_morpho = morpho.shape[0]
     if config.absorbing_state:
         obs_size += 1
     if config.morpho_in_state:

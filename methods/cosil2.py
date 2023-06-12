@@ -316,14 +316,15 @@ class CoSIL2(object):
                 }
             )
 
-            self.logger.info(
-                {
-                    "Pre-training step": step,
-                    "Policy loss": new_log["loss/policy_mean"],
-                    "Critic loss": new_log["loss/critic"],
-                    "Discriminator loss": disc_loss,
-                },
-            )
+            if step % 1000 == 0:
+                self.logger.info(
+                    {
+                        "Pre-training step": step,
+                        "Policy loss": new_log["loss/policy_mean"],
+                        "Critic loss": new_log["loss/critic"],
+                        "Discriminator loss": disc_loss,
+                    },
+                )
 
             dict_add(log_dict, new_log)
             logged += 1
@@ -352,7 +353,8 @@ class CoSIL2(object):
 
         transfer = False
         omega_zero_mask = True
-        if len(self.replay_buffer) > self.batch_size:
+        did_co_adapt_mbc = False
+        if self.config.method.transfer and len(self.replay_buffer) > self.batch_size:
             transfer = True
             omega_zero_mask = False
 
@@ -492,14 +494,16 @@ class CoSIL2(object):
                     # (i.e., the demonstrator).
                     if transfer and done and isinstance(self.il_rewarder, MBC):
                         all_batch = self.imit_buffer.sample(len(self.imit_buffer))
-                        self.il_rewarder.co_adapt(
-                            all_batch,
-                            self.batch_size,
-                            self.morphos,
-                            self.agent._critic,
-                            self.agent._policy,
-                            self.agent._gamma,
-                        )
+                        if not did_co_adapt_mbc:
+                            self.il_rewarder.co_adapt(
+                                all_batch,
+                                self.batch_size,
+                                self.morphos,
+                                self.agent._critic,
+                                self.agent._policy,
+                                self.agent._gamma,
+                            )
+                            did_co_adapt_mbc = True
 
                     for _ in range(n_updates):
                         # Different algo variants discriminator update (pseudocode line 8-9)
@@ -699,7 +703,10 @@ class CoSIL2(object):
                 self.imit_buffer.clear()
 
                 morpho_episode = 1
-                transfer = True
+
+                did_co_adapt_mbc = False
+                if self.config.method.transfer:
+                    transfer = True
 
             omega_zero_mask = False
             self.omega_scheduler.step()

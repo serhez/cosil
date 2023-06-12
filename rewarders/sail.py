@@ -83,9 +83,9 @@ class SAIL(Rewarder):
 
     def _compute_rewards_impl(self, batch, expert_obs):
         _, _, _, _, _, _, marker_batch, next_marker_batch = batch
-        feats = torch.FloatTensor(next_marker_batch).to(self.device)
+        marker_feats = torch.FloatTensor(next_marker_batch).to(self.device)
         if self.learn_disc_transitions:
-            feats = torch.cat((marker_batch, next_marker_batch), dim=1)
+            marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
 
         # Sample expert data as reference for the reward
         episode_lengths = [len(ep) for ep in expert_obs]
@@ -99,7 +99,7 @@ class SAIL(Rewarder):
 
         expert_obs = torch.cat(expert_obs, dim=0)
         expert_inds = correct_inds[
-            torch.randint(0, len(correct_inds), (len(feats[0]),))
+            torch.randint(0, len(correct_inds), (len(marker_feats[0]),))
         ]
 
         expert_feats = expert_obs[expert_inds]
@@ -111,7 +111,7 @@ class SAIL(Rewarder):
 
         with torch.no_grad():
             # SAIL reward: difference between W-critic score of policy and expert
-            rewards = self.disc(feats) - self.disc(expert_feats).mean()
+            rewards = self.disc(marker_feats) - self.disc(expert_feats).mean()
 
             # Avoid negative rewards when running with termination
             rewards = rewards + 1
