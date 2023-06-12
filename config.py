@@ -572,7 +572,7 @@ class CoSIL2Config(CoILConfig):
     """Initial value for omega."""
 
     omega_scheduler: Schedulers = (  # pyright: ignore[reportGeneralTypeIssues]
-        "exponential"
+        "alternating"
     )
 
 

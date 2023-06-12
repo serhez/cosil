@@ -25,6 +25,18 @@ def train(
     replay_buffer: ObservationBuffer,
     rewarders: list[Rewarder],
 ) -> None:
+    """
+    Train the agent and the rewarders.
+
+    Parameters
+    ----------
+    `config` -> the configuration dict.
+    `logger` -> the logger to use.
+    `agent` -> the agent to train.
+    `replay_buffer` -> the pre-filled replay buffer.
+    `rewarders` -> the rewarders to train.
+    """
+
     logger.info("Pre-training the agent and the rewarders using a pre-filled buffer")
 
     start = time.time()
@@ -43,7 +55,7 @@ def train(
     # )
 
     for step in range(config.updates):
-        # Train the rewarder
+        # Train the rewarders
         batch = replay_buffer.sample(config.rewarder_batch_size)
         for rewarder in rewarders:
             # expert_obs_np, self.to_match = get_marker_info(
@@ -74,7 +86,6 @@ def train(
         logger.info(
             {
                 "Pre-training step": step,
-                "Mean reward": new_log["reward/mean"],
                 "Policy loss": new_log["loss/policy_mean"],
                 "Critic loss": new_log["loss/critic"],
             },
@@ -94,7 +105,32 @@ def train(
     return log_dict
 
 
-def save(agent: SAC, rewarders: list[Rewarder], dir_path: str, models_id: int):
+def save(agent: SAC, rewarders: list[Rewarder], dir_path: str, models_id: int) -> str:
+    """
+    Save the agent and the rewarders models to a file as a dict with the following structure:
+    ```
+    {
+        "agent": agent_model_dict,
+        "sail": sail_model_dict,
+        "mbc": mbc_model_dict,
+        "gail": gail_model_dict,
+        "env_reward": env_reward_model_dict,
+        "dual": dual_model_dict,
+    }
+    ```
+
+    Parameters
+    ----------
+    `agent` -> the agent to save.
+    `rewarders` -> the rewarders to save.
+    `dir_path` -> the directory path where to save the models.
+    `models_id` -> the id of the models.
+
+    Returns
+    -------
+    The path of the saved file, which will be `dir_path/pretrained_models_{models_id}.pt`.
+    """
+
     model = {}
     model["agent"] = agent.get_model_dict()
 
@@ -118,9 +154,15 @@ def save(agent: SAC, rewarders: list[Rewarder], dir_path: str, models_id: int):
     file_path = os.path.join(dir_path, file_name)
     torch.save(model, file_path)
 
+    return file_path
+
 
 @hydra.main(version_base=None, config_path="configs", config_name="pretrain")
 def main(config: DictConfig) -> None:
+    """
+    Pre-train the agent and the rewarders using a pre-filled buffer, and save the models to a .pt file.
+    """
+
     config.logger.run_id = str(int(time.time()))
     config.models_dir_path = f"{config.env_name}/seed-{config.seed}"
     if config.logger.group_name != "":

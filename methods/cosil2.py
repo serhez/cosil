@@ -90,7 +90,7 @@ class CoSIL2(object):
                 }
             )
             self.replay_buffer.replace(obs_list)
-            self.morphos = data["morphos"]
+            self.morphos = data["morpho"]
 
         self.initial_states_memory = []
 
@@ -305,11 +305,12 @@ class CoSIL2(object):
 
             # Train the agent
             batch = self.replay_buffer.sample(self.rewarder_batch_size)
-            new_log = self.agent.update_parameters(batch, self.updates, self.expert_obs)
+            new_log = self.agent.update_parameters(
+                batch, self.updates, self.expert_obs, omega_zero_mask=True
+            )
             new_log.update(
                 {
                     "loss/disc_loss": disc_loss,
-                    "loss/g_inv_loss": self.g_inv_loss,
                     "probs/expert_disc": expert_probs,
                     "probs/policy_disc": policy_probs,
                 }
@@ -318,7 +319,7 @@ class CoSIL2(object):
             self.logger.info(
                 {
                     "Pre-training step": step,
-                    "Policy loss": new_log["loss/policy"],
+                    "Policy loss": new_log["loss/policy_mean"],
                     "Critic loss": new_log["loss/critic"],
                     "Discriminator loss": disc_loss,
                 },
@@ -350,13 +351,17 @@ class CoSIL2(object):
         self.optimized_or_not = [False]
 
         transfer = False
+        omega_zero_mask = True
+        if len(self.replay_buffer) > self.batch_size:
+            transfer = True
+            omega_zero_mask = False
+
         if self.config.method.pretrain_path is not None:
             self.load_pretrained(self.config.method.pretrain_path)
         elif len(self.replay_buffer) > self.batch_size and self.config.method.pretrain:
             # If we have enough transitions in the buffer, we pretrain the agent and the rewarder
             # and perform transfer learning
             self.pretrain()
-            transfer = True
 
         # Compute the mean distance between expert demonstrations
         # This is "demonstrations" in the paper plots
@@ -517,7 +522,10 @@ class CoSIL2(object):
                             # Update parameters of all the agent's networks
                             batch = buffer.sample(self.batch_size)
                             new_log = self.agent.update_parameters(
-                                batch, self.updates, self.expert_obs
+                                batch,
+                                self.updates,
+                                self.expert_obs,
+                                omega_zero_mask=omega_zero_mask,
                             )
                             new_log.update(
                                 {
@@ -636,7 +644,9 @@ class CoSIL2(object):
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
             log_dict["general/episode_steps"] = episode_steps
             log_dict["reward/env_total"] = episode_reward
-            log_dict["general/omega"] = self.omega_scheduler.value
+            log_dict["general/omega"] = (
+                0.0 if omega_zero_mask else self.omega_scheduler.value
+            )
 
             if self.config.method.save_optimal and episode_reward > prev_best_reward:
                 self._save("optimal")
@@ -691,6 +701,7 @@ class CoSIL2(object):
                 morpho_episode = 1
                 transfer = True
 
+            omega_zero_mask = False
             self.omega_scheduler.step()
             episode += 1
 

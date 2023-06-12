@@ -212,6 +212,12 @@ class SAC(Agent):
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
+    def _get_omega(self, omega_value: float, zero_mask: bool) -> float:
+        if zero_mask:
+            return 0.0
+        else:
+            return omega_value
+
     def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
         morpho_size = morpho.shape[1]
         feats_batch = torch.FloatTensor(batch[0]).to(self._device)
@@ -258,28 +264,34 @@ class SAC(Agent):
         updates: int,
         expert_obs: Optional[List] = None,
         update_value_only=False,
+        omega_zero_mask=False,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
 
         Parameters
         ----------
-        batch -> the batch of data
-        updates -> the number of updates
-        update_value_only -> whether to update the value function only
+        `batch` -> the batch of data.
+        `updates` -> the number of updates.
+        `expert_obs` -> the expert observations.
+        `update_value_only` -> whether to update the value function only.
+        `omega_zero_mask` -> whether to mask omega as zero for this update.
 
         Returns
         -------
         A dict reporting:
-            - "loss/critic_loss"
-            - "loss/policy"
-            - "loss/policy_prior_loss"
-            - "loss/entropy_loss"
-            - "weighted_reward"
-            - "absorbing_reward"
-            - "action_std"
-            - "entropy_temperature/alpha"
-            - "entropy_temperature/entropy"
+        - "reward/mean"
+        - "q-value/mean"
+        - "loss/critic"
+        - "loss/policy_mean"
+        - "loss/reinforcement_norm_mean"
+        - "loss/imitation_norm_mean"
+        - "loss/reinforcement_mean"
+        - "loss/imitation_mean"
+        - "loss/alpha"
+        - "entropy/alpha"
+        - "entropy/entropy"
+        - "entropy/action_std"
         """
 
         (
@@ -354,10 +366,15 @@ class SAC(Agent):
 
         q_value = self.get_value(state_batch, pi)
 
-        rl_loss = (self._alpha * log_pi) - q_value
-        if self._rl_norm is not None:
-            rl_loss_norm = self._rl_norm(rl_loss)
+        omega = self._get_omega(self._omega_scheduler.value, omega_zero_mask)
+        if omega < 1.0:
+            rl_loss = (self._alpha * log_pi) - q_value
+            if self._rl_norm is not None:
+                rl_loss_norm = self._rl_norm(rl_loss)
+            else:
+                rl_loss_norm = rl_loss
         else:
+            rl_loss = torch.tensor(0.0, device=self._device)
             rl_loss_norm = rl_loss
         # vae_loss = torch.tensor(0.0, device=self._device)
         # if isinstance(self._rl_rewarder, SAIL):
@@ -367,11 +384,13 @@ class SAC(Agent):
         #     rl_loss += vae_loss
 
         # Imitation loss term (alike in the TD3+BC paper)
-        il_loss, il_loss_norm = self._get_il_loss(batch)
+        if omega > 0.0:
+            il_loss, il_loss_norm = self._get_il_loss(batch)
+        else:
+            il_loss = torch.tensor(0.0, device=self._device)
+            il_loss_norm = il_loss
 
-        policy_loss = (
-            1 - self._omega_scheduler.value
-        ) * rl_loss_norm.mean() + self._omega_scheduler.value * il_loss_norm.mean()
+        policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
 
         # Update the policy
         self._policy_optim.zero_grad()
@@ -390,12 +409,10 @@ class SAC(Agent):
             self._alpha_optim.step()
 
             self._alpha = self._log_alpha.exp()
-            alpha_tlogs = self._alpha.clone()  # For TensorboardX logs
+            alpha_tlogs = self._alpha.clone()
         else:
             alpha_loss = torch.tensor(0.0).to(self._device)
-            alpha_tlogs = torch.tensor(
-                self._alpha, device=self._device
-            )  # For TensorboardX logs
+            alpha_tlogs = torch.tensor(self._alpha, device=self._device)
 
         # Soft update of the critic
         if updates % self._target_update_interval == 0:
