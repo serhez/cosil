@@ -74,7 +74,7 @@ class CoSIL2(object):
             self.config.method.replay_dim_ratio,
             self.config.seed,
         )
-        self.imit_buffer = ObservationBuffer(
+        self.transfer_buffer = ObservationBuffer(
             self.config.method.replay_capacity,
             self.config.method.replay_dim_ratio,
             self.config.seed,
@@ -455,6 +455,12 @@ class CoSIL2(object):
                 x_pos_history = []
                 x_pos_index = self.to_match.index("track/abs/pos/torso") * 3
 
+            # Use the replay_buffer for RL updates
+            # and the transfer_buffer for transfer updates
+            training_buffer = self.replay_buffer
+            if transfer:
+                training_buffer = self.transfer_buffer
+
             while not done:
                 # Sample random action
                 if self.config.method.start_steps > self.total_numsteps:
@@ -473,9 +479,10 @@ class CoSIL2(object):
 
                 # Update when we have enough observations in the replay buffer
                 # and when we are either not transfering or when we have collected at
-                # least a single episode worth of observations in the imitation buffer
-                if len(self.replay_buffer) > self.batch_size and (
-                    not transfer or morpho_episode > 1 or done
+                # least a single episode worth of observations in the replay buffer
+                if (
+                    len(self.replay_buffer) > self.batch_size
+                    and len(self.transfer_buffer) > self.batch_size
                 ):
                     # The number of updates depends on the number of steps we have taken
                     # so far in the episode without updating
@@ -488,18 +495,23 @@ class CoSIL2(object):
 
                     # Allow the MBC rewarder to find the optimal morphology to match
                     # (i.e., the demonstrator).
-                    if transfer and done and isinstance(self.il_rewarder, MBC):
-                        all_batch = self.imit_buffer.sample(len(self.imit_buffer))
-                        if not did_co_adapt_mbc:
-                            self.il_rewarder.co_adapt(
-                                all_batch,
-                                self.batch_size,
-                                self.morphos,
-                                self.agent._critic,
-                                self.agent._policy,
-                                self.agent._gamma,
-                            )
-                            did_co_adapt_mbc = True
+                    if (
+                        transfer
+                        and isinstance(self.il_rewarder, MBC)
+                        and not did_co_adapt_mbc
+                    ):
+                        all_batch = self.transfer_buffer.sample(
+                            len(self.transfer_buffer)
+                        )
+                        self.il_rewarder.co_adapt(
+                            all_batch,
+                            self.batch_size,
+                            self.morphos,
+                            self.agent._critic,
+                            self.agent._policy,
+                            self.agent._gamma,
+                        )
+                        did_co_adapt_mbc = True
 
                     for _ in range(n_updates):
                         # Different algo variants discriminator update (pseudocode line 8-9)
@@ -513,14 +525,8 @@ class CoSIL2(object):
                             self.total_numsteps > self.config.method.disc_warmup
                             and len(self.replay_buffer) > self.batch_size
                         ):
-                            # Use the replay_buffer for RL updates
-                            # and the imit_buffer for transfer updates
-                            buffer = self.replay_buffer
-                            if transfer:
-                                buffer = self.imit_buffer
-
                             # Update parameters of all the agent's networks
-                            batch = buffer.sample(self.batch_size)
+                            batch = training_buffer.sample(self.batch_size)
                             new_log = self.agent.update_parameters(
                                 batch,
                                 self.updates,
@@ -589,8 +595,7 @@ class CoSIL2(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        self.replay_buffer.push(obs + (self.env.morpho_params,))
-                        self.imit_buffer.push(obs + (self.env.morpho_params,))
+                        training_buffer.push(obs + (self.env.morpho_params,))
                 else:
                     obs = (
                         feats,
@@ -603,8 +608,7 @@ class CoSIL2(object):
                         next_marker,
                         self.env.morpho_params,
                     )
-                    self.replay_buffer.push(obs)
-                    self.imit_buffer.push(obs)
+                    training_buffer.push(obs)
 
                 state = next_state
                 marker = next_marker
@@ -644,6 +648,8 @@ class CoSIL2(object):
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
             log_dict["general/episode_steps"] = episode_steps
             log_dict["reward/env_total"] = episode_reward
+            log_dict["buffers/replay_size"] = len(self.replay_buffer)
+            log_dict["buffers/transfer_size"] = len(self.transfer_buffer)
             log_dict["general/omega"] = (
                 0.0 if omega_zero_mask else self.omega_scheduler.value
             )
@@ -686,6 +692,11 @@ class CoSIL2(object):
             if morpho_episode >= self.config.method.transfer_episodes:
                 transfer = False
 
+                # Copy the contents of the transfer buffer to the replay buffer
+                # and clear it
+                self.replay_buffer.push(self.transfer_buffer.to_list())
+                self.transfer_buffer.clear()
+
             # Morphology evolution
             morpho_episode += 1
             if self.config.method.co_adapt and (
@@ -694,9 +705,6 @@ class CoSIL2(object):
                 # Adapt the morphology using the specified optimizing method
                 self.logger.info("Adapting morphology")
                 self._adapt_morphology(epsilon, es, es_buffer, log_dict)
-
-                # Empty the imitation buffer
-                self.imit_buffer.clear()
 
                 morpho_episode = 1
 
