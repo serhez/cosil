@@ -165,13 +165,6 @@ def main(config: DictConfig) -> None:
     """
 
     config.logger.run_id = str(int(time.time()))
-    config.models_dir_path = f"{config.env_name}/seed-{config.seed}"
-    if config.logger.group_name != "":
-        config.models_dir_path = f"{config.logger.group_name}/" + config.models_dir_path
-    if config.logger.project_name != "":
-        config.models_dir_path = (
-            f"{config.logger.project_name}/" + config.models_dir_path
-        )
 
     # Set up environment
     register_env(config.env_name)
@@ -269,7 +262,8 @@ def main(config: DictConfig) -> None:
     train(config, logger, agent, replay_buffer, rewarders)
 
     # Save the models
-    save(agent, rewarders, config.models_dir_path, config.logger.run_id)
+    saved_path = save(agent, rewarders, config.models_dir_path, config.logger.run_id)
+    logger.info("Saved models to " + saved_path)
 
     env.close()
 

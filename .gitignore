@@ -3,6 +3,7 @@ models/
 logs/
 outputs/
 data/replay_buffers/
+data/pretrained/
 report.log
 imitator.pt
 metrics.pt
