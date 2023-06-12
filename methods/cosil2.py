@@ -18,7 +18,7 @@ from common.observation_buffer import ObservationBuffer
 from common.schedulers import create_scheduler
 from loggers import Logger
 from normalizers import create_normalizer
-from rewarders import GAIL, MBC, SAIL, EnvReward
+from rewarders import GAIL, MBC, SAIL, DualRewarder, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
     bo_step,
@@ -277,16 +277,12 @@ class CoSIL2(object):
 
         # Load rewarders
         for rewarder in [self.rl_rewarder, self.il_rewarder]:
-            if isinstance(rewarder, EnvReward):
-                rewarder.load(data["env_reward"])
+            if isinstance(rewarder, DualRewarder):
+                rewarder.load(data["dual"])
             elif isinstance(rewarder, GAIL):
                 rewarder.load(data["gail"])
-            elif isinstance(rewarder, MBC):
-                rewarder.load(data["mbc"])
             elif isinstance(rewarder, SAIL):
                 rewarder.load(data["sail"])
-            else:
-                raise ValueError(f"Invalid rewarder: {rewarder}")
 
     def pretrain(self):
         self.logger.info(
