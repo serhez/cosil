@@ -18,7 +18,7 @@ method:
   morpho_warmup: 0
   start_steps: 0
   disc_warmup: 0
-  transfer_episodes: 5
+  transfer_episodes: 3
   co_adaptation:
     dist_optimizer: pso
 
@@ -29,9 +29,9 @@ method:
   normalization_low_clip: null
   normalization_high_clip: null
   transfer: true
-  optimized_demonstrator: false
+  optimized_demonstrator: true
 
 logger:
   group_name: "12-06-2023_methods"
-  experiment_name: "cosil2-transfer-prev-pso-norm-5te"
+  experiment_name: "transfer-opt-pso-norm-3te"
   loggers: console,file,wandb

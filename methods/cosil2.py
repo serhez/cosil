@@ -203,6 +203,9 @@ class CoSIL2(object):
         # hyper-parameters using an episode horizon equal to `num_episodes`.
         # Note that the `morpho_warmup` episodes don't matter towards the reset, as we still
         # change the morphology (even if it's randomly) during the warmup.
+        if not self.config.method.transfer or not self.config.method.co_adapt:
+            self.config.method.omega_scheduler = "constant"
+            self.config.method.omega_init = 0.0
         scheduler_period = (
             self.config.method.episodes_per_morpho
             if self.config.method.co_adapt
@@ -270,7 +273,7 @@ class CoSIL2(object):
                 raise ValueError(f"Failed to load {self.config.resume}")
 
     def load_pretrained(self, path: str) -> None:
-        data = torch.load(path)
+        data = torch.load(path, map_location=self.device)
 
         # Load agent
         self.agent.load(data["agent"])
@@ -412,6 +415,7 @@ class CoSIL2(object):
                 self.env.set_task(*self.morpho_params_np)
 
             episode_reward = 0
+            episode_updates = 0
             episode_steps = 0
             episode_steps_without_update = 0
             log_dict, logged = {}, 0
@@ -477,13 +481,11 @@ class CoSIL2(object):
                 episode_steps_without_update += 1
                 self.total_numsteps += 1
 
-                # Update when we have enough observations in the replay buffer
-                # and when we are either not transfering or when we have collected at
-                # least a single episode worth of observations in the replay buffer
+                # Update when we have enough observations in the buffers
                 if (
-                    len(self.replay_buffer) > self.batch_size
-                    and len(self.transfer_buffer) > self.batch_size
-                ):
+                    (not transfer and len(self.replay_buffer) >= self.batch_size)
+                    or (transfer and len(self.transfer_buffer) >= self.batch_size)
+                ) and self.total_numsteps > self.config.method.disc_warmup:
                     # The number of updates depends on the number of steps we have taken
                     # so far in the episode without updating
                     # In the transfer case, n_updates = updates_per_step * total_episode_steps
@@ -520,32 +522,28 @@ class CoSIL2(object):
                             batch, self.expert_obs
                         )
 
-                        # Policy update (pseudocode line 10)
-                        if (
-                            self.total_numsteps > self.config.method.disc_warmup
-                            and len(self.replay_buffer) > self.batch_size
-                        ):
-                            # Update parameters of all the agent's networks
-                            batch = training_buffer.sample(self.batch_size)
-                            new_log = self.agent.update_parameters(
-                                batch,
-                                self.updates,
-                                self.expert_obs,
-                                omega_zero_mask=omega_zero_mask,
-                            )
-                            new_log.update(
-                                {
-                                    "loss/disc_loss": disc_loss,
-                                    "loss/disc_gradient_penalty": gradient_penalty,
-                                    "loss/g_inv_loss": self.g_inv_loss,
-                                    "probs/expert_disc": expert_probs,
-                                    "probs/policy_disc": policy_probs,
-                                }
-                            )
+                        # Update parameters of all the agent's networks
+                        batch = training_buffer.sample(self.batch_size)
+                        new_log = self.agent.update_parameters(
+                            batch,
+                            self.updates,
+                            self.expert_obs,
+                            omega_zero_mask=omega_zero_mask,
+                        )
+                        new_log.update(
+                            {
+                                "loss/disc_loss": disc_loss,
+                                "loss/disc_gradient_penalty": gradient_penalty,
+                                "loss/g_inv_loss": self.g_inv_loss,
+                                "probs/expert_disc": expert_probs,
+                                "probs/policy_disc": policy_probs,
+                            }
+                        )
 
-                            dict_add(log_dict, new_log)
-                            logged += 1
-                            self.updates += 1
+                        dict_add(log_dict, new_log)
+                        logged += 1
+                        episode_updates += 1
+                        self.updates += 1
 
                 # phi(s)
                 next_marker, _ = get_marker_info(
@@ -642,41 +640,45 @@ class CoSIL2(object):
             )
             if x_pos_history is not None:
                 log_dict["xpos"] = wandb.Histogram(np.stack(x_pos_history))
-            log_dict["distr_distances/pos_train_distance"] = pos_train_distance
-            log_dict["distr_distances/vel_train_distance"] = vel_train_distance
-            log_dict["distr_distances/pos_baseline_distance"] = pos_baseline_distance
-            log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
-            log_dict["general/episode_steps"] = episode_steps
-            log_dict["reward/env_total"] = episode_reward
-            log_dict["buffers/replay_size"] = len(self.replay_buffer)
-            log_dict["buffers/transfer_size"] = len(self.transfer_buffer)
-            log_dict["general/omega"] = (
-                0.0 if omega_zero_mask else self.omega_scheduler.value
-            )
 
+            # Save best models
             if self.config.method.save_optimal and episode_reward > prev_best_reward:
                 self._save("optimal")
                 prev_best_reward = episode_reward
                 self.logger.info(f"New best reward: {episode_reward}")
 
             took = time.time() - start
-            log_dict["general/episode_time"] = took
 
+            # Logs
+            log_dict["distr_distances/pos_train_distance"] = pos_train_distance
+            log_dict["distr_distances/vel_train_distance"] = vel_train_distance
+            log_dict["distr_distances/pos_baseline_distance"] = pos_baseline_distance
+            log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
+            log_dict["reward/env_total"] = episode_reward
+            log_dict["general/episode_steps"] = episode_steps
+            log_dict["general/episode_updates"] = episode_updates
+            log_dict["general/episode_time"] = took
+            log_dict["buffers/replay_size"] = len(self.replay_buffer)
+            log_dict["buffers/transfer_size"] = len(self.transfer_buffer)
+            log_dict["general/omega"] = (
+                0.0 if omega_zero_mask else self.omega_scheduler.value
+            )
             self.logger.info(
                 {
                     "Episode": episode,
                     "Transfer": transfer,
                     "Morpho episode": morpho_episode,
-                    "Total steps": self.total_numsteps,
-                    "Episode steps": episode_steps,
-                    "Episode reward": episode_reward,
+                    "Reward": episode_reward,
+                    "Steps": episode_steps,
+                    "Updates": episode_updates,
+                    "Replay buffer": len(self.replay_buffer),
+                    "Transfer buffer": len(self.transfer_buffer),
                     "Omega": self.omega_scheduler.value,
                     "Took": took,
                 },
             )
 
             # Evaluation episodes
-            # Also used to make plots
             if (
                 self.config.method.eval
                 and episode % self.config.method.eval_per_episodes == 0

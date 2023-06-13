@@ -40,9 +40,7 @@ def create_scheduler(
     """
 
     if name == "alternating":
-        return AlternatingScheduler(
-            val_init, val_alt, n_init_episodes, period - n_init_episodes
-        )
+        return AlternatingScheduler(val_init, val_alt, n_init_episodes, period)
     elif name == "binary":
         return BinaryScheduler(val_init, val_alt, period)
     elif name == "constant":
