@@ -27,4 +27,4 @@ method:
 logger:
   group_name: "12-06-2023_methods"
   experiment_name: "no-transfer-pso"
-  loggers: console
+  loggers: console,file,wandb

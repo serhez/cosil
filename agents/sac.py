@@ -15,7 +15,7 @@ from common.observation_buffer import ObservationBuffer
 from common.schedulers import Scheduler
 from loggers import Logger
 from normalizers import create_normalizer
-from rewarders import MBC, SAIL, Rewarder
+from rewarders import GAIL, MBC, SAIL, Rewarder
 from utils.rl import hard_update, soft_update
 
 from .agent import Agent
@@ -240,11 +240,22 @@ class SAC(Agent):
         if self._il_rewarder is None:
             il_loss = torch.tensor(0.0, device=self._device)
             il_loss_norm = il_loss
-            return il_loss, il_loss_norm
-
-        if isinstance(self._il_rewarder, MBC):
+        elif isinstance(self._il_rewarder, MBC):
             demos = self._get_demos_for(self._il_rewarder.batch_demonstrator, batch)
             il_loss = -self._il_rewarder.compute_rewards(batch, demos)
+            if self._il_norm is not None:
+                il_loss_norm = self._il_norm(il_loss)
+            else:
+                il_loss_norm = il_loss
+        # TODO: WRONG! We need to get the demos from the replay_buffer passed onto update_parameters, and then to this func
+        elif isinstance(self._il_rewarder, GAIL):
+            il_loss = -self._il_rewarder.compute_rewards(batch)
+            if self._il_norm is not None:
+                il_loss_norm = self._il_norm(il_loss)
+            else:
+                il_loss_norm = il_loss
+        elif isinstance(self._il_rewarder, SAIL):
+            il_loss = -self._il_rewarder.compute_rewards(batch)
             if self._il_norm is not None:
                 il_loss_norm = self._il_norm(il_loss)
             else:

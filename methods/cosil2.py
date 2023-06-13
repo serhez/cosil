@@ -516,11 +516,19 @@ class CoSIL2(object):
                         did_co_adapt_mbc = True
 
                     for _ in range(n_updates):
-                        # Different algo variants discriminator update (pseudocode line 8-9)
-                        batch = self.replay_buffer.sample(self.rewarder_batch_size)
-                        disc_loss, expert_probs, policy_probs = self.rl_rewarder.train(
-                            batch, self.expert_obs
-                        )
+                        # Rewarder (i.e., discriminator) update
+                        # TODO: Should we also train while not in transfer?
+                        if len(self.transfer_buffer) > self.rewarder_batch_size:
+                            batch = self.transfer_buffer.sample(
+                                self.rewarder_batch_size
+                            )
+                            (
+                                disc_loss,
+                                expert_probs,
+                                policy_probs,
+                            ) = self.il_rewarder.train(
+                                batch, self.replay_buffer.to_list()
+                            )
 
                         # Update parameters of all the agent's networks
                         batch = training_buffer.sample(self.batch_size)
@@ -697,7 +705,6 @@ class CoSIL2(object):
                 # Copy the contents of the transfer buffer to the replay buffer
                 # and clear it
                 self.replay_buffer.push(self.transfer_buffer.to_list())
-                self.transfer_buffer.clear()
 
             # Morphology evolution
             morpho_episode += 1
@@ -713,6 +720,7 @@ class CoSIL2(object):
                 did_co_adapt_mbc = False
                 if self.config.method.transfer:
                     transfer = True
+                    self.transfer_buffer.clear()
 
             omega_zero_mask = False
             self.omega_scheduler.step()
