@@ -33,5 +33,5 @@ method:
 
 logger:
   group_name: "15-06-2023_methods"
-  experiment_name: "transfer-opt-pso-5om"
+  experiment_name: "transfer-opt-pso-norm-5om"
   loggers: console,file,wandb

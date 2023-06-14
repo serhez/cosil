@@ -33,5 +33,5 @@ method:
 
 logger:
   group_name: "15-06-2023_methods"
-  experiment_name: "transfer-opt-bo-2om"
+  experiment_name: "transfer-opt-bo-norm-2om"
   loggers: console,file,wandb
