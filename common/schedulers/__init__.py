@@ -12,11 +12,11 @@ from .step import StepScheduler
 def create_scheduler(
     name: str,
     period: int,
-    n_init_episodes: int = 1,
     val_init: float = 1.0,
     val_alt: float = 0.0,
     val_decay: float = 1.0,
     T_mult: float = 1.0,
+    n_init_episodes: int = 1,
 ) -> Scheduler:
     """
     Create a scheduler.

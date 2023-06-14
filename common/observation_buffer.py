@@ -250,3 +250,49 @@ class ObservationBuffer:
         with open(save_path, "rb") as f:
             self._buffer = pickle.load(f)
             self._position = len(self._buffer) % self._capacity
+
+
+def multi_sample(
+    batch_size: int, buffers: List[ObservationBuffer], distribution: List[float]
+) -> Tuple[Any, ...]:
+    """
+    Samples a batch of observations from multiple buffers given a distribution of the batch size among the buffers.
+
+    Parameters
+    ----------
+    batch_size -> the total size of the batch.
+    buffers -> the buffers to sample from.
+    distribution -> the distribution of the batch size among the buffers.
+
+    Returns
+    ----------
+    A tuple of observations sampled from the buffers.
+    """
+
+    assert len(buffers) > 0, "At least one buffer must be provided."
+    assert len(buffers) == len(
+        distribution
+    ), "The number of buffers and the number of distribution values must be equal."
+    assert np.isclose(
+        np.sum(distribution), 1.0
+    ), "The sum of the distribution values must be equal to 1.0."
+
+    batch_sizes = [int(batch_size * p) for p in distribution]
+    if np.sum(batch_sizes) < batch_size:
+        batch_sizes[0] += batch_size - np.sum(batch_sizes)
+    elif np.sum(batch_sizes) > batch_size:
+        batch_sizes[0] -= np.sum(batch_sizes) - batch_size
+
+    batch = None
+    for buffer, b_batch_size in zip(buffers, batch_sizes):
+        if b_batch_size <= 0:
+            continue
+        if batch is None:
+            batch = buffer.sample(b_batch_size)
+        else:
+            sample = buffer.sample(b_batch_size)
+            batch = tuple(
+                np.concatenate((batch[i], sample[i]), axis=0) for i in range(len(batch))
+            )
+
+    return batch

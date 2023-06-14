@@ -554,13 +554,16 @@ class CoSIL2Config(CoILConfig):
     transfer: bool = True
     """Whether to perform transfer learning."""
 
-    transfer_episodes: int = 1
-    """Number of episodes to perform transfer learning for."""
-
     transfer_rewarder: TransferRewarders = (  # pyright: ignore[reportGeneralTypeIssues]
         "mbc"
     )
     """Which rewarder to use for transfer learning."""
+
+    ind_replay_weight: float = 0.1
+    """
+    Ratio of observations in each batch coming from the replay buffer when training the individual agent.
+    The ratio of observations coming from the buffer contaning only obs. from the current morphology is consequently (1 - ind_replay_weight).
+    """
 
     optimized_demonstrator: bool = True
     """Whether to use an optimized demonstrator (True) or a previously seen morphology, when using MBC."""
@@ -568,12 +571,11 @@ class CoSIL2Config(CoILConfig):
     dual_mode: DualModes = "loss_term"  # pyright: ignore[reportGeneralTypeIssues]
     """The dual mode, either a duality of Q-values or an IL loss term."""
 
-    omega_init: float = 1.0
+    omega_init: float = 0.2
     """Initial value for omega."""
 
-    omega_scheduler: Schedulers = (  # pyright: ignore[reportGeneralTypeIssues]
-        "alternating"
-    )
+    omega_scheduler: Schedulers = "constant"  # pyright: ignore[reportGeneralTypeIssues]
+    """The type of scheduler for omega."""
 
 
 @dataclass(kw_only=True)

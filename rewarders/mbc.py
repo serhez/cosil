@@ -107,7 +107,7 @@ class MBC(Rewarder):
                 torch.cuda.synchronize()
 
             losses[i] = torch.mean(
-                torch.pow(q_vals - gamma * next_q_vals - reward_batch, 2)
+                torch.abs(q_vals - gamma * next_q_vals - reward_batch)
             ).item()
 
         return losses

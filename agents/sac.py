@@ -1,6 +1,7 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.optim import Adam
@@ -34,6 +35,7 @@ class SAC(Agent):
         rl_rewarder: Rewarder,
         il_rewarder: Optional[MBC],
         omega_scheduler: Scheduler,
+        logs_suffix: str = "",
     ):
         """
         Initialize the SAC agent.
@@ -63,6 +65,10 @@ class SAC(Agent):
         self._morpho_slice = slice(-morpho_dim, None)
         if config.absorbing_state:
             self._morpho_slice = slice(-morpho_dim - 1, -1)
+
+        self.logs_suffix = logs_suffix
+        if self.logs_suffix != "":
+            self.logs_suffix = "_" + self.logs_suffix
 
         self._rl_rewarder = rl_rewarder
         self._il_rewarder = il_rewarder
@@ -212,12 +218,6 @@ class SAC(Agent):
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
-    def _get_omega(self, omega_value: float, zero_mask: bool) -> float:
-        if zero_mask:
-            return 0.0
-        else:
-            return omega_value
-
     def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
         morpho_size = morpho.shape[1]
         feats_batch = torch.FloatTensor(batch[0]).to(self._device)
@@ -236,8 +236,23 @@ class SAC(Agent):
             None,
         )
 
-    def _get_il_loss(self, batch: tuple) -> torch.Tensor:
-        if self._il_rewarder is None:
+    def _get_rl_loss(
+        self, log_pi: torch.Tensor, q_value: torch.Tensor, omega: float
+    ) -> torch.Tensor:
+        if np.isclose(omega, 1.0):
+            rl_loss = torch.tensor(0.0, device=self._device)
+            rl_loss_norm = rl_loss
+        else:
+            rl_loss = (self._alpha * log_pi) - q_value
+            if self._rl_norm is not None:
+                rl_loss_norm = self._rl_norm(rl_loss)
+            else:
+                rl_loss_norm = rl_loss
+
+        return rl_loss, rl_loss_norm
+
+    def _get_il_loss(self, batch: tuple, omega: float) -> torch.Tensor:
+        if self._il_rewarder is None or np.isclose(omega, 0.0):
             il_loss = torch.tensor(0.0, device=self._device)
             il_loss_norm = il_loss
         elif isinstance(self._il_rewarder, MBC):
@@ -274,8 +289,7 @@ class SAC(Agent):
         batch: tuple,
         updates: int,
         expert_obs: Optional[List] = None,
-        update_value_only=False,
-        omega_zero_mask=False,
+        update_value_only: bool = False,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -286,11 +300,10 @@ class SAC(Agent):
         `updates` -> the number of updates.
         `expert_obs` -> the expert observations.
         `update_value_only` -> whether to update the value function only.
-        `omega_zero_mask` -> whether to mask omega as zero for this update.
 
         Returns
         -------
-        A dict reporting:
+        A dict reporting (all followed by the `logs_suffix`):
         - "reward/mean"
         - "q-value/mean"
         - "loss/critic"
@@ -377,30 +390,16 @@ class SAC(Agent):
 
         q_value = self.get_value(state_batch, pi)
 
-        omega = self._get_omega(self._omega_scheduler.value, omega_zero_mask)
-        if omega < 1.0:
-            rl_loss = (self._alpha * log_pi) - q_value
-            if self._rl_norm is not None:
-                rl_loss_norm = self._rl_norm(rl_loss)
-            else:
-                rl_loss_norm = rl_loss
-        else:
-            rl_loss = torch.tensor(0.0, device=self._device)
-            rl_loss_norm = rl_loss
+        # Compute the loss
+        omega = self._omega_scheduler.value
+        rl_loss, rl_loss_norm = self._get_rl_loss(log_pi, q_value, omega)
         # vae_loss = torch.tensor(0.0, device=self._device)
         # if isinstance(self._rl_rewarder, SAIL):
         #     vae_loss = self._rl_rewarder.get_vae_loss(
         #         state_batch, marker_batch, policy_mean
         #     )
         #     rl_loss += vae_loss
-
-        # Imitation loss term (alike in the TD3+BC paper)
-        if omega > 0.0:
-            il_loss, il_loss_norm = self._get_il_loss(batch)
-        else:
-            il_loss = torch.tensor(0.0, device=self._device)
-            il_loss_norm = il_loss
-
+        il_loss, il_loss_norm = self._get_il_loss(batch, omega)
         policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
 
         # Update the policy
@@ -432,20 +431,21 @@ class SAC(Agent):
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
         # TODO: we could include also the "reward/reinforcement_mean" and "reward/imitation_mean" if we are using a dual rewarder
         return {
-            "reward/mean": reward_batch.mean().item(),
-            # "reward/absorbing_mean": absorbing_rewards.item(),
-            "q-value/mean": q_value.mean().item(),
-            "loss/critic": qf_loss.item(),
-            "loss/policy_mean": policy_loss.item(),
-            "loss/reinforcement_norm_mean": rl_loss_norm.mean().item(),
-            "loss/imitation_norm_mean": il_loss_norm.mean().item(),
-            "loss/reinforcement_mean": rl_loss.mean().item(),
-            "loss/imitation_mean": il_loss.mean().item(),
-            "loss/alpha": alpha_loss.item(),
-            # "loss/vae": vae_loss.item(),
-            "entropy/alpha": alpha_tlogs.item(),
-            "entropy/entropy": entropy,
-            "entropy/action_std": std,
+            "reward/mean" + self.logs_suffix: reward_batch.mean().item(),
+            # "reward/absorbing_mean" + self.logs_suffix: absorbing_rewards.item(),
+            "q-value/mean" + self.logs_suffix: q_value.mean().item(),
+            "loss/critic" + self.logs_suffix: qf_loss.item(),
+            "loss/policy_mean" + self.logs_suffix: policy_loss.item(),
+            "loss/reinforcement_norm_mean"
+            + self.logs_suffix: rl_loss_norm.mean().item(),
+            "loss/imitation_norm_mean" + self.logs_suffix: il_loss_norm.mean().item(),
+            "loss/reinforcement_mean" + self.logs_suffix: rl_loss.mean().item(),
+            "loss/imitation_mean" + self.logs_suffix: il_loss.mean().item(),
+            "loss/alpha" + self.logs_suffix: alpha_loss.item(),
+            # "loss/vae" + self.logs_suffix: vae_loss.item(),
+            "entropy/alpha" + self.logs_suffix: alpha_tlogs.item(),
+            "entropy/entropy" + self.logs_suffix: entropy,
+            "entropy/action_std" + self.logs_suffix: std,
         }
 
     # Return a dictionary containing the model state for saving
