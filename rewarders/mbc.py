@@ -199,10 +199,6 @@ class MBC(Rewarder):
         `gamma` -> the discount factor in the Q-value formula.
         """
 
-        assert (
-            len(prev_morphos) > 0
-        ), "Must have at least one previous morphology to co-adapt."
-
         feats_batch = torch.FloatTensor(batch[0]).to(self._device)
         action_batch = torch.FloatTensor(batch[1]).to(self._device)
         reward_batch = torch.FloatTensor(batch[2]).to(self._device).unsqueeze(1)
