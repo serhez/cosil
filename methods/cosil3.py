@@ -707,7 +707,7 @@ class CoSIL2(object):
             morpho_episode = new_morpho_episode
 
         # TODO: Remove
-        torch.save(self.morphos, "data/morphos/experiment_morphos.pt")
+        # torch.save(self.morphos, "data/morphos/experiment_morphos.pt")
 
         return self.ind_agent, self.env.morpho_params
 
