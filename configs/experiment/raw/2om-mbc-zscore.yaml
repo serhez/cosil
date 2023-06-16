@@ -27,7 +27,7 @@ method:
   # Variables
   transfer: true
   omega_init: 0.2
-  normalization_type: zscore
+  normalization_type: z_score
   normalization_mode: min
   normalization_gamma: 100.0
   normalization_beta: 0.0
