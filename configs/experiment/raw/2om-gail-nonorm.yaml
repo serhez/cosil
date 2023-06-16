@@ -1,0 +1,40 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: sac
+  - override /method/rewarder: gail  # variable
+
+method:
+  replay_buffer_path: null
+  pretrain: false
+  pretrain_path: null
+  optimized_demonstrator: true
+  dual_mode: loss_term
+  omega_scheduler: constant
+  num_episodes: 175
+  episodes_per_morpho: 50
+  morpho_warmup: 0
+  start_steps: 10000
+  disc_warmup: 20000
+  agent:
+    alpha: 0.05
+    automatic_entropy_tuning: false
+  co_adaptation:
+    morphos_path: data/morphos/experiment_morphos_bo.pt
+
+  # Variables
+  transfer: true
+  omega_init: 0.2
+  normalization_type: none
+  normalization_mode: min
+  normalization_gamma: 100.0
+  normalization_beta: 0.0
+  normalization_low_clip: null
+  normalization_high_clip: null
+
+logger:
+  group_name: "raw"
+  experiment_name: "2om-gail-nonorm"
+  loggers: console,file,wandb

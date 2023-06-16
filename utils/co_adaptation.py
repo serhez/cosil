@@ -506,7 +506,7 @@ def bo_step(config, morphos, num_morpho, pos_train_distances, env):
         :, 0
     ][-prev_morphos_to_consider:]
     Y = (
-        np.array(pos_train_distances)
+        np.array(pos_train_distances)  # FIX: this should be the reward from env
         .reshape(-1, config.method.episodes_per_morpho)
         .mean(1, keepdims=True)[-prev_morphos_to_consider:]
     )

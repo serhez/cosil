@@ -12,10 +12,11 @@ from omegaconf import DictConfig
 from agents import SAC
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import ConstantScheduler
-from config import GAILConfig, SAILConfig, setup_config
+from config import setup_config
 from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
 from rewarders import GAIL, MBC, SAIL, DualRewarder, EnvReward, Rewarder
 from utils import dict_add, dict_div
+from utils.rl import get_markers_by_ep
 
 
 def train(
@@ -42,39 +43,14 @@ def train(
     start = time.time()
     log_dict, logged = {}, 0
 
-    # all_batch = replay_buffer.sample(len(replay_buffer))
-    # all_batch = (
-    #     torch.FloatTensor(all_batch[0]).to(config.device),
-    #     torch.FloatTensor(all_batch[1]).to(config.device),
-    #     torch.FloatTensor(all_batch[2]).to(config.device).unsqueeze(1),
-    #     torch.FloatTensor(all_batch[3]).to(config.device),
-    #     torch.FloatTensor(all_batch[4]).to(config.device).unsqueeze(1),
-    #     torch.FloatTensor(all_batch[5]).to(config.device).unsqueeze(1),
-    #     torch.FloatTensor(all_batch[6]).to(config.device),
-    #     torch.FloatTensor(all_batch[7]).to(config.device),
-    # )
+    demos = get_markers_by_ep(replay_buffer.all(), 1000, config.device)
 
     for step in range(config.updates):
         # Train the rewarders
+        # BUG: The batch should be from a new morphology (we would need to take steps in the env)
         batch = replay_buffer.sample(config.rewarder_batch_size)
         for rewarder in rewarders:
-            # expert_obs_np, self.to_match = get_marker_info(
-            #     info,
-            #     self.policy_legs,
-            #     self.policy_limb_indices,
-            #     pos_type=self.config.method.pos_type,
-            #     vel_type=self.config.method.vel_type,
-            #     torso_type=self.config.method.torso_type,
-            #     head_type=self.config.method.head_type,
-            #     head_wrt=self.config.method.head_wrt,
-            # )
-            # self.imitation_buffer.push(
-            #     [
-            #         torch.from_numpy(x).float().to(self.device)
-            #         for x in expert_obs_np
-            #     ]
-            # )
-            rewarder.train(batch, None)
+            rewarder.train(batch, demos)
 
         # Train the agent
         batch = replay_buffer.sample(config.batch_size)

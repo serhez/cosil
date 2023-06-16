@@ -1,0 +1,30 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: sac
+  - override /method/rewarder: mbc
+
+seed: 73546
+
+method:
+  normalization_type: none
+  transfer: false
+  optimized_demonstrator: false
+  dual_mode: loss_term
+  omega_init: 0.0
+  omega_scheduler: constant
+  num_episodes: 155
+  episodes_per_morpho: 15
+  morpho_warmup: 0
+  start_steps: 0
+  disc_warmup: 0
+  co_adaptation:
+    dist_optimizer: bo
+
+logger:
+  group_name: "test"
+  experiment_name: "gen_morphos"
+  loggers: console

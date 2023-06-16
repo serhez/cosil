@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import torch
 from torch import nn
@@ -70,7 +72,11 @@ def train_wgan_critic(opt, critic, expert_obs: list, batch, use_transitions=True
 
 
 def train_disc(
-    opt, disc: Discriminator, expert_obs: torch.Tensor, batch, use_transitions=False
+    opt,
+    disc: Discriminator,
+    expert_obs: List[torch.Tensor],
+    batch,
+    use_transitions=False,
 ):
     opt.zero_grad()
     disc.train()

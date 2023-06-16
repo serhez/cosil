@@ -3,7 +3,7 @@ import os
 import random
 import time
 from collections import deque
-from typing import Any, List
+from typing import Any
 
 import cma
 import gym
@@ -18,7 +18,7 @@ from common.observation_buffer import ObservationBuffer, multi_sample
 from common.schedulers import ConstantScheduler, create_scheduler
 from loggers import Logger
 from normalizers import create_normalizer
-from rewarders import GAIL, MBC, SAIL, DualRewarder, EnvReward, create_rewarder
+from rewarders import GAIL, MBC, SAIL, DualRewarder, create_rewarder
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
     bo_step,
@@ -28,6 +28,7 @@ from utils.co_adaptation import (
     optimize_morpho_params_pso,
     rs_step,
 )
+from utils.rl import get_markers_by_ep
 
 
 # TODO: Encapsulate the morphology in a class
@@ -54,22 +55,35 @@ class CoSIL2(object):
         # The set of morphologies used by the agent over time
         self.morphos: list[np.ndarray] = []
 
+        # Is the current morpho optimized or random?
         self.optimized_morpho = True
-        if self.config.method.fixed_morpho is not None:
-            self.logger.info(f"Fixing morphology to {self.config.method.fixed_morpho}")
-            self.env.set_task(*self.config.method.fixed_morpho)
-            self.morphos.append(self.config.method.fixed_morpho)
-        elif self.config.method.co_adapt:
-            morpho_params = self.morpho_dist.sample().cpu().numpy()
+        self.loaded_morphos = []
+        if self.config.method.co_adaptation.morphos_path is not None:
+            self.loaded_morphos = torch.load(
+                self.config.method.co_adaptation.morphos_path
+            )
+            self.logger.info(
+                {
+                    "Loaded pre-defined morphologies": None,
+                    "Path": self.config.method.co_adaptation.morphos_path,
+                    "Number of morphologies": len(self.loaded_morphos),
+                }
+            )
+        if self.config.method.co_adapt:
+            if self.loaded_morphos:
+                morpho_params = self.loaded_morphos.pop(0)
+            else:
+                morpho_params = self.morpho_dist.sample().cpu().numpy()
             self.env.set_task(*morpho_params)
             self.morphos.append(morpho_params)
             self.optimized_morpho = False
 
         self.morpho_params_np = np.array(self.env.morpho_params)
+        self.logger.info(f"Initial morphology is {self.morpho_params_np}")
         self.num_morpho = self.env.morpho_params.shape[0]
 
         self.batch_size = self.config.method.batch_size
-        self.ind_replay_weight = self.config.method.ind_replay_weight
+        self.replay_weight = self.config.method.replay_weight
         self.replay_buffer = ObservationBuffer(
             self.config.method.replay_capacity,
             self.config.method.replay_dim_ratio,
@@ -91,7 +105,7 @@ class CoSIL2(object):
                 }
             )
             self.replay_buffer.replace(obs_list)
-            self.demos = self._get_markers_by_ep(self.replay_buffer.all(), 1000)
+            self.demos = get_markers_by_ep(self.replay_buffer.all(), 1000, self.device)
             self.morphos = data["morpho"]
 
         self.initial_states_memory = []
@@ -192,10 +206,20 @@ class CoSIL2(object):
             rl_norm = None
             il_norm = None
 
-        # Create the rewarders
-        self.rl_rewarder = EnvReward(config.device, rl_norm, config.method.sparse_mask)
+        # Create the RL and IL rewarders
+        self.logger.info("Using RL rewarder env")
+        self.rl_rewarder = create_rewarder(
+            "env",
+            config,
+            self.logger,
+            self.env,
+            self.demo_dim,
+            self.bounds,
+            rl_norm,
+        )
+        self.logger.info(f"Using IL rewarder {config.method.rewarder.name}")
         self.il_rewarder = create_rewarder(
-            config.method.transfer_rewarder,
+            config.method.rewarder.name,
             config,
             self.logger,
             self.env,
@@ -205,12 +229,6 @@ class CoSIL2(object):
         )
         self.rewarder_batch_size = self.config.method.rewarder.batch_size
 
-        # We reset after `episodes_per_morpho` episodes if we are co-adapting and resetting omega.
-        # This reset is done automatically by the schedulers using the `T_0` parameter.
-        # If we are not co-adapting or not resetting omega, then we calculate the schedulers'
-        # hyper-parameters using an episode horizon equal to `num_episodes`.
-        # Note that the `morpho_warmup` episodes don't matter towards the reset, as we still
-        # change the morphology (even if it's randomly) during the warmup.
         if not self.config.method.transfer or not self.config.method.co_adapt:
             self.config.method.omega_scheduler = "constant"
             self.config.method.omega_init = 0.0
@@ -226,45 +244,44 @@ class CoSIL2(object):
             0.0,
         )
 
-        # TODO: Support dual-Q mode and other agents
-        self.logger.info(f"Using agent {config.method.agent.name}")
-        common_args = [
-            self.config,
-            self.logger,
-            self.env.action_space,
-            self.obs_size + self.num_morpho
-            if config.morpho_in_state
-            else self.obs_size,
-            self.num_morpho,
-            self.rl_rewarder,
-        ]
-        self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
-        self.ind_agent = SAC(
-            *common_args, self.il_rewarder, self.omega_scheduler, "ind"
-        )
+        if config.method.agent.name == "sac":
+            self.logger.info("Using agent SAC")
+            common_args = [
+                self.config,
+                self.logger,
+                self.env.action_space,
+                self.obs_size + self.num_morpho
+                if config.morpho_in_state
+                else self.obs_size,
+                self.num_morpho,
+                self.rl_rewarder,
+            ]
+            self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
+            self.ind_agent = SAC(
+                *common_args, self.il_rewarder, self.omega_scheduler, "ind"
+            )
+        else:
+            raise ValueError("Invalid agent")
 
         # SAIL includes a pretraining step for the VAE and inverse dynamics
-        if isinstance(self.il_rewarder, SAIL):
-            self.vae_loss = self.il_rewarder.pretrain_vae(self.expert_obs, 10000)
+        if isinstance(self.rl_rewarder, SAIL):
+            self.vae_loss = self.rl_rewarder.pretrain_vae(self.expert_obs, 10000)
             if not self.config.resume:
-                self.il_rewarder.g_inv_loss = self._pretrain_sail(
-                    self.il_rewarder, co_adapt=self.config.method.co_adapt
+                self.rl_rewarder.g_inv_loss = self._pretrain_sail(
+                    self.rl_rewarder, co_adapt=self.config.method.co_adapt
                 )
 
         if config.resume is not None:
             if self._load(self.config.resume):
                 self.logger.info(
                     {
-                        "Resumming CoSIL2": None,
+                        "Resumming CoIL": None,
                         "File": self.config.resume,
                         "Num transitions": len(self.replay_buffer),
                     },
                 )
             else:
                 raise ValueError(f"Failed to load {self.config.resume}")
-
-    def _get_markers_by_ep(self, obs: tuple, ep_len: int) -> List[torch.Tensor]:
-        return np.split(obs[6], ep_len)
 
     def load_pretrained(self, path: str) -> None:
         self.logger.info(f"Loading pretrained agent and rewarders from {path}")
@@ -284,85 +301,18 @@ class CoSIL2(object):
             elif isinstance(rewarder, SAIL):
                 rewarder.load(data["sail"])
 
-    def pretrain(self):
-        self.logger.info(
-            "Pre-training the agent and the rewarders using a pre-filled buffer"
-        )
-
-        start = time.time()
-        log_dict, logged = {}, 0
-
-        for step in range(self.config.method.pretrain_updates):
-            # Train the rewarder
-            batch = self.replay_buffer.sample(self.rewarder_batch_size)
-            disc_loss, expert_probs, policy_probs = self.rl_rewarder.train(
-                batch, self.demos
-            )
-
-            # Train the population agent
-            batch = self.replay_buffer.sample(self.rewarder_batch_size)
-            new_log = self.pop_agent.update_parameters(
-                batch, self.pop_updates, self.demos
-            )
-            new_log.update(
-                {
-                    "loss/disc_loss": disc_loss,
-                    "probs/expert_disc": expert_probs,
-                    "probs/policy_disc": policy_probs,
-                }
-            )
-
-            if step % 1000 == 0:
-                self.logger.info(
-                    {
-                        "Pre-training step": step,
-                        "Policy loss": new_log["loss/policy_mean"],
-                        "Critic loss": new_log["loss/critic"],
-                        "Discriminator loss": disc_loss,
-                    },
-                )
-
-            dict_add(log_dict, new_log)
-            logged += 1
-            self.pop_updates += 1
-
-        # Copy the state of the population agent to the individual agent
-        self.ind_agent.load(self.pop_agent.get_model_dict())
-        self.ind_updates = self.pop_updates
-
-        dict_div(log_dict, logged)
-
-        took = time.time() - start
-        log_dict["general/episode_time"] = took
-        log_dict["general/total_updates"] = self.config.method.pretrain_updates
-        self.logger.info(
-            {
-                "Pre-training": None,
-                "Num. updates": self.config.method.pretrain_updates,
-                "Took": took,
-            },
-        )
-
-        return log_dict
-
     def train(self):
         self.adapt_morphos = []
         self.distances = []
         self.pos_train_distances = []
         self.optimized_or_not = [False]
-        did_co_adapt_mbc = False
-
-        if self.config.method.pretrain_path is not None:
-            self.load_pretrained(self.config.method.pretrain_path)
-        elif len(self.replay_buffer) > self.batch_size and self.config.method.pretrain:
-            # If we have enough transitions in the buffer, we pretrain the agent and the rewarder
-            # and perform transfer learning
-            self.pretrain()
 
         # Compute the mean distance between expert demonstrations
         # This is "demonstrations" in the paper plots
         pos_baseline_distance = 0
         vel_baseline_distance = 0
+
+        did_co_adapt_mbc = False
 
         if len(self.expert_obs) > 1:
             num_comp = 0
@@ -401,6 +351,7 @@ class CoSIL2(object):
             es_buffer = None
 
         # Main loop
+        # NOTE: We begin counting the episodes at 1, not 0
         episode = 1
         morpho_episode = 1
         while episode <= self.config.method.num_episodes:
@@ -410,15 +361,13 @@ class CoSIL2(object):
                 self.env.set_task(*self.morpho_params_np)
 
             episode_reward = 0
-            episode_updates = 0
             episode_steps = 0
-            episode_steps_without_update = 0
+            episode_updates = 0
             log_dict, logged = {}, 0
             done = False
             state, _ = self.env.reset()
-
             # Compute marker state phi(s) in paper
-            marker, self.to_match = get_marker_info(
+            marker_obs, self.to_match = get_marker_info(
                 self.env.get_track_dict(),
                 self.policy_legs,
                 self.policy_limb_indices,
@@ -429,14 +378,18 @@ class CoSIL2(object):
                 head_wrt=self.config.method.head_wrt,
             )
 
-            feats = state
             if self.config.morpho_in_state:
-                feats = np.concatenate([feats, self.env.morpho_params])
-            if self.absorbing_state:
-                feats = np.concatenate([feats, np.zeros(1)])
-            self.initial_states_memory.append(feats)
+                # Morphology parameters xi are included in the state
+                feats = np.concatenate([state, self.env.morpho_params])
+            else:
+                feats = state
 
-            train_marker_history = []
+            if self.absorbing_state:
+                self.initial_states_memory.append(np.concatenate([feats, np.zeros(1)]))
+            else:
+                self.initial_states_memory.append(feats)
+
+            train_marker_obs_history = []
             (
                 disc_loss,
                 expert_probs,
@@ -461,51 +414,23 @@ class CoSIL2(object):
 
                 # Sample action from policy
                 else:
+                    if self.config.morpho_in_state:
+                        feats = np.concatenate([state, self.env.morpho_params])
+                    else:
+                        feats = state
+
+                    if self.absorbing_state:
+                        feats = np.concatenate([feats, np.zeros(1)])
+
                     action = self.ind_agent.select_action(feats)
 
-                # Environment step
-                next_state, reward, terminated, truncated, info = self.env.step(action)
-                done = terminated or truncated
-                episode_steps += 1
-                episode_steps_without_update += 1
-                self.total_numsteps += 1
-
-                # Update when we have enough observations in the buffers
-                if (
-                    len(self.current_buffer) >= self.batch_size
-                    and self.total_numsteps > self.config.method.disc_warmup
-                ):
-                    # The number of updates depends on the number of steps we have taken
-                    # so far in the episode without updating
-                    # In the transfer case, n_updates = updates_per_step * total_episode_steps
-                    n_updates = (
-                        self.config.method.updates_per_step
-                        * episode_steps_without_update
-                    )
-                    episode_steps_without_update = 0
-
-                    # Allow the MBC rewarder to find the optimal morphology to match
-                    # (i.e., the demonstrator).
-                    if (
-                        self.config.method.transfer
-                        and isinstance(self.il_rewarder, MBC)
-                        and not did_co_adapt_mbc
-                    ):
-                        self.logger.info("Co-adapting MBC rewarder")
-                        all_batch = self.current_buffer.all()
-                        self.il_rewarder.co_adapt(
-                            all_batch,
-                            self.batch_size,
-                            self.morphos,
-                            self.ind_agent._critic,
-                            self.ind_agent._policy,
-                            self.ind_agent._gamma,
-                        )
-                        did_co_adapt_mbc = True
-
-                    for _ in range(n_updates):
+                if len(self.current_buffer) >= self.batch_size:
+                    for _ in range(self.config.method.updates_per_step):
                         # Rewarder (i.e., discriminator) update
-                        if len(self.current_buffer) > self.rewarder_batch_size:
+                        if (
+                            len(self.current_buffer) >= self.rewarder_batch_size
+                            and len(self.demos) > 0
+                        ):
                             batch = self.current_buffer.sample(self.rewarder_batch_size)
                             (
                                 disc_loss,
@@ -513,71 +438,105 @@ class CoSIL2(object):
                                 policy_probs,
                             ) = self.il_rewarder.train(batch, self.demos)
 
-                        # Train the individual agent
-                        replay_ratio = self.ind_replay_weight
-                        if len(self.replay_buffer) < self.batch_size:
-                            replay_ratio = 0.0
-                        batch = multi_sample(
-                            self.batch_size,
-                            [self.replay_buffer, self.current_buffer],
-                            [replay_ratio, 1 - replay_ratio],
-                        )
-                        new_log = self.ind_agent.update_parameters(
-                            batch,
-                            self.ind_updates,
-                            self.demos,
-                        )
-                        new_log.update(
-                            {
-                                "loss/disc_loss": disc_loss,
-                                "loss/disc_gradient_penalty": gradient_penalty,
-                                "loss/g_inv_loss": self.g_inv_loss,
-                                "probs/expert_disc": expert_probs,
-                                "probs/policy_disc": policy_probs,
-                            }
-                        )
+                        # Policy update
+                        if self.total_numsteps > self.config.method.disc_warmup:
+                            # Allow the MBC rewarder to find the optimal morphology to match
+                            # (i.e., the demonstrator).
+                            if (
+                                self.config.method.transfer
+                                and isinstance(self.il_rewarder, MBC)
+                                and not did_co_adapt_mbc
+                            ):
+                                self.logger.info("Co-adapting MBC rewarder")
+                                all_batch = self.current_buffer.all()
+                                self.il_rewarder.co_adapt(
+                                    all_batch,
+                                    self.batch_size,
+                                    self.morphos[:-1],
+                                    self.ind_agent._critic,
+                                    self.ind_agent._policy,
+                                    self.ind_agent._gamma,
+                                )
+                                did_co_adapt_mbc = True
 
-                        dict_add(log_dict, new_log)
-                        logged += 1
-                        episode_updates += 1
-                        self.ind_updates += 1
+                            # Train the individual agent
+                            replay_ratio = self.replay_weight
+                            if len(self.replay_buffer) < self.batch_size:
+                                replay_ratio = 0.0
+                            batch = multi_sample(
+                                self.batch_size,
+                                [self.replay_buffer, self.current_buffer],
+                                [replay_ratio, 1 - replay_ratio],
+                            )
+                            new_log = self.ind_agent.update_parameters(
+                                batch, self.ind_updates, self.demos
+                            )
+                            new_log.update(
+                                {
+                                    "loss/disc_loss": disc_loss,
+                                    "loss/disc_gradient_penalty": gradient_penalty,
+                                    "loss/g_inv_loss": self.g_inv_loss,
+                                    "probs/expert_disc": expert_probs,
+                                    "probs/policy_disc": policy_probs,
+                                }
+                            )
+
+                            dict_add(log_dict, new_log)
+                            logged += 1
+                            episode_updates += 1
+                            self.ind_updates += 1
+
+                # Environment step
+                next_state, reward, terminated, truncated, info = self.env.step(action)
+                done = terminated or truncated
 
                 # phi(s)
-                next_marker, _ = get_marker_info(
+                next_marker_obs, _ = get_marker_info(
                     info,
                     self.policy_legs,
-                    self.policy_limb_indices,
+                    self.policy_limb_indices,  # NOTE: Do we need to get the markers for the next state?
                     pos_type=self.config.method.pos_type,
                     vel_type=self.config.method.vel_type,
                     torso_type=self.config.method.torso_type,
                     head_type=self.config.method.head_type,
                     head_wrt=self.config.method.head_wrt,
                 )
-                if x_pos_history is not None:
-                    x_pos_history.append(next_marker[x_pos_index])
-                train_marker_history.append(marker)
 
+                if x_pos_history is not None:
+                    x_pos_history.append(
+                        next_marker_obs[x_pos_index]
+                    )  # NOTE: What is this? -> only used for plotting
+
+                train_marker_obs_history.append(marker_obs)
+
+                episode_steps += 1
+                self.total_numsteps += 1
                 # Change reward to remove action penalty
-                reward = info["reward_run"]
+                reward = info[
+                    "reward_run"
+                ]  # NOTE: Why are we removing the action penalty?
                 episode_reward += reward
 
                 # Ignore the "done" signal if it comes from hitting the time horizon.
+                # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
+                # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when
+                # the episode is done, as well as meaning "done" for `self.memory.push()`
                 mask = (
                     1
                     if episode_steps == self.env._max_episode_steps
                     else float(not done)
                 )
+
                 if self.config.method.omit_done:
                     mask = 1.0
 
-                # Add the morphology parameters to the state
-                feats = state
-                next_feats = next_state
                 if self.config.morpho_in_state:
-                    feats = np.concatenate([feats, self.env.morpho_params])
-                    next_feats = np.concatenate([next_feats, self.env.morpho_params])
+                    feats = np.concatenate([state, self.env.morpho_params])
+                    next_feats = np.concatenate([next_state, self.env.morpho_params])
+                else:
+                    feats = state
+                    next_feats = next_state
 
-                # Add the observation to the buffers
                 if self.absorbing_state:
                     obs_list = handle_absorbing(
                         feats,
@@ -585,8 +544,8 @@ class CoSIL2(object):
                         reward,
                         next_feats,
                         mask,
-                        marker,
-                        next_marker,
+                        marker_obs,
+                        next_marker_obs,
                         self.obs_size,
                     )
                     for obs in obs_list:
@@ -599,20 +558,21 @@ class CoSIL2(object):
                         next_feats,
                         mask,
                         mask,
-                        marker,
-                        next_marker,
+                        marker_obs,
+                        next_marker_obs,
                         self.env.morpho_params,
                     )
                     self.current_buffer.push(obs)
 
                 state = next_state
-                marker = next_marker
+                marker_obs = next_marker_obs
 
                 epsilon -= 1.0 / 1e6
 
             # Logging
             dict_div(log_dict, logged)
-            train_marker_history = np.stack(train_marker_history)
+            start_t = time.time()
+            train_marker_obs_history = np.stack(train_marker_obs_history)
 
             # Compare Wasserstein distance of episode to all demos
             all_demos = torch.cat(self.expert_obs).cpu().numpy()
@@ -620,75 +580,55 @@ class CoSIL2(object):
                 all_demos = all_demos[:, :-1]
 
             pos_train_distance, vel_train_distance = compute_distance(
-                train_marker_history, all_demos, self.to_match
+                train_marker_obs_history, all_demos, self.to_match
             )
             train_distance = pos_train_distance + vel_train_distance
             self.adapt_morphos.append(self.env.morpho_params.flatten())
             self.distances.append(train_distance)
             self.pos_train_distances.append(pos_train_distance)
 
+            self.logger.info(
+                {
+                    "Train distance": train_distance,
+                    "Baseline distance": pos_baseline_distance + vel_baseline_distance,
+                    "Took": time.time() - start_t,
+                },
+            )
             if x_pos_history is not None:
                 log_dict["xpos"] = wandb.Histogram(np.stack(x_pos_history))
-
-            # Save best models
-            if self.config.method.save_optimal and episode_reward > prev_best_reward:
-                self._save("optimal")
-                prev_best_reward = episode_reward
-                self.logger.info(f"New best reward: {episode_reward}")
-
-            took = time.time() - start
-
-            # Logs
             log_dict["distr_distances/pos_train_distance"] = pos_train_distance
             log_dict["distr_distances/vel_train_distance"] = vel_train_distance
             log_dict["distr_distances/pos_baseline_distance"] = pos_baseline_distance
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
-            log_dict["reward/env_total"] = episode_reward
+            log_dict["buffers/replay_size"] = len(self.replay_buffer)
+            log_dict["buffers/current_size"] = len(self.current_buffer)
             log_dict["general/episode_steps"] = episode_steps
             log_dict["general/episode_updates"] = episode_updates
-            log_dict["general/episode_time"] = took
-            log_dict["buffers/replay_size"] = len(self.replay_buffer)
-            log_dict["buffers/transfer_size"] = len(self.current_buffer)
             log_dict["general/omega"] = self.omega_scheduler.value
             log_dict["general/total_steps"] = self.total_numsteps
-            self.logger.info(log_dict, ["console"])
-            log_dict, logged = {}, 0
-
-            self.logger.info(
-                {
-                    "Episode": episode,
-                    "Morpho episode": morpho_episode,
-                    "Reward": episode_reward,
-                    "Steps": episode_steps,
-                    "Updates": episode_updates,
-                    "Replay buffer": len(self.replay_buffer),
-                    "Current buffer": len(self.current_buffer),
-                    "Omega": self.omega_scheduler.value,
-                    "Took": took,
-                },
-            )
-
-            # Evaluation episodes
-            if (
-                self.config.method.eval
-                and episode % self.config.method.eval_per_episodes == 0
-            ):
-                self._evaluate(episode, log_dict)
-                train_marker_history = []
+            morpho_log = {}
+            for i in range(len(self.morpho_params_np)):
+                morpho_log[f"morpho/param_{i}"] = self.morpho_params_np[i]
+            log_dict.update(morpho_log)
 
             # Morphology evolution
-            morpho_episode += 1
+            new_morpho_episode = morpho_episode + 1
+            optimized_morpho_params = None
             if self.config.method.co_adapt and (
                 episode % self.config.method.episodes_per_morpho == 0
             ):
                 # Adapt the morphology using the specified optimizing method
                 self.logger.info("Adapting morphology")
-                self._adapt_morphology(epsilon, es, es_buffer, log_dict)
+                optimized_morpho_params = self._adapt_morphology(
+                    epsilon, es, es_buffer, log_dict
+                )
 
                 # Copy the contents of the current buffer to the replay buffer
                 # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
-                self.demos = self._get_markers_by_ep(self.replay_buffer.all(), 1000)
+                self.demos = get_markers_by_ep(
+                    self.replay_buffer.all(), 1000, self.device
+                )
                 self.current_buffer.clear()
 
                 # Train the population agent
@@ -722,13 +662,168 @@ class CoSIL2(object):
                 self.ind_updates = self.pop_updates
 
                 # Reset counters and flags
-                morpho_episode = 1
+                new_morpho_episode = 1
                 did_co_adapt_mbc = False
+
+            log_dict["reward/env_total"] = episode_reward
+
+            if self.config.method.save_optimal and episode_reward > prev_best_reward:
+                self._save("optimal")
+                prev_best_reward = episode_reward
+                self.logger.info(f"New best reward: {episode_reward}")
+
+            took = time.time() - start
+            log_dict["general/episode_time"] = took
+
+            self.logger.info(
+                {
+                    "Episode": episode,
+                    "Morpho episode": morpho_episode,
+                    "Reward": episode_reward,
+                    "Steps": episode_steps,
+                    "Updates": episode_updates,
+                    "Replay buffer": len(self.replay_buffer),
+                    "Current buffer": len(self.current_buffer),
+                    "Omega": self.omega_scheduler.value,
+                    "Took": took,
+                },
+            )
+
+            # Evaluation episodes
+            # Also used to make plots
+            if (
+                self.config.method.eval
+                and episode % self.config.method.eval_per_episodes == 0
+            ):
+                self._evaluate(episode, optimized_morpho_params, log_dict)
+                train_marker_obs_history = []
+
+            log_dict["general/total_steps"] = self.total_numsteps
+            self.logger.info(log_dict, ["console"])
+            log_dict, logged = {}, 0
 
             self.omega_scheduler.step()
             episode += 1
+            morpho_episode = new_morpho_episode
+
+        # TODO: Remove
+        torch.save(self.morphos, "data/morphos/experiment_morphos.pt")
 
         return self.ind_agent, self.env.morpho_params
+
+    def _pretrain_sail(
+        self, sail: SAIL, co_adapt=True, steps=50000, save=False, load=False
+    ):
+        self.logger.info(f"Pretraining SAIL for {steps} steps")
+
+        g_inv_file_name = "pretrained_models/g_inv.pt"
+        policy_file_name = "pretrained_models/policy.pt"
+
+        if load:
+            if not os.path.exists(g_inv_file_name):
+                raise ValueError(
+                    f"Could not find pretrained G_INV at {g_inv_file_name}",
+                )
+            self.logger.info("Loading pretrained G_INV from disk")
+            sail.load_g_inv(g_inv_file_name)
+            return
+
+        marker_info_fn = lambda x: get_marker_info(
+            x,
+            self.policy_legs,
+            self.policy_limb_indices,
+            pos_type=self.config.method.pos_type,
+            vel_type=self.config.method.vel_type,
+            torso_type=self.config.method.torso_type,
+            head_type=self.config.method.head_type,
+            head_wrt=self.config.method.head_wrt,
+        )
+
+        memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
+        start_t = time.time()
+        step = 0
+        while step < steps:
+            if co_adapt:
+                morpho_params = self.morpho_dist.sample()
+                self.env.set_task(*morpho_params.cpu().numpy())
+
+            state, _ = self.env.reset()
+            if self.config.morpho_in_state:
+                state = np.concatenate([state, self.env.morpho_params])
+
+            marker_obs, _ = marker_info_fn(self.env.get_track_dict())
+            done = False
+
+            while not done:
+                action = self.env.action_space.sample()
+                next_state, reward, terminated, truncated, info = self.env.step(action)
+                done = terminated or truncated
+                next_marker_obs, _ = marker_info_fn(info)
+
+                if self.config.morpho_in_state:
+                    next_state = np.concatenate([next_state, self.env.morpho_params])
+
+                mask = 1.0
+
+                if self.absorbing_state:
+                    obs_list = handle_absorbing(
+                        state,
+                        action,
+                        reward,
+                        next_state,
+                        mask,
+                        marker_obs,
+                        next_marker_obs,
+                        self.obs_size,
+                    )
+                    for obs in obs_list:
+                        memory.push(obs + (self.env.morpho_params,))
+                else:
+                    memory.push(
+                        (
+                            state,
+                            action,
+                            reward,
+                            next_state,
+                            mask,
+                            mask,
+                            marker_obs,
+                            next_marker_obs,
+                            self.env.morpho_params,
+                        )
+                    )
+
+                state = next_state
+                marker_obs = next_marker_obs
+
+                step += 1
+
+            self.logger.info(
+                {
+                    "Steps": step,
+                    "Total steps": self.total_numsteps,
+                    "Took": time.time() - start_t,
+                },
+            )
+
+            start_t = time.time()
+
+        g_inv_loss = sail.pretrain_g_inv(memory, self.batch_size, n_epochs=300)
+        ind_policy_pretrain_loss = self.ind_agent.pretrain_policy(
+            sail, memory, self.batch_size, n_epochs=300
+        )
+        pop_policy_pretrain_loss = self.pop_agent.pretrain_policy(
+            sail, memory, self.batch_size, n_epochs=300
+        )
+        policy_pretrain_loss = (ind_policy_pretrain_loss + pop_policy_pretrain_loss) / 2
+
+        if save:
+            torch.save(sail.get_g_inv_dict(), g_inv_file_name)
+            torch.save(
+                self.ind_agent.get_model_dict()["policy_state_dict"], policy_file_name
+            )
+
+        return g_inv_loss, policy_pretrain_loss
 
     # Adapt morphology.
     # Different variants here based on algorithm used
@@ -742,10 +837,17 @@ class CoSIL2(object):
     ):
         optimized_morpho_params = None
 
-        if self.total_numsteps < self.config.method.morpho_warmup:
+        if self.loaded_morphos:
+            self.logger.info("Skipping morphology adaptation, using loaded morphology")
+            self.morpho_params_np = self.loaded_morphos.pop(0)
+            self.optimized_morpho = False
+
+        # Random sampling
+        elif self.total_numsteps < self.config.method.morpho_warmup:
             self.logger.info("Sampling morphology")
             morpho_params = self.morpho_dist.sample()
             self.morpho_params_np = morpho_params.cpu().numpy()
+            self.optimized_morpho = False
 
         # Bayesian optimization
         elif self.config.method.co_adaptation.dist_optimizer == "bo":
@@ -758,14 +860,6 @@ class CoSIL2(object):
                 self.env,
             )
             self.optimized_morpho = True
-            for j in range(len(self.morpho_params_np)):
-                log_dict[
-                    f"morpho_param_values/morpho_param_{j}"
-                ] = self.morpho_params_np[j]
-            for j in range(len(optimized_morpho_params)):
-                log_dict[f"morpho_exploit/morpho_param_{j}"] = optimized_morpho_params[
-                    j
-                ]
             self.logger.info(
                 {
                     "Morphology adaptation": "BO",
@@ -860,12 +954,6 @@ class CoSIL2(object):
                 self.morpho_params_np = morpho_params.detach().cpu().numpy()
                 log_dict["morpho/morpho_loss"] = morpho_loss
                 log_dict["morpho/grads_abs_sum"] = grads_abs_sum
-                log_dict["q_fn_scale"] = wandb.Image(fig)
-
-                for j in range(len(self.morpho_params_np)):
-                    log_dict[
-                        f"morpho_param_values/morpho_param_{j}"
-                    ] = self.morpho_params_np[j]
             else:
                 morpho_params = self.morpho_dist.sample()
                 self.morpho_params_np = morpho_params.cpu().numpy()
@@ -884,19 +972,20 @@ class CoSIL2(object):
             )
 
         self.optimized_or_not.append(self.optimized_morpho)
+
         # Set new morphology in environment
         self.env.set_task(*self.morpho_params_np)
         self.morphos.append(self.morpho_params_np)
 
-        self.logger.info(
-            {"Current morphology": self.env.morpho_params}, ["console", "wandb"]
-        )
+        self.logger.info({"Current morphology": self.env.morpho_params})
 
         return optimized_morpho_params
 
-    def _evaluate(self, i_episode: int, log_dict: dict[str, Any]):
+    def _evaluate(
+        self, i_episode: int, optimized_morpho_params, log_dict: dict[str, Any]
+    ):
         start = time.time()
-        test_marker_history = []
+        test_marker_obs_history = []
         avg_reward = 0.0
         avg_steps = 0
         episodes = self.config.method.eval_episodes
@@ -909,6 +998,9 @@ class CoSIL2(object):
             vid_path = f"videos/ep_{i_episode}.mp4"
             recorder = VideoRecorder(self.env, vid_path)
 
+        if self.config.method.co_adapt and optimized_morpho_params is not None:
+            self.env.set_task(*optimized_morpho_params)
+
         for test_ep in range(episodes):
             state, _ = self.env.reset()
             episode_reward = 0
@@ -918,9 +1010,11 @@ class CoSIL2(object):
                 recorder.capture_frame()
 
             while not done:
-                feats = state
                 if self.config.morpho_in_state:
-                    feats = np.concatenate([feats, self.env.morpho_params])
+                    feats = np.concatenate([state, self.env.morpho_params])
+                else:
+                    feats = state
+
                 if self.absorbing_state:
                     feats = np.concatenate([feats, np.zeros(1)])
 
@@ -932,7 +1026,7 @@ class CoSIL2(object):
                 if recorder is not None and test_ep == 0:
                     recorder.capture_frame()
 
-                marker, _ = get_marker_info(
+                marker_obs, _ = get_marker_info(
                     info,
                     self.policy_legs,
                     self.policy_limb_indices,
@@ -944,7 +1038,7 @@ class CoSIL2(object):
                 )
 
                 reward = info["reward_run"]
-                test_marker_history.append(marker)
+                test_marker_obs_history.append(marker_obs)
                 episode_reward += reward
 
                 state = next_state
@@ -976,12 +1070,12 @@ class CoSIL2(object):
 
         # Compute and log distribution distances
         start_t = time.time()
-        test_marker_history = np.stack(test_marker_history)
+        test_marker_obs_history = np.stack(test_marker_obs_history)
         short_exp_demos = torch.cat(self.expert_obs).cpu().numpy()
         if self.absorbing_state:
             short_exp_demos = short_exp_demos[:, :-1]
         pos_test_distance, vel_test_distance = compute_distance(
-            test_marker_history, short_exp_demos, self.to_match
+            test_marker_obs_history, short_exp_demos, self.to_match
         )
         log_dict["distr_distances/vel_test"] = vel_test_distance
         log_dict["distr_distances/pos_test"] = pos_test_distance
@@ -998,120 +1092,6 @@ class CoSIL2(object):
 
         if recorder is not None:
             recorder.close()
-
-    def _pretrain_sail(
-        self, sail: SAIL, co_adapt=True, steps=50000, save=False, load=False
-    ):
-        self.logger.info(f"Pretraining SAIL for {steps} steps")
-
-        g_inv_file_name = "pretrained_models/g_inv.pt"
-        policy_file_name = "pretrained_models/policy.pt"
-
-        if load:
-            if not os.path.exists(g_inv_file_name):
-                raise ValueError(
-                    f"Could not find pretrained G_INV at {g_inv_file_name}",
-                )
-            self.logger.info("Loading pretrained G_INV from disk")
-            sail.load_g_inv(g_inv_file_name)
-            return
-
-        marker_info_fn = lambda x: get_marker_info(
-            x,
-            self.policy_legs,
-            self.policy_limb_indices,
-            pos_type=self.config.method.pos_type,
-            vel_type=self.config.method.vel_type,
-            torso_type=self.config.method.torso_type,
-            head_type=self.config.method.head_type,
-            head_wrt=self.config.method.head_wrt,
-        )
-
-        memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
-        start_t = time.time()
-        step = 0
-        while step < steps:
-            if co_adapt:
-                morpho_params = self.morpho_dist.sample()
-                self.env.set_task(*morpho_params.cpu().numpy())
-
-            state, _ = self.env.reset()
-            if self.config.morpho_in_state:
-                state = np.concatenate([state, self.env.morpho_params])
-
-            marker, _ = marker_info_fn(self.env.get_track_dict())
-            done = False
-
-            while not done:
-                action = self.env.action_space.sample()
-                next_state, reward, terminated, truncated, info = self.env.step(action)
-                done = terminated or truncated
-                next_marker, _ = marker_info_fn(info)
-
-                if self.config.morpho_in_state:
-                    next_state = np.concatenate([next_state, self.env.morpho_params])
-
-                mask = 1.0
-
-                if self.absorbing_state:
-                    obs_list = handle_absorbing(
-                        state,
-                        action,
-                        reward,
-                        next_state,
-                        mask,
-                        marker,
-                        next_marker,
-                        self.obs_size,
-                    )
-                    for obs in obs_list:
-                        memory.push(obs + (self.env.morpho_params,))
-                else:
-                    memory.push(
-                        (
-                            state,
-                            action,
-                            reward,
-                            next_state,
-                            mask,
-                            mask,
-                            marker,
-                            next_marker,
-                            self.env.morpho_params,
-                        )
-                    )
-
-                state = next_state
-                marker = next_marker
-
-                step += 1
-
-            self.logger.info(
-                {
-                    "Steps": step,
-                    "Total steps": self.total_numsteps,
-                    "Took": time.time() - start_t,
-                },
-            )
-
-            start_t = time.time()
-
-        g_inv_loss = sail.pretrain_g_inv(memory, self.batch_size, n_epochs=300)
-        ind_policy_pretrain_loss = self.ind_agent.pretrain_policy(
-            sail, memory, self.batch_size, n_epochs=300
-        )
-        pop_policy_pretrain_loss = self.pop_agent.pretrain_policy(
-            sail, memory, self.batch_size, n_epochs=300
-        )
-        policy_pretrain_loss = (ind_policy_pretrain_loss + pop_policy_pretrain_loss) / 2
-
-        if save:
-            torch.save(sail.get_g_inv_dict(), g_inv_file_name)
-            torch.save(
-                self.ind_agent.get_model_dict()["policy_state_dict"], policy_file_name
-            )
-
-        return g_inv_loss, policy_pretrain_loss
 
     def _save(self, type="final"):
         if type == "final":
@@ -1151,14 +1131,12 @@ class CoSIL2(object):
 
             # TODO: These should be in the ObservationBuffer class
             self.replay_buffer.replace(model["buffer"])
-            self.demos = self._get_markers_by_ep(self.replay_buffer.all(), 1000)
             self.replay_buffer._position = (
                 len(self.replay_buffer._buffer) % self.replay_buffer.capacity
             )
 
             success &= self.rl_rewarder.load(model)
             success &= self.ind_agent.load(model)
-            success &= self.pop_agent.load(model)
 
             self.env.set_task(*model["morpho_dict"])
             self.morphos.append(model["morpho_dict"])

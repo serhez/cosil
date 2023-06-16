@@ -178,6 +178,17 @@ class ObservationBuffer:
         else:
             self._push_impl(observations)
 
+    def all(self) -> Tuple[Any, ...]:
+        """
+        Returns all the observations in the buffer.
+
+        Returns
+        ----------
+        A tuple of all the observations in the buffer.
+        """
+
+        return tuple(map(np.stack, zip(*self._buffer)))
+
     def sample(self, n: int = 1) -> Tuple[Any, ...]:
         """
         Samples n observations from the buffer.

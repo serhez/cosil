@@ -1,0 +1,16 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method: coil
+  - override /method/agent: sac
+  - override /method/rewarder: env
+
+method:
+  normalization_type: none
+
+logger:
+  group_name: "test"
+  experiment_name: "coil-rl-newsac"
+  loggers: console

@@ -83,12 +83,6 @@ class Schedulers(StrEnum):
     step = "step"
 
 
-class TransferRewarders(StrEnum):
-    gail = "gail"
-    sail = "sail"
-    mbc = "mbc"
-
-
 @dataclass(kw_only=True)
 class LoggerConfig:
     """
@@ -134,6 +128,16 @@ class EnvRewarderConfig(RewarderConfig):
     """
 
     name: str = "env"
+    """Name of the rewarder."""
+
+
+@dataclass(kw_only=True)
+class MBCConfig(RewarderConfig):
+    """
+    Configuration for the Morphological Behavioral Cloning rewarder.
+    """
+
+    name: str = "mbc"
     """Name of the rewarder."""
 
 
@@ -186,16 +190,6 @@ class SAILConfig(RewarderConfig):
 
     vae_scaler: float = 1.0
     """Scaler for the VAE loss."""
-
-
-@dataclass(kw_only=True)
-class PWILConfig(RewarderConfig):
-    """
-    Configuration for the PWIL rewarder.
-    """
-
-    name: str = "pwil"
-    """Name of the rewarder."""
 
 
 @dataclass(kw_only=True)
@@ -268,6 +262,13 @@ class DualSACConfig(SACConfig):
 class CoAdaptationConfig:
     """
     Configuration for co-adaptation.
+    """
+
+    morphos_path: Optional[str] = None
+    """
+    Path to a .pt file containing a fixed list of morphologies to use for co-adaptation.
+    This can be used for reproducibility purposes.
+    Once the list of morphologies is exhausted, co-adaptation will continue with the specified `dist_optimizer`.
     """
 
     dist_optimizer: DistOptimizers = "bo"  # pyright: ignore[reportGeneralTypeIssues]
@@ -543,7 +544,7 @@ class CoSIL2Config(CoILConfig):
                 "agent": "sac",
             },
             {
-                "rewarder": "env",
+                "rewarder": "mbc",
             },
         ]
     )
@@ -554,12 +555,7 @@ class CoSIL2Config(CoILConfig):
     transfer: bool = True
     """Whether to perform transfer learning."""
 
-    transfer_rewarder: TransferRewarders = (  # pyright: ignore[reportGeneralTypeIssues]
-        "mbc"
-    )
-    """Which rewarder to use for transfer learning."""
-
-    ind_replay_weight: float = 0.1
+    replay_weight: float = 0.1
     """
     Ratio of observations in each batch coming from the replay buffer when training the individual agent.
     The ratio of observations coming from the buffer contaning only obs. from the current morphology is consequently (1 - ind_replay_weight).
@@ -744,6 +740,6 @@ def setup_config() -> None:
     cs.store(group="method/agent", name="base_sac", node=SACConfig)
     cs.store(group="method/agent", name="base_dual_sac", node=DualSACConfig)
     cs.store(group="method/rewarder", name="base_env_rewarder", node=EnvRewarderConfig)
+    cs.store(group="method/rewarder", name="base_mbc", node=MBCConfig)
     cs.store(group="method/rewarder", name="base_gail", node=GAILConfig)
     cs.store(group="method/rewarder", name="base_sail", node=SAILConfig)
-    cs.store(group="method/rewarder", name="base_pwil", node=PWILConfig)

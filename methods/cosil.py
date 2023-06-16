@@ -14,6 +14,7 @@ from omegaconf import DictConfig
 
 import wandb
 from agents import SAC, DualSAC
+from agents.sac_old import SACOld
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import (
     ConstantScheduler,
@@ -244,7 +245,8 @@ class CoSIL(object):
                 self.logger, self.env, self.demo_dim, config, imit_norm
             )
         else:
-            raise NotImplementedError
+            imitation_rewarder = None
+            # raise NotImplementedError
 
         self.rewarder = DualRewarder(
             imitation_rewarder,
@@ -255,7 +257,7 @@ class CoSIL(object):
 
         if config.method.agent.name == "sac":
             self.logger.info("Using agent SAC")
-            self.agent = SAC(
+            self.agent = SACOld(
                 self.config,
                 self.logger,
                 self.env.action_space,

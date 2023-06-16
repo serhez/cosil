@@ -17,7 +17,7 @@ from agents import SAC
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import ConstantScheduler
 from loggers import Logger
-from rewarders import GAIL, MBC, SAIL, EnvReward
+from rewarders import GAIL, SAIL, EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
     bo_step,
@@ -171,6 +171,16 @@ class CoIL(object):
                 None,
                 omega_scheduler,
             )
+            # self.agent = SACOld(
+            #     self.config,
+            #     self.logger,
+            #     self.env.action_space,
+            #     self.obs_size + self.num_morpho
+            #     if config.morpho_in_state
+            #     else self.obs_size,
+            #     self.num_morpho,
+            #     self.rewarder,
+            # )
         else:
             raise ValueError("Invalid agent")
 

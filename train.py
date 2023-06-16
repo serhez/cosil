@@ -10,7 +10,10 @@ from omegaconf import DictConfig
 
 from config import setup_config
 from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
-from methods import CoIL, CoSIL, CoSIL2
+from methods import CoIL, CoSIL  # , CoSIL2
+
+# from methods.cosil2_single_agent import CoSIL2
+from methods.cosil3 import CoSIL2
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="train")

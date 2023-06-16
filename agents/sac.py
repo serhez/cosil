@@ -16,7 +16,7 @@ from common.observation_buffer import ObservationBuffer
 from common.schedulers import Scheduler
 from loggers import Logger
 from normalizers import create_normalizer
-from rewarders import GAIL, MBC, SAIL, Rewarder
+from rewarders import MBC, SAIL, Rewarder
 from utils.rl import hard_update, soft_update
 
 from .agent import Agent
@@ -208,13 +208,13 @@ class SAC(Agent):
     def pretrain_value(
         self,
         memory: ObservationBuffer,
-        expert_obs: List[torch.Tensor],
+        demos: List[torch.Tensor],
         batch_size: int,
     ):
         self._logger.info("Pretraining value")
         for i in range(3000):
             batch = memory.sample(batch_size)
-            loss = self.update_parameters(batch, i, expert_obs, True)[0]
+            loss = self.update_parameters(batch, i, demos, True)[0]
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
@@ -251,34 +251,23 @@ class SAC(Agent):
 
         return rl_loss, rl_loss_norm
 
-    def _get_il_loss(self, batch: tuple, omega: float) -> torch.Tensor:
+    def _get_il_loss(
+        self, batch: tuple, demos: List[torch.Tensor], omega: float
+    ) -> torch.Tensor:
         if self._il_rewarder is None or np.isclose(omega, 0.0):
             il_loss = torch.tensor(0.0, device=self._device)
             il_loss_norm = il_loss
-        elif isinstance(self._il_rewarder, MBC):
-            demos = self._get_demos_for(self._il_rewarder.batch_demonstrator, batch)
-            il_loss = -self._il_rewarder.compute_rewards(batch, demos)
-            if self._il_norm is not None:
-                il_loss_norm = self._il_norm(il_loss)
-            else:
-                il_loss_norm = il_loss
-        # TODO: WRONG! We need to get the demos from the replay_buffer passed onto update_parameters, and then to this func
-        elif isinstance(self._il_rewarder, GAIL):
-            il_loss = -self._il_rewarder.compute_rewards(batch)
-            if self._il_norm is not None:
-                il_loss_norm = self._il_norm(il_loss)
-            else:
-                il_loss_norm = il_loss
-        elif isinstance(self._il_rewarder, SAIL):
-            il_loss = -self._il_rewarder.compute_rewards(batch)
-            if self._il_norm is not None:
-                il_loss_norm = self._il_norm(il_loss)
-            else:
-                il_loss_norm = il_loss
-        else:
-            il_loss = torch.tensor(0.0, device=self._device)
-            il_loss_norm = il_loss
+            return il_loss, il_loss_norm
 
+        # Obtain the MBC demos by running the policy on the batch and the demonstrator
+        if isinstance(self._il_rewarder, MBC):
+            demos = self._get_demos_for(self._il_rewarder.batch_demonstrator, batch)
+
+        il_loss = -self._il_rewarder.compute_rewards(batch, demos)
+        if self._il_norm is not None:
+            il_loss_norm = self._il_norm(il_loss)
+        else:
+            il_loss_norm = il_loss
         return il_loss, il_loss_norm
 
     def get_value(self, state, action) -> torch.FloatTensor:
@@ -288,7 +277,7 @@ class SAC(Agent):
         self,
         batch: tuple,
         updates: int,
-        expert_obs: Optional[List] = None,
+        demos: Optional[List] = None,
         update_value_only: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -298,7 +287,7 @@ class SAC(Agent):
         ----------
         `batch` -> the batch of data.
         `updates` -> the number of updates.
-        `expert_obs` -> the expert observations.
+        `demos` -> the demonstrator's observations.
         `update_value_only` -> whether to update the value function only.
 
         Returns
@@ -342,7 +331,7 @@ class SAC(Agent):
         if marker_batch is not None and marker_batch[0] is not None:
             marker_batch = torch.FloatTensor(marker_batch).to(self._device)
 
-        rewards = self._rl_rewarder.compute_rewards(batch, expert_obs).to(self._device)
+        rewards = self._rl_rewarder.compute_rewards(batch, demos).to(self._device)
         assert reward_batch.shape == rewards.shape
         reward_batch = rewards
 
@@ -399,7 +388,7 @@ class SAC(Agent):
         #         state_batch, marker_batch, policy_mean
         #     )
         #     rl_loss += vae_loss
-        il_loss, il_loss_norm = self._get_il_loss(batch, omega)
+        il_loss, il_loss_norm = self._get_il_loss(batch, None, omega)
         policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
 
         # Update the policy

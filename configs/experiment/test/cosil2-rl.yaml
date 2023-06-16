@@ -1,0 +1,21 @@
+# @package _global_
+# TODO: Use best-performing config of prev. experiments in base_experiment
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: sac
+  - override /method/rewarder: mbc
+
+method:
+  normalization_type: none
+  transfer: true
+  optimized_demonstrator: true
+  dual_mode: loss_term
+  omega_init: 0.2
+  omega_scheduler: constant
+
+logger:
+  group_name: "test"
+  experiment_name: "cosil3"
+  loggers: console,file,wandb

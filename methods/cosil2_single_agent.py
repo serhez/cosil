@@ -62,14 +62,14 @@ class CoSIL2(object):
         elif self.config.method.co_adapt:
             morpho_params = self.morpho_dist.sample().cpu().numpy()
             self.env.set_task(*morpho_params)
-            self.morphos.append(morpho_params)
+            self.morphos.append(morpho_params), multi_sample
             self.optimized_morpho = False
 
         self.morpho_params_np = np.array(self.env.morpho_params)
         self.num_morpho = self.env.morpho_params.shape[0]
 
         self.batch_size = self.config.method.batch_size
-        self.ind_replay_weight = self.config.method.ind_replay_weight
+        self.replay_weight = self.config.method.ind_replay_weight
         self.replay_buffer = ObservationBuffer(
             self.config.method.replay_capacity,
             self.config.method.replay_dim_ratio,
@@ -97,8 +97,7 @@ class CoSIL2(object):
         self.initial_states_memory = []
 
         self.total_numsteps = 0
-        self.pop_updates = 0
-        self.ind_updates = 0
+        self.updates = 0
 
         expert_legs = self.config.method.expert_legs
         self.policy_legs = self.config.method.policy_legs
@@ -193,7 +192,9 @@ class CoSIL2(object):
             il_norm = None
 
         # Create the rewarders
-        self.rl_rewarder = EnvReward(config.device, rl_norm, config.method.sparse_mask)
+        self.rl_rewarder = EnvReward(
+            config.device, rl_norm, sparse_mask=config.method.sparse_mask
+        )
         self.il_rewarder = create_rewarder(
             config.method.transfer_rewarder,
             config,
@@ -228,7 +229,7 @@ class CoSIL2(object):
 
         # TODO: Support dual-Q mode and other agents
         self.logger.info(f"Using agent {config.method.agent.name}")
-        common_args = [
+        self.agent = SAC(
             self.config,
             self.logger,
             self.env.action_space,
@@ -237,10 +238,8 @@ class CoSIL2(object):
             else self.obs_size,
             self.num_morpho,
             self.rl_rewarder,
-        ]
-        self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
-        self.ind_agent = SAC(
-            *common_args, self.il_rewarder, self.omega_scheduler, "ind"
+            self.il_rewarder,
+            self.omega_scheduler,
         )
 
         # SAIL includes a pretraining step for the VAE and inverse dynamics
@@ -263,6 +262,7 @@ class CoSIL2(object):
             else:
                 raise ValueError(f"Failed to load {self.config.resume}")
 
+    # TODO: Is this correct?
     def _get_markers_by_ep(self, obs: tuple, ep_len: int) -> List[torch.Tensor]:
         return np.split(obs[6], ep_len)
 
@@ -272,8 +272,7 @@ class CoSIL2(object):
         data = torch.load(path, map_location=self.device)
 
         # Load agents
-        self.pop_agent.load(data["agent"])
-        self.ind_agent.load(data["agent"])
+        self.agent.load(data["agent"])
 
         # Load rewarders
         for rewarder in [self.rl_rewarder, self.il_rewarder]:
@@ -301,9 +300,7 @@ class CoSIL2(object):
 
             # Train the population agent
             batch = self.replay_buffer.sample(self.rewarder_batch_size)
-            new_log = self.pop_agent.update_parameters(
-                batch, self.pop_updates, self.demos
-            )
+            new_log = self.agent.update_parameters(batch, self.updates, self.demos)
             new_log.update(
                 {
                     "loss/disc_loss": disc_loss,
@@ -324,11 +321,7 @@ class CoSIL2(object):
 
             dict_add(log_dict, new_log)
             logged += 1
-            self.pop_updates += 1
-
-        # Copy the state of the population agent to the individual agent
-        self.ind_agent.load(self.pop_agent.get_model_dict())
-        self.ind_updates = self.pop_updates
+            self.updates += 1
 
         dict_div(log_dict, logged)
 
@@ -461,7 +454,7 @@ class CoSIL2(object):
 
                 # Sample action from policy
                 else:
-                    action = self.ind_agent.select_action(feats)
+                    action = self.agent.select_action(feats)
 
                 # Environment step
                 next_state, reward, terminated, truncated, info = self.env.step(action)
@@ -497,9 +490,9 @@ class CoSIL2(object):
                             all_batch,
                             self.batch_size,
                             self.morphos,
-                            self.ind_agent._critic,
-                            self.ind_agent._policy,
-                            self.ind_agent._gamma,
+                            self.agent._critic,
+                            self.agent._policy,
+                            self.agent._gamma,
                         )
                         did_co_adapt_mbc = True
 
@@ -514,17 +507,18 @@ class CoSIL2(object):
                             ) = self.il_rewarder.train(batch, self.demos)
 
                         # Train the individual agent
-                        replay_ratio = self.ind_replay_weight
-                        if len(self.replay_buffer) < self.batch_size:
-                            replay_ratio = 0.0
-                        batch = multi_sample(
-                            self.batch_size,
-                            [self.replay_buffer, self.current_buffer],
-                            [replay_ratio, 1 - replay_ratio],
-                        )
-                        new_log = self.ind_agent.update_parameters(
+                        # replay_ratio = self.replay_weight
+                        # if len(self.replay_buffer) < self.batch_size:
+                        #     replay_ratio = 0.0
+                        # batch = multi_sample(
+                        #     self.batch_size,
+                        #     [self.replay_buffer, self.current_buffer],
+                        #     [replay_ratio, 1 - replay_ratio],
+                        # )
+                        batch = self.current_buffer.sample(self.batch_size)
+                        new_log = self.agent.update_parameters(
                             batch,
-                            self.ind_updates,
+                            self.updates,
                             self.demos,
                         )
                         new_log.update(
@@ -540,7 +534,7 @@ class CoSIL2(object):
                         dict_add(log_dict, new_log)
                         logged += 1
                         episode_updates += 1
-                        self.ind_updates += 1
+                        self.updates += 1
 
                 # phi(s)
                 next_marker, _ = get_marker_info(
@@ -689,37 +683,7 @@ class CoSIL2(object):
                 # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
                 self.demos = self._get_markers_by_ep(self.replay_buffer.all(), 1000)
-                self.current_buffer.clear()
-
-                # Train the population agent
-                self.logger.info("Training population agent")
-                took_pop = time.time()
-                pop_log_dict, pop_logged = {}, 0
-                n_updates = episode_updates * morpho_episode
-                for update in range(n_updates):
-                    batch = self.replay_buffer.sample(self.batch_size)
-                    new_log = self.pop_agent.update_parameters(
-                        batch, self.pop_updates, self.demos
-                    )
-                    dict_add(pop_log_dict, new_log)
-                    pop_logged += 1
-                    self.pop_updates += 1
-                    if update % 1000 == 0:
-                        self.logger.info(f"Population agent update {update}")
-                dict_div(pop_log_dict, pop_logged)
-                self.logger.info(pop_log_dict, ["console"])
-                self.logger.info(
-                    {
-                        "Population agent training": None,
-                        "Updates": n_updates,
-                        "Took": time.time() - took_pop,
-                    },
-                )
-
-                # Re-initialize the individual agent from the population agent
-                self.logger.info("Re-initializing individual agent")
-                self.ind_agent.load(self.pop_agent.get_model_dict())
-                self.ind_updates = self.pop_updates
+                # self.current_buffer.clear()
 
                 # Reset counters and flags
                 morpho_episode = 1
@@ -728,7 +692,7 @@ class CoSIL2(object):
             self.omega_scheduler.step()
             episode += 1
 
-        return self.ind_agent, self.env.morpho_params
+        return self.agent, self.env.morpho_params
 
     # Adapt morphology.
     # Different variants here based on algorithm used
@@ -850,7 +814,7 @@ class CoSIL2(object):
                     fig,
                     grads_abs_sum,
                 ) = optimize_morpho_params_pso(
-                    self.ind_agent,
+                    self.agent,
                     self.initial_states_memory,
                     self.bounds,
                     use_distance_value=self.config.method.train_distance_value,
@@ -924,7 +888,7 @@ class CoSIL2(object):
                 if self.absorbing_state:
                     feats = np.concatenate([feats, np.zeros(1)])
 
-                action = self.ind_agent.select_action(feats, evaluate=True)
+                action = self.agent.select_action(feats, evaluate=True)
 
                 next_state, _, terminated, truncated, info = self.env.step(action)
                 done = terminated or truncated
@@ -1097,18 +1061,14 @@ class CoSIL2(object):
             start_t = time.time()
 
         g_inv_loss = sail.pretrain_g_inv(memory, self.batch_size, n_epochs=300)
-        ind_policy_pretrain_loss = self.ind_agent.pretrain_policy(
+        policy_pretrain_loss = self.agent.pretrain_policy(
             sail, memory, self.batch_size, n_epochs=300
         )
-        pop_policy_pretrain_loss = self.pop_agent.pretrain_policy(
-            sail, memory, self.batch_size, n_epochs=300
-        )
-        policy_pretrain_loss = (ind_policy_pretrain_loss + pop_policy_pretrain_loss) / 2
 
         if save:
             torch.save(sail.get_g_inv_dict(), g_inv_file_name)
             torch.save(
-                self.ind_agent.get_model_dict()["policy_state_dict"], policy_file_name
+                self.agent.get_model_dict()["policy_state_dict"], policy_file_name
             )
 
         return g_inv_loss, policy_pretrain_loss
@@ -1137,7 +1097,7 @@ class CoSIL2(object):
             "morpho_dict": self.env.morpho_params,
         }
         data.update(self.rl_rewarder.get_model_dict())
-        data.update(self.ind_agent.get_model_dict())
+        data.update(self.agent.get_model_dict())
 
         torch.save(data, model_path)
 
@@ -1157,8 +1117,7 @@ class CoSIL2(object):
             )
 
             success &= self.rl_rewarder.load(model)
-            success &= self.ind_agent.load(model)
-            success &= self.pop_agent.load(model)
+            success &= self.agent.load(model)
 
             self.env.set_task(*model["morpho_dict"])
             self.morphos.append(model["morpho_dict"])

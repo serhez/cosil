@@ -1,8 +1,9 @@
 import itertools
-from typing import List
+from typing import List, Union
 
 import gym
 import numpy as np
+import torch
 
 from agents import Agent
 from loggers import Logger
@@ -20,6 +21,12 @@ def hard_update(target, source):
 
 def merge_batches(first_batch, second_batch):
     return [np.concatenate([a, b], axis=0) for a, b in zip(first_batch, second_batch)]
+
+
+def get_markers_by_ep(
+    obs: tuple, ep_len: int, device: Union[torch.device, str]
+) -> List[torch.Tensor]:
+    return [torch.from_numpy(x).float().to(device) for x in np.split(obs[6], ep_len)]
 
 
 def _add_obs(obs_dict, info, done):
