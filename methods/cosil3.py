@@ -487,7 +487,9 @@ class CoSIL2(object):
                                 [replay_ratio, 1 - replay_ratio],
                             )
                             # Obtain the MBC demos by running the policy on the batch and the demonstrator
-                            if isinstance(self.il_rewarder, MBC):
+                            if self.config.method.transfer and isinstance(
+                                self.il_rewarder, MBC
+                            ):
                                 demos = self._get_demos_for(
                                     self.il_rewarder.batch_demonstrator, batch
                                 )
