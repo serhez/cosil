@@ -369,7 +369,6 @@ class CoSIL2(object):
             es_buffer = None
 
         # Main loop
-        # NOTE: We begin counting the episodes at 1, not 0
         episode = 1
         morpho_episode = 1
         while episode <= self.config.method.num_episodes:
@@ -384,6 +383,7 @@ class CoSIL2(object):
             log_dict, logged = {}, 0
             done = False
             state, _ = self.env.reset()
+
             # Compute marker state phi(s) in paper
             marker_obs, self.to_match = get_marker_info(
                 self.env.get_track_dict(),
@@ -519,7 +519,7 @@ class CoSIL2(object):
                 next_marker_obs, _ = get_marker_info(
                     info,
                     self.policy_legs,
-                    self.policy_limb_indices,  # NOTE: Do we need to get the markers for the next state?
+                    self.policy_limb_indices,
                     pos_type=self.config.method.pos_type,
                     vel_type=self.config.method.vel_type,
                     torso_type=self.config.method.torso_type,
@@ -528,24 +528,18 @@ class CoSIL2(object):
                 )
 
                 if x_pos_history is not None:
-                    x_pos_history.append(
-                        next_marker_obs[x_pos_index]
-                    )  # NOTE: What is this? -> only used for plotting
+                    x_pos_history.append(next_marker_obs[x_pos_index])
 
                 train_marker_obs_history.append(marker_obs)
 
                 episode_steps += 1
                 self.total_numsteps += 1
                 # Change reward to remove action penalty
-                reward = info[
-                    "reward_run"
-                ]  # NOTE: Why are we removing the action penalty?
+                reward = info["reward_run"]
                 episode_reward += reward
 
                 # Ignore the "done" signal if it comes from hitting the time horizon.
                 # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
-                # NOTE: Used for handling absorbing states as a hack to get the reward to be 0 when
-                # the episode is done, as well as meaning "done" for `self.memory.push()`
                 mask = (
                     1
                     if episode_steps == self.env._max_episode_steps

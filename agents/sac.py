@@ -134,7 +134,6 @@ class SAC(Agent):
             self._policy_optim = Adam(
                 self._policy.parameters(), lr=config.method.agent.lr
             )
-
         else:
             self._alpha = 0
             self._automatic_entropy_tuning = False
@@ -224,13 +223,13 @@ class SAC(Agent):
         if np.isclose(omega, 1.0):
             rl_loss = torch.tensor(0.0, device=self._device)
             rl_loss_norm = rl_loss
-        else:
-            rl_loss = (self._alpha * log_pi) - q_value
-            if self._rl_norm is not None:
-                rl_loss_norm = self._rl_norm(rl_loss)
-            else:
-                rl_loss_norm = rl_loss
+            return rl_loss, rl_loss_norm
 
+        rl_loss = (self._alpha * log_pi) - q_value
+        if self._rl_norm is not None:
+            rl_loss_norm = self._rl_norm(rl_loss)
+        else:
+            rl_loss_norm = rl_loss
         return rl_loss, rl_loss_norm
 
     def _get_il_loss(
