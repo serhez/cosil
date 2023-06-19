@@ -66,6 +66,7 @@ class DualModes(StrEnum):
 class NormalizationTypes(StrEnum):
     range = "range"
     z_score = "z_score"
+    scale_shift = "scale_shift"
     none = "none"
 
 

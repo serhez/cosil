@@ -14,7 +14,7 @@ from common.models import (
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import Scheduler
 from loggers import Logger
-from normalizers import RangeNormalizer, ZScoreNormalizer
+from normalizers import create_normalizer
 from rewarders import SAIL, EnvReward, Rewarder
 from utils.rl import hard_update, soft_update
 
@@ -67,43 +67,22 @@ class DualSAC(Agent):
         if config.absorbing_state:
             self._morpho_slice = slice(-morpho_dim - 1, -1)
 
-        assert config.method.normalization_mode in [
-            "min",
-            "mean",
-        ], f"Invalid dual normalization mode: {config.method.normalization_mode}"
-        if config.method.normalization_type == "none":
-            self._imit_norm = None
-            self._rein_norm = None
-        elif config.method.normalization_type == "range":
-            self._imit_norm = RangeNormalizer(
-                mode=config.method.normalization_mode,
-                gamma=config.method.il_normalization_gamma,
-                beta=config.method.il_normalization_beta,
-            )
-            self._rein_norm = RangeNormalizer(
-                mode=config.method.normalization_mode,
-                gamma=config.method.rl_normalization_gamma,
-                beta=config.method.rl_normalization_beta,
-            )
-        elif config.method.normalization_type == "z_score":
-            self._imit_norm = ZScoreNormalizer(
-                mode=config.method.normalization_mode,
-                gamma=config.method.il_normalization_gamma,
-                beta=config.method.il_normalization_beta,
-                low_clip=config.method.normalization_low_clip,
-                high_clip=config.method.normalization_high_clip,
-            )
-            self._rein_norm = ZScoreNormalizer(
-                mode=config.method.normalization_mode,
-                gamma=config.method.rl_normalization_gamma,
-                beta=config.method.rl_normalization_beta,
-                low_clip=config.method.normalization_low_clip,
-                high_clip=config.method.normalization_high_clip,
-            )
-        else:
-            raise ValueError(
-                f"Invalid dual normalization: {config.method.normalization_type}"
-            )
+        self._imit_norm = create_normalizer(
+            config.method.normalization_type,
+            config.method.normalization_mode,
+            config.method.il_normalization_gamma,
+            config.method.il_normalization_beta,
+            config.method.normalization_low_clip,
+            config.method.normalization_high_clip,
+        )
+        self._rein_norm = create_normalizer(
+            config.method.normalization_type,
+            config.method.normalization_mode,
+            config.method.rl_normalization_gamma,
+            config.method.rl_normalization_beta,
+            config.method.normalization_low_clip,
+            config.method.normalization_high_clip,
+        )
 
         self._imit_critic = EnsembleQNetwork(
             state_dim,
