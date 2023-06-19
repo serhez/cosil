@@ -82,6 +82,7 @@ class CoSIL2(object):
         self.logger.info(f"Initial morphology is {self.morpho_params_np}")
         self.num_morpho = self.env.morpho_params.shape[0]
 
+        self.demos = []
         self.batch_size = self.config.method.batch_size
         self.replay_weight = self.config.method.replay_weight
         self.replay_buffer = ObservationBuffer(
@@ -170,7 +171,6 @@ class CoSIL2(object):
             self.obs_size += 1
 
         # The dimensionality of each state in demo (marker state)
-        self.demos = []
         self.demo_dim = self.expert_obs[0].shape[-1]
 
         # If training the discriminator on transitions, it becomes (s, s')
@@ -189,16 +189,16 @@ class CoSIL2(object):
             rl_norm = create_normalizer(
                 name=config.method.normalization_type,
                 mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
+                gamma=config.method.rl_normalization_gamma,
+                beta=config.method.rl_normalization_beta,
                 low_clip=config.method.normalization_low_clip,
                 high_clip=config.method.normalization_high_clip,
             )
             il_norm = create_normalizer(
                 name=config.method.normalization_type,
                 mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
+                gamma=config.method.il_normalization_gamma,
+                beta=config.method.il_normalization_beta,
                 low_clip=config.method.normalization_low_clip,
                 high_clip=config.method.normalization_high_clip,
             )
@@ -300,6 +300,24 @@ class CoSIL2(object):
                 rewarder.load(data["gail"])
             elif isinstance(rewarder, SAIL):
                 rewarder.load(data["sail"])
+
+    def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
+        morpho_size = morpho.shape[1]
+        feats_batch = torch.FloatTensor(batch[0]).to(self.device)
+        states_batch = feats_batch[:, :-morpho_size]
+        demo_feats_batch = torch.cat([states_batch, morpho], dim=1)
+        _, _, demo_actions, _ = self.pop_agent._policy.sample(demo_feats_batch)
+        return (
+            None,
+            demo_actions,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
     def train(self):
         self.adapt_morphos = []
@@ -453,9 +471,9 @@ class CoSIL2(object):
                                     all_batch,
                                     self.batch_size,
                                     self.morphos[:-1],
-                                    self.ind_agent._critic,
-                                    self.ind_agent._policy,
-                                    self.ind_agent._gamma,
+                                    self.pop_agent._critic,
+                                    self.pop_agent._policy,
+                                    self.pop_agent._gamma,
                                 )
                                 did_co_adapt_mbc = True
 
@@ -468,8 +486,15 @@ class CoSIL2(object):
                                 [self.replay_buffer, self.current_buffer],
                                 [replay_ratio, 1 - replay_ratio],
                             )
+                            # Obtain the MBC demos by running the policy on the batch and the demonstrator
+                            if isinstance(self._il_rewarder, MBC):
+                                demos = self._get_demos_for(
+                                    self.il_rewarder.batch_demonstrator, batch
+                                )
+                            else:
+                                demos = self.demos
                             new_log = self.ind_agent.update_parameters(
-                                batch, self.ind_updates, self.demos
+                                batch, self.ind_updates, demos
                             )
                             new_log.update(
                                 {

@@ -77,26 +77,26 @@ class DualSAC(Agent):
         elif config.method.normalization_type == "range":
             self._imit_norm = RangeNormalizer(
                 mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
+                gamma=config.method.il_normalization_gamma,
+                beta=config.method.il_normalization_beta,
             )
             self._rein_norm = RangeNormalizer(
                 mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
+                gamma=config.method.rl_normalization_gamma,
+                beta=config.method.rl_normalization_beta,
             )
         elif config.method.normalization_type == "z_score":
             self._imit_norm = ZScoreNormalizer(
                 mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
+                gamma=config.method.il_normalization_gamma,
+                beta=config.method.il_normalization_beta,
                 low_clip=config.method.normalization_low_clip,
                 high_clip=config.method.normalization_high_clip,
             )
             self._rein_norm = ZScoreNormalizer(
                 mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
+                gamma=config.method.rl_normalization_gamma,
+                beta=config.method.rl_normalization_beta,
                 low_clip=config.method.normalization_low_clip,
                 high_clip=config.method.normalization_high_clip,
             )

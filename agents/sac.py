@@ -77,16 +77,16 @@ class SAC(Agent):
         self._rl_norm = create_normalizer(
             name=config.method.normalization_type,
             mode=config.method.normalization_mode,
-            gamma=config.method.normalization_gamma,
-            beta=config.method.normalization_beta,
+            gamma=config.method.rl_normalization_gamma,
+            beta=config.method.rl_normalization_beta,
             low_clip=config.method.normalization_low_clip,
             high_clip=config.method.normalization_high_clip,
         )
         self._il_norm = create_normalizer(
             name=config.method.normalization_type,
             mode=config.method.normalization_mode,
-            gamma=config.method.normalization_gamma,
-            beta=config.method.normalization_beta,
+            gamma=config.method.il_normalization_gamma,
+            beta=config.method.il_normalization_beta,
             low_clip=config.method.normalization_low_clip,
             high_clip=config.method.normalization_high_clip,
         )
@@ -218,24 +218,6 @@ class SAC(Agent):
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
-    def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
-        morpho_size = morpho.shape[1]
-        feats_batch = torch.FloatTensor(batch[0]).to(self._device)
-        states_batch = feats_batch[:, :-morpho_size]
-        demo_feats_batch = torch.cat([states_batch, morpho], dim=1)
-        _, _, demo_actions, _ = self._policy.sample(demo_feats_batch)
-        return (
-            None,
-            demo_actions,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-
     def _get_rl_loss(
         self, log_pi: torch.Tensor, q_value: torch.Tensor, omega: float
     ) -> torch.Tensor:
@@ -258,10 +240,6 @@ class SAC(Agent):
             il_loss = torch.tensor(0.0, device=self._device)
             il_loss_norm = il_loss
             return il_loss, il_loss_norm
-
-        # Obtain the MBC demos by running the policy on the batch and the demonstrator
-        if isinstance(self._il_rewarder, MBC):
-            demos = self._get_demos_for(self._il_rewarder.batch_demonstrator, batch)
 
         il_loss = -self._il_rewarder.compute_rewards(batch, demos)
         if self._il_norm is not None:
@@ -388,7 +366,7 @@ class SAC(Agent):
         #         state_batch, marker_batch, policy_mean
         #     )
         #     rl_loss += vae_loss
-        il_loss, il_loss_norm = self._get_il_loss(batch, None, omega)
+        il_loss, il_loss_norm = self._get_il_loss(batch, demos, omega)
         policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
 
         # Update the policy

@@ -373,11 +373,17 @@ class MethodConfig:
     )
     """Normalization mode for the reward or Q-values."""
 
-    normalization_gamma: float = 1.0
-    """Normalization gamma for the reward or Q-values."""
+    rl_normalization_gamma: float = 1.0
+    """Normalization gamma for the reinforcement reward or Q-values."""
 
-    normalization_beta: float = 0.0
-    """Normalization beta for the reward or Q-values."""
+    rl_normalization_beta: float = 0.0
+    """Normalization beta for the reinforcement reward or Q-values."""
+
+    il_normalization_gamma: float = 1.0
+    """Normalization gamma for the imitation reward or Q-values."""
+
+    il_normalization_beta: float = 0.0
+    """Normalization beta for the imitation reward or Q-values."""
 
     normalization_low_clip: Optional[float] = None
     """Normalization lower bound for the clipping of the reward or Q-values."""
@@ -555,7 +561,7 @@ class CoSIL2Config(CoILConfig):
     transfer: bool = True
     """Whether to perform transfer learning."""
 
-    replay_weight: float = 0.1
+    replay_weight: float = 0.0
     """
     Ratio of observations in each batch coming from the replay buffer when training the individual agent.
     The ratio of observations coming from the buffer contaning only obs. from the current morphology is consequently (1 - ind_replay_weight).

@@ -29,12 +29,14 @@ method:
   omega_init: 0.01
   normalization_type: z_score
   normalization_mode: min
-  normalization_gamma: 100.0
-  normalization_beta: 0.0
+  rl_normalization_gamma: 100.0
+  rl_normalization_beta: 0.0
+  il_normalization_gamma: 100.0
+  il_normalization_beta: 0.0
   normalization_low_clip: null
   normalization_high_clip: null
 
 logger:
-  group_name: "raw-om001"
+  group_name: "raw-om001-gail-zscore"
   experiment_name: "gail-zscore"
   loggers: console,file,wandb

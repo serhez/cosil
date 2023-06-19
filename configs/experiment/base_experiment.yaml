@@ -2,12 +2,12 @@
 ---
 defaults:
   - /base_train
-  - override /method: cosil  # variable
+  - override /method: cosil2  # variable
   - override /method/agent: dual_sac  # variable
   - override /method/rewarder: gail  # variable
 
 seed: 123456
-device: cuda
+device: cpu
 env_name: GaitTrackHalfCheetah-v0
 models_dir_path: models
 learn_disc_transitions: false
@@ -65,8 +65,10 @@ method:
   # dual_mode: q  # variable
   # normalization_type: z_score  # variable
   # normalization_mode: mean  # variable
-  # normalization_gamma: 1.0  # variable
-  # normalization_beta: 0.0  # could be tested
+  # rl_normalization_gamma: 1.0  # variable
+  # rl_normalization_beta: 0.0  # could be tested
+  # il_normalization_gamma: 1.0  # variable
+  # il_normalization_beta: 0.0  # could be tested
   # normalization_low_clip: null  # could be tested
   # normalization_high_clip: null  # could be tested
 

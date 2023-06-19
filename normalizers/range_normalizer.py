@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -14,7 +14,14 @@ class RangeNormalizer(Normalizer):
     Subtracting the minimum value will yield a range of values of [beta, gamma + beta]; subtracting the mean value will yield a range of [-gamma + beta, gamma + beta].
     """
 
-    def __init__(self, mode: str = "min", gamma: float = 1.0, beta: float = 0.0):
+    def __init__(
+        self,
+        mode: str = "min",
+        gamma: float = 1.0,
+        beta: float = 0.0,
+        low_clip: Optional[float] = None,
+        high_clip: Optional[float] = None,
+    ):
         """
         Parameters
         ----------
@@ -23,8 +30,15 @@ class RangeNormalizer(Normalizer):
         - "mean" -> subtract the mean value.
         gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
         beta -> the beta scaling parameter, which is added to the normalized values.
+        low_clip -> the lower bound for clipping; not applied if set to None.
+        high_clip -> the higher bound for clipping; not applied if set to None.
         """
-        super().__init__(gamma, beta)
+        super().__init__(gamma, beta, low_clip, high_clip)
+
+        # The mode to use for normalization
+        if mode not in ["min", "mean"]:
+            raise ValueError(f"Invalid mode: {mode}")
+        self._mode = mode
 
         # Running statistical measures
         self._max = -np.inf
@@ -32,11 +46,7 @@ class RangeNormalizer(Normalizer):
         self._sum = 0.0
         self._count = 0
 
-        if mode not in ["min", "mean"]:
-            raise ValueError(f"Invalid mode: {mode}")
-        self._mode = mode
-
-    def normalize(self, tensor: torch.Tensor) -> torch.Tensor:
+    def _normalize_impl(self, tensor: torch.Tensor) -> torch.Tensor:
         # Update the statistical measures
         self._max = max(self._max, tensor.max().item())
         self._min = min(self._min, tensor.min().item())
@@ -44,13 +54,9 @@ class RangeNormalizer(Normalizer):
         self._count += tensor.numel()
 
         if self._mode == "min":
-            return (tensor - self._min) / (
-                self._max - self._min
-            ) * self._gamma + self._beta
+            return (tensor - self._min) / (self._max - self._min)
         elif self._mode == "mean":
-            return (tensor - self._sum / self._count) / (
-                self._max - self._min
-            ) * self._gamma + self._beta
+            return (tensor - self._sum / self._count) / (self._max - self._min)
         else:
             raise ValueError(f"Invalid normalizer mode: {self._mode}")
 
@@ -74,6 +80,8 @@ class RangeNormalizer(Normalizer):
         - min -> the minimum value.
         - sum -> the sum of all values.
         - count -> the number of values.
+        - low_clip -> the lower bound for clipping.
+        - high_clip -> the higher bound for clipping.
         """
         model_dict = super().get_model_dict()
 
@@ -105,6 +113,8 @@ class RangeNormalizer(Normalizer):
         - min -> the minimum value.
         - sum -> the sum of all values.
         - count -> the number of values.
+        - low_clip -> the lower bound for clipping.
+        - high_clip -> the higher bound for clipping.
 
         Returns
         -------

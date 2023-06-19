@@ -37,7 +37,12 @@ class ZScoreNormalizer(Normalizer):
         low_clip -> the lower bound for clipping; not applied if set to None.
         high_clip -> the higher bound for clipping; not applied if set to None.
         """
-        super().__init__(gamma, beta)
+        super().__init__(gamma, beta, low_clip, high_clip)
+
+        # The mode to use for normalization
+        if mode not in ["min", "mean"]:
+            raise ValueError(f"Invalid mode: {mode}")
+        self._mode = mode
 
         # Running statistical measures recorded to compute the mean and standard deviation
         self._min = np.inf
@@ -49,14 +54,7 @@ class ZScoreNormalizer(Normalizer):
         self._mean = 0.0
         self._std = 0.0
 
-        self._low_clip = low_clip
-        self._high_clip = high_clip
-
-        if mode not in ["min", "mean"]:
-            raise ValueError(f"Invalid mode: {mode}")
-        self._mode = mode
-
-    def normalize(self, tensor: torch.Tensor) -> torch.Tensor:
+    def _normalize_impl(self, tensor: torch.Tensor) -> torch.Tensor:
         # Update the statistical measures
         self._min = min(self._min, tensor.min().item())
         self._sum += tensor.sum().item()
@@ -73,16 +71,7 @@ class ZScoreNormalizer(Normalizer):
         else:
             raise ValueError(f"Invalid normalization mode: {self._mode}")
 
-        normalized_tensor = (
-            sub_tensor / (self._std + self.EPS) * self._gamma + self._beta
-        )
-
-        if self._low_clip is not None or self._high_clip is not None:
-            normalized_tensor = torch.clamp(
-                normalized_tensor, min=self._low_clip, max=self._high_clip
-            )
-
-        return normalized_tensor
+        return sub_tensor / (self._std + self.EPS)
 
     def get_model_dict(self) -> Dict[str, Any]:
         """
@@ -119,8 +108,6 @@ class ZScoreNormalizer(Normalizer):
                 "count": self._count,
                 "min": self._min,
                 "squared_sum": self._sqrd_sum,
-                "low_clip": self._low_clip,
-                "high_clip": self._high_clip,
                 # For reporting only
                 "mean": self._mean,
                 "std": self._std,
@@ -141,7 +128,6 @@ class ZScoreNormalizer(Normalizer):
           - "mean" -> subtract the mean value.
         - gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
         - beta -> the beta scaling parameter, which is added to the normalized values.
-        - mode -> the mode of normalization.
         - sum -> the sum of all values.
         - count -> the number of values.
         - min -> the minimum value.
@@ -165,7 +151,5 @@ class ZScoreNormalizer(Normalizer):
             self._count = model["count"]
             self._min = model["min"]
             self._sqrd_sum = model["squared_sum"]
-            self._low_clip = model["low_clip"]
-            self._high_clip = model["high_clip"]
         except KeyError as e:
             raise ValueError(f"Invalid model: {model}") from e
