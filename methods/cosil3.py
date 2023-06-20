@@ -106,7 +106,9 @@ class CoSIL2(object):
                 }
             )
             self.replay_buffer.replace(obs_list)
-            self.demos = get_markers_by_ep(self.replay_buffer.all(), 1000, self.device)
+            self.demos.extend(
+                get_markers_by_ep(self.replay_buffer.all(), 1000, self.device)
+            )
             self.morphos = data["morpho"]
 
         self.initial_states_memory = []
@@ -151,7 +153,6 @@ class CoSIL2(object):
                 head_type=self.config.method.head_type,
                 head_wrt=self.config.method.head_wrt,
             )
-
             self.expert_obs = [
                 torch.from_numpy(x).float().to(self.device) for x in expert_obs_np
             ]
@@ -165,6 +166,9 @@ class CoSIL2(object):
                 torch.cat([ep, torch.zeros(ep.size(0), 1, device=self.device)], dim=-1)
                 for ep in self.expert_obs
             ]
+
+        # Add expert_obs to demos
+        self.demos.extend(self.expert_obs)
 
         self.obs_size = self.env.observation_space.shape[0]
         if self.absorbing_state:
@@ -330,7 +334,7 @@ class CoSIL2(object):
         pos_baseline_distance = 0
         vel_baseline_distance = 0
 
-        did_co_adapt_mbc = False
+        did_adapt_mbc = False
 
         if len(self.expert_obs) > 1:
             num_comp = 0
@@ -463,11 +467,11 @@ class CoSIL2(object):
                             if (
                                 self.config.method.transfer
                                 and isinstance(self.il_rewarder, MBC)
-                                and not did_co_adapt_mbc
+                                and not did_adapt_mbc
                             ):
-                                self.logger.info("Co-adapting MBC rewarder")
+                                self.logger.info("Adapting MBC rewarder")
                                 all_batch = self.current_buffer.all()
-                                self.il_rewarder.co_adapt(
+                                self.il_rewarder.adapt(
                                     all_batch,
                                     self.batch_size,
                                     self.morphos[:-1],
@@ -475,7 +479,7 @@ class CoSIL2(object):
                                     self.pop_agent._policy,
                                     self.pop_agent._gamma,
                                 )
-                                did_co_adapt_mbc = True
+                                did_adapt_mbc = True
 
                             # Train the individual agent
                             replay_ratio = self.replay_weight
@@ -623,6 +627,7 @@ class CoSIL2(object):
             log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
             log_dict["buffers/replay_size"] = len(self.replay_buffer)
             log_dict["buffers/current_size"] = len(self.current_buffer)
+            log_dict["buffers/demos_size"] = len(self.demos)
             log_dict["general/episode_steps"] = episode_steps
             log_dict["general/episode_updates"] = episode_updates
             log_dict["general/omega"] = self.omega_scheduler.value
@@ -647,8 +652,8 @@ class CoSIL2(object):
                 # Copy the contents of the current buffer to the replay buffer
                 # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
-                self.demos = get_markers_by_ep(
-                    self.replay_buffer.all(), 1000, self.device
+                self.demos.extend(
+                    get_markers_by_ep(self.current_buffer.all(), 1000, self.device)
                 )
                 self.current_buffer.clear()
 
@@ -684,7 +689,15 @@ class CoSIL2(object):
 
                 # Reset counters and flags
                 new_morpho_episode = 1
-                did_co_adapt_mbc = False
+                did_adapt_mbc = False
+
+            # Adapt the MBC rewarder every adapt_period episodes
+            elif (
+                self.config.method.co_adapt
+                and isinstance(self.il_rewarder, MBC)
+                and episode % self.config.method.rewarder.adapt_period == 0
+            ):
+                did_adapt_mbc = False
 
             log_dict["reward/env_total"] = episode_reward
 

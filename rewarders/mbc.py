@@ -46,19 +46,19 @@ class MBC(Rewarder):
 
         assert (
             self._demonstrator is not None
-        ), "Must call `co-adapt` before accessing the demonstrator morphology."
+        ), "Must call `adapt` before accessing the demonstrator morphology."
         return self._demonstrator
 
     @property
     def batch_demonstrator(self) -> torch.Tensor:
         """
         The demonstrator morphology parameters as a batch.
-        The first dimension is of the size of the `batch_size` parameter passed to the last `co-adapt` call.
+        The first dimension is of the size of the `batch_size` parameter passed to the last `adapt` call.
         """
 
         assert (
             self._batch_demonstrator is not None
-        ), "Must call `co-adapt` before accessing the demonstrator morphology."
+        ), "Must call `adapt` before accessing the demonstrator morphology."
         return self._batch_demonstrator
 
     def train(self, *_) -> Tuple[float, float, float]:
@@ -175,7 +175,7 @@ class MBC(Rewarder):
 
         return optimized_demonstrator
 
-    def co_adapt(
+    def adapt(
         self,
         batch: tuple,
         batch_size: int,
@@ -185,7 +185,7 @@ class MBC(Rewarder):
         gamma: float,
     ) -> None:
         """
-        Make a co-adaptation step, where the rewarder adapts its internal state when the morphology changes.
+        Make an adaptation step, where the rewarder adapts its internal state when the morphology changes.
 
         Parameters
         ----------
@@ -232,7 +232,7 @@ class MBC(Rewarder):
     def _compute_rewards_impl(self, batch: tuple, demos: tuple) -> torch.Tensor:
         if self._demonstrator is None:
             raise RuntimeError(
-                "Must call co-adapt() before computing rewards for a batch."
+                "Must call adapt() before computing rewards for a batch."
             )
 
         action_batch = torch.FloatTensor(batch[1]).to(self._device)

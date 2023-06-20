@@ -141,6 +141,9 @@ class MBCConfig(RewarderConfig):
     name: str = "mbc"
     """Name of the rewarder."""
 
+    adapt_period: int = 50
+    """Number of episodes every which the MBC rewarder adapts its demonstrator morphology."""
+
 
 @dataclass(kw_only=True)
 class GAILConfig(RewarderConfig):
