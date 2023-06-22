@@ -24,9 +24,25 @@ def merge_batches(first_batch, second_batch):
 
 
 def get_markers_by_ep(
-    obs: tuple, ep_len: int, device: Union[torch.device, str]
+    obs: tuple,
+    ep_len: int,
+    device: Union[torch.device, str],
+    n_ep: int = 1,
 ) -> List[torch.Tensor]:
-    return [torch.from_numpy(x).float().to(device) for x in np.split(obs[6], ep_len)]
+    """
+    Returns a list of markers by episode.
+
+    Parameters
+    ----------
+    obs -> the observations.
+    ep_len -> the length of the episodes.
+    device -> the device to use.
+    n_ep -> the number of episodes to return, starting from the last episode.
+    """
+
+    all_markers_np = np.split(obs[6], obs[6].shape[0] / ep_len)
+    start_i = int(max(len(all_markers_np) - n_ep, 0))
+    return [torch.from_numpy(x).float().to(device) for x in all_markers_np[start_i:]]
 
 
 def _add_obs(obs_dict, info, done):

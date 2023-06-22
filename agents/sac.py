@@ -50,6 +50,7 @@ class SAC(Agent):
         `rl_rewarder` -> the reinforcement rewarder.
         `il_rewarder` -> the imitation rewarder.
         `omega_scheduler` -> the scheduler for the omega parameter.
+        `logs_suffix` -> the suffix to append to the logs.
         """
 
         self._device = torch.device(config.device)
@@ -177,9 +178,16 @@ class SAC(Agent):
             for _ in range(n_batches):
                 self._policy_optim.zero_grad()
 
-                state_batch, action_batch, _, _, _, _, marker_batch, _ = memory.sample(
-                    batch_size
-                )
+                (
+                    state_batch,
+                    action_batch,
+                    _,
+                    _,
+                    _,
+                    _,
+                    marker_batch,
+                    _,
+                ) = memory.sample(batch_size)
 
                 state_batch = torch.FloatTensor(state_batch).to(self._device)
                 marker_batch = torch.FloatTensor(marker_batch).to(self._device)
@@ -233,12 +241,28 @@ class SAC(Agent):
         return rl_loss, rl_loss_norm
 
     def _get_il_loss(
-        self, batch: tuple, demos: List[torch.Tensor], omega: float
+        self,
+        batch: tuple,
+        policy_actions: torch.Tensor,
+        demos: List[torch.Tensor],
+        omega: float,
     ) -> torch.Tensor:
         if self._il_rewarder is None or np.isclose(omega, 0.0):
             il_loss = torch.tensor(0.0, device=self._device)
             il_loss_norm = il_loss
             return il_loss, il_loss_norm
+
+        batch = (
+            batch[0],
+            policy_actions,
+            batch[2],
+            batch[3],
+            batch[4],
+            batch[5],
+            batch[6],
+            batch[7],
+            batch[8],
+        )
 
         il_loss = -self._il_rewarder.compute_rewards(batch, demos)
         if self._il_norm is not None:
@@ -292,9 +316,9 @@ class SAC(Agent):
             terminated_batch,
             truncated_batch,
             marker_batch,
-            *_,
+            next_marker_batch,
+            morpho_batch,
         ) = batch
-
         state_batch = torch.FloatTensor(state_batch).to(self._device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
         action_batch = torch.FloatTensor(action_batch).to(self._device)
@@ -307,8 +331,21 @@ class SAC(Agent):
         )
         if marker_batch is not None and marker_batch[0] is not None:
             marker_batch = torch.FloatTensor(marker_batch).to(self._device)
+            next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
+        morpho_batch = torch.FloatTensor(morpho_batch).to(self._device)
+        batch = (
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
+            terminated_batch,
+            truncated_batch,
+            marker_batch,
+            next_marker_batch,
+            morpho_batch,
+        )
 
-        rewards = self._rl_rewarder.compute_rewards(batch, demos).to(self._device)
+        rewards = self._rl_rewarder.compute_rewards(batch, demos)
         assert reward_batch.shape == rewards.shape
         reward_batch = rewards
 
@@ -365,7 +402,7 @@ class SAC(Agent):
         #         state_batch, marker_batch, policy_mean
         #     )
         #     rl_loss += vae_loss
-        il_loss, il_loss_norm = self._get_il_loss(batch, demos, omega)
+        il_loss, il_loss_norm = self._get_il_loss(batch, pi, demos, omega)
         policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
 
         # Update the policy
@@ -438,7 +475,9 @@ class SAC(Agent):
         self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if (
-            "log_alpha" in model and "log_alpha_optim_state_dict" in model
+            self._automatic_entropy_tuning is True
+            and "log_alpha" in model
+            and "log_alpha_optim_state_dict" in model
         ):  # the model was trained with automatic entropy tuning
             self._log_alpha = model["log_alpha"]
             self._alpha = self._log_alpha.exp()

@@ -235,10 +235,11 @@ class MBC(Rewarder):
                 "Must call adapt() before computing rewards for a batch."
             )
 
-        action_batch = torch.FloatTensor(batch[1]).to(self._device)
+        action_batch = batch[1]
         (_, action_demos, *_) = demos
 
-        return -torch.square(action_batch - action_demos)
+        rewards = -torch.square(action_batch - action_demos)
+        return rewards
 
     def get_model_dict(self) -> Dict[str, Any]:
         data = {

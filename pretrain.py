@@ -9,10 +9,10 @@ import torch
 from gait_track_envs import register_env
 from omegaconf import DictConfig
 
-from agents import SAC
+from agents import DualSAC
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import ConstantScheduler
-from config import setup_config
+from config import GAILConfig, SAILConfig, setup_config
 from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
 from rewarders import GAIL, MBC, SAIL, DualRewarder, EnvReward, Rewarder
 from utils import dict_add, dict_div
@@ -22,7 +22,7 @@ from utils.rl import get_markers_by_ep
 def train(
     config: DictConfig,
     logger: Logger,
-    agent: SAC,
+    agent: DualSAC,
     replay_buffer: ObservationBuffer,
     rewarders: list[Rewarder],
 ) -> None:
@@ -43,11 +43,10 @@ def train(
     start = time.time()
     log_dict, logged = {}, 0
 
-    demos = get_markers_by_ep(replay_buffer.all(), 1000, config.device)
+    demos = get_markers_by_ep(replay_buffer.all(), 1000, config.device, n_ep=50)
 
     for step in range(config.updates):
         # Train the rewarders
-        # BUG: The batch should be from a new morphology (we would need to take steps in the env)
         batch = replay_buffer.sample(config.rewarder_batch_size)
         for rewarder in rewarders:
             rewarder.train(batch, demos)
@@ -82,7 +81,9 @@ def train(
     return log_dict
 
 
-def save(agent: SAC, rewarders: list[Rewarder], dir_path: str, models_id: int) -> str:
+def save(
+    agent: DualSAC, rewarders: list[Rewarder], dir_path: str, models_id: int
+) -> str:
     """
     Save the agent and the rewarders models to a file as a dict with the following structure:
     ```
@@ -193,28 +194,28 @@ def main(config: DictConfig) -> None:
         obs_size += 1
     if config.morpho_in_state:
         obs_size += num_morpho
-    # demo_dim = 0
+    demo_dim = 36
 
     # Rewarders
     env_reward = EnvReward(config.device)
-    # config_gail = config
-    # config_gail.method.rewarder = GAILConfig()
-    # gail = GAIL(demo_dim, config_gail)
-    # config_sail = config
-    # config_sail.method.rewarder = SAILConfig()
-    # sail = SAIL(logger, env, demo_dim, config_sail)
-    rewarders = [env_reward]
+    config_gail = config
+    config_gail.method.rewarder = GAILConfig()
+    gail = GAIL(demo_dim, config_gail)
+    config_sail = config
+    config_sail.method.rewarder = SAILConfig()
+    sail = SAIL(logger, env, demo_dim, config_sail)
+    rewarders = [env_reward, gail, sail]
 
     # Agent
     omega_scheduler = ConstantScheduler(0.0)
-    agent = SAC(
+    agent = DualSAC(
         config,
         logger,
         env.action_space,
         obs_size,
         num_morpho,
         env_reward,
-        env_reward,
+        gail,
         omega_scheduler,
     )
 

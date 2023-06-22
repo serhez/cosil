@@ -13,11 +13,10 @@ from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from omegaconf import DictConfig
 
 import wandb
-from agents import SAC
+from agents import SAC, DualSAC
 from common.observation_buffer import ObservationBuffer, multi_sample
 from common.schedulers import ConstantScheduler, create_scheduler
 from loggers import Logger
-from normalizers import create_normalizer
 from rewarders import GAIL, MBC, SAIL, DualRewarder, create_rewarder
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
@@ -83,6 +82,7 @@ class CoSIL2(object):
         self.num_morpho = self.env.morpho_params.shape[0]
 
         self.demos = []
+        self.demos_n_ep = self.config.method.demos_n_ep
         self.batch_size = self.config.method.batch_size
         self.replay_weight = self.config.method.replay_weight
         self.replay_buffer = ObservationBuffer(
@@ -107,7 +107,9 @@ class CoSIL2(object):
             )
             self.replay_buffer.replace(obs_list)
             self.demos.extend(
-                get_markers_by_ep(self.replay_buffer.all(), 1000, self.device)
+                get_markers_by_ep(
+                    self.replay_buffer.all(), 1000, self.device, self.demos_n_ep
+                )
             )
             self.morphos = data["morpho"]
 
@@ -186,30 +188,6 @@ class CoSIL2(object):
             {"Expert observation shapes": [x.shape for x in self.expert_obs]},
         )
 
-        # Create the normalizers
-        # If in Dual-Q mode, the normalizers are applied to the rewarders
-        # Otherwise, the normalizers are applied to the loss terms and created by the agent
-        if self.config.method.dual_mode == "q":
-            rl_norm = create_normalizer(
-                name=config.method.normalization_type,
-                mode=config.method.normalization_mode,
-                gamma=config.method.rl_normalization_gamma,
-                beta=config.method.rl_normalization_beta,
-                low_clip=config.method.normalization_low_clip,
-                high_clip=config.method.normalization_high_clip,
-            )
-            il_norm = create_normalizer(
-                name=config.method.normalization_type,
-                mode=config.method.normalization_mode,
-                gamma=config.method.il_normalization_gamma,
-                beta=config.method.il_normalization_beta,
-                low_clip=config.method.normalization_low_clip,
-                high_clip=config.method.normalization_high_clip,
-            )
-        else:
-            rl_norm = None
-            il_norm = None
-
         # Create the RL and IL rewarders
         self.logger.info("Using RL rewarder env")
         self.rl_rewarder = create_rewarder(
@@ -219,7 +197,6 @@ class CoSIL2(object):
             self.env,
             self.demo_dim,
             self.bounds,
-            rl_norm,
         )
         self.logger.info(f"Using IL rewarder {config.method.rewarder.name}")
         self.il_rewarder = create_rewarder(
@@ -229,7 +206,6 @@ class CoSIL2(object):
             self.env,
             self.demo_dim,
             self.bounds,
-            il_norm,
         )
         self.rewarder_batch_size = self.config.method.rewarder.batch_size
 
@@ -249,7 +225,15 @@ class CoSIL2(object):
         )
 
         if config.method.agent.name == "sac":
-            self.logger.info("Using agent SAC")
+            assert not config.method.dual_mode == "loss_term" or (
+                not config.method.rewarder.name == "gail"
+                and not config.method.rewarder.name == "sail"
+            ), "Loss-term dual mode cannot be used with GAIL nor SAIL"
+            assert (
+                not config.method.dual_mode == "q"
+                or not config.method.rewarder.name == "mbc"
+            ), "Dual-Q mode cannot be used with MBC"
+
             common_args = [
                 self.config,
                 self.logger,
@@ -260,19 +244,27 @@ class CoSIL2(object):
                 self.num_morpho,
                 self.rl_rewarder,
             ]
-            self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
-            self.ind_agent = SAC(
-                *common_args, self.il_rewarder, self.omega_scheduler, "ind"
-            )
+            if config.method.dual_mode == "loss_term":
+                self.logger.info("Using agent SAC")
+                self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
+                self.ind_agent = SAC(
+                    *common_args, self.il_rewarder, self.omega_scheduler, "ind"
+                )
+            elif config.method.dual_mode == "q":
+                self.logger.info("Using agent Dual-SAC")
+                self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
+                self.ind_agent = DualSAC(
+                    *common_args, self.il_rewarder, self.omega_scheduler, "ind"
+                )
         else:
             raise ValueError("Invalid agent")
 
         # SAIL includes a pretraining step for the VAE and inverse dynamics
-        if isinstance(self.rl_rewarder, SAIL):
-            self.vae_loss = self.rl_rewarder.pretrain_vae(self.expert_obs, 10000)
+        if isinstance(self.il_rewarder, SAIL):
+            self.vae_loss = self.il_rewarder.pretrain_vae(self.expert_obs, 10000)
             if not self.config.resume:
-                self.rl_rewarder.g_inv_loss = self._pretrain_sail(
-                    self.rl_rewarder, co_adapt=self.config.method.co_adapt
+                self.il_rewarder.g_inv_loss = self._pretrain_sail(
+                    self.il_rewarder, co_adapt=self.config.method.co_adapt
                 )
 
         if config.resume is not None:
@@ -305,6 +297,7 @@ class CoSIL2(object):
             elif isinstance(rewarder, SAIL):
                 rewarder.load(data["sail"])
 
+    @torch.no_grad()
     def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
         morpho_size = morpho.shape[1]
         feats_batch = torch.FloatTensor(batch[0]).to(self.device)
@@ -335,6 +328,9 @@ class CoSIL2(object):
         vel_baseline_distance = 0
 
         did_adapt_mbc = False
+
+        if self.config.method.pretrain_path is not None:
+            self.load_pretrained(self.config.method.pretrain_path)
 
         if len(self.expert_obs) > 1:
             num_comp = 0
@@ -653,7 +649,9 @@ class CoSIL2(object):
                 # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
                 self.demos.extend(
-                    get_markers_by_ep(self.current_buffer.all(), 1000, self.device)
+                    get_markers_by_ep(
+                        self.current_buffer.all(), 1000, self.device, self.demos_n_ep
+                    )
                 )
                 self.current_buffer.clear()
 
@@ -662,7 +660,7 @@ class CoSIL2(object):
                 took_pop = time.time()
                 pop_log_dict, pop_logged = {}, 0
                 n_updates = episode_updates * morpho_episode
-                for update in range(n_updates):
+                for update in range(1, n_updates + 1):
                     batch = self.replay_buffer.sample(self.batch_size)
                     new_log = self.pop_agent.update_parameters(
                         batch, self.pop_updates, self.demos
@@ -684,7 +682,11 @@ class CoSIL2(object):
 
                 # Re-initialize the individual agent from the population agent
                 self.logger.info("Re-initializing individual agent")
-                self.ind_agent.load(self.pop_agent.get_model_dict())
+                pop_model = self.pop_agent.get_model_dict()
+                if isinstance(self.ind_agent, DualSAC):
+                    self.ind_agent.load(pop_model, load_imit=False)
+                else:
+                    self.ind_agent.load(pop_model)
                 self.ind_updates = self.pop_updates
 
                 # Reset counters and flags

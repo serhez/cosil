@@ -4,7 +4,7 @@ defaults:
   - base_experiment
   - override /method: cosil2
   - override /method/agent: sac
-  - override /method/rewarder: mbc  # variable
+  - override /method/rewarder: gail  # variable
 
 method:
   replay_buffer_path: null
@@ -26,16 +26,16 @@ method:
 
   # Variables
   transfer: true
-  omega_init: 0.2
+  omega_init: 0.01
   normalization_type: scale_shift
   rl_normalization_gamma: 1.0
   rl_normalization_beta: 0.0
-  il_normalization_gamma: 500.0
+  il_normalization_gamma: 1000.0
   il_normalization_beta: 0.0
   normalization_low_clip: null
   normalization_high_clip: null
 
 logger:
-  group_name: "raw-om02-mbc-ss"
-  experiment_name: "mbc-ss"
-  loggers: console
+  group_name: "raw-om02-gail-ss"
+  experiment_name: "gail-ss"
+  loggers: console,file,wandb

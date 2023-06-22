@@ -33,6 +33,7 @@ class DualSAC(Agent):
         imitation_rewarder: Rewarder,
         reinforcement_rewarder: EnvReward,
         omega_scheduler: Scheduler,
+        logs_suffix: str = "",
     ):
         """
         Initialize the Dual SAC agent.
@@ -47,6 +48,7 @@ class DualSAC(Agent):
         `imitation_rewarder` -> the imitation rewarder.
         `reinforcement_rewarder` -> the reinforcement rewarder.
         `omega_scheduler` -> the scheduler for the omega parameter.
+        `logs_suffix` -> the suffix to append to the logs.
         """
 
         self._device = torch.device(config.device)
@@ -62,6 +64,10 @@ class DualSAC(Agent):
 
         self._imit_rewarder = imitation_rewarder
         self._rein_rewarder = reinforcement_rewarder
+
+        self.logs_suffix = logs_suffix
+        if self.logs_suffix != "":
+            self.logs_suffix = "_" + self.logs_suffix
 
         self._morpho_slice = slice(-morpho_dim, None)
         if config.absorbing_state:
@@ -309,9 +315,8 @@ class DualSAC(Agent):
             truncated_batch,
             marker_batch,
             next_marker_batch,
-            _,
+            morpho,
         ) = batch
-
         state_batch = torch.FloatTensor(state_batch).to(self._device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
         action_batch = torch.FloatTensor(action_batch).to(self._device)
@@ -324,6 +329,18 @@ class DualSAC(Agent):
         )
         marker_batch = torch.FloatTensor(marker_batch).to(self._device)
         next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
+        morpho = torch.FloatTensor(morpho).to(self._device)
+        batch = (
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
+            terminated_batch,
+            truncated_batch,
+            marker_batch,
+            next_marker_batch,
+            morpho,
+        )
 
         imit_rewards = self._imit_rewarder.compute_rewards(batch, expert_obs)
         rein_rewards = self._rein_rewarder.compute_rewards(batch, None)
@@ -364,10 +381,10 @@ class DualSAC(Agent):
             )
 
         # Plot absorbing rewards
-        marker_feats = next_marker_batch
-        if self._learn_disc_transitions:
-            marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
-        absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
+        # marker_feats = next_marker_batch
+        # if self._learn_disc_transitions:
+        #     marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
+        # absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
         # Critics losses
         imit_qfs = self._imit_critic(state_batch, action_batch)
@@ -409,12 +426,12 @@ class DualSAC(Agent):
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
         # VAE term
-        vae_loss = torch.tensor(0.0, device=self._device)
-        if isinstance(self._imit_rewarder, SAIL):
-            vae_loss = self._imit_rewarder.get_vae_loss(
-                state_batch, marker_batch, policy_mean
-            )
-            policy_loss += vae_loss
+        # vae_loss = torch.tensor(0.0, device=self._device)
+        # if isinstance(self._imit_rewarder, SAIL):
+        #     vae_loss = self._imit_rewarder.get_vae_loss(
+        #         state_batch, marker_batch, policy_mean
+        #     )
+        #     policy_loss += vae_loss
 
         self._policy_optim.zero_grad()
         policy_loss.backward()
@@ -445,35 +462,37 @@ class DualSAC(Agent):
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
         return {
-            "reward/imitation_mean": imit_rewards.mean().item(),
-            "reward/reinforcement_mean": rein_rewards.mean().item(),
-            "reward/absorbing_mean": absorbing_rewards.item(),
-            "q-value/mean": q_value.mean().item(),
-            "q-value/imitation_mean": imit_q_value.mean().item(),
-            "q-value/imitation_norm_mean": imit_q_value_norm.mean().item(),
-            "q-value/reinforcement_mean": rein_q_value.mean().item(),
-            "q-value/reinforcement_norm_mean": rein_q_value_norm.mean().item(),
-            "loss/imitation_critic": imit_qf_loss.item(),
-            "loss/reinforcement_critic": rein_qf_loss.item(),
-            "loss/policy_mean": policy_loss.item(),
-            "loss/vae": vae_loss.item(),
-            "loss/alpha": alpha_loss.item(),
-            "entropy/alpha": alpha_tlogs.item(),
-            "entropy/entropy": entropy,
-            "entropy/action_std": std,
+            "reward/imitation_mean" + self.logs_suffix: imit_rewards.mean().item(),
+            "reward/reinforcement_mean" + self.logs_suffix: rein_rewards.mean().item(),
+            # "reward/absorbing_mean" + self.logs_suffix: absorbing_rewards.item(),
+            "q-value/mean" + self.logs_suffix: q_value.mean().item(),
+            "q-value/imitation_mean" + self.logs_suffix: imit_q_value.mean().item(),
+            "q-value/imitation_norm_mean"
+            + self.logs_suffix: imit_q_value_norm.mean().item(),
+            "q-value/reinforcement_mean" + self.logs_suffix: rein_q_value.mean().item(),
+            "q-value/reinforcement_norm_mean"
+            + self.logs_suffix: rein_q_value_norm.mean().item(),
+            "loss/imitation_critic" + self.logs_suffix: imit_qf_loss.item(),
+            "loss/reinforcement_critic" + self.logs_suffix: rein_qf_loss.item(),
+            "loss/policy_mean" + self.logs_suffix: policy_loss.item(),
+            # "loss/vae" + self.logs_suffix: vae_loss.item(),
+            "loss/alpha" + self.logs_suffix: alpha_loss.item(),
+            "entropy/alpha" + self.logs_suffix: alpha_tlogs.item(),
+            "entropy/entropy" + self.logs_suffix: entropy,
+            "entropy/action_std" + self.logs_suffix: std,
         }
 
     # Return a dictionary containing the model state for saving
     def get_model_dict(self) -> Dict[str, Any]:
         data = {
             "policy_state_dict": self._policy.state_dict(),
-            "policy_optim_state_dict": self._policy_optim.state_dict(),
+            "policy_optimizer_state_dict": self._policy_optim.state_dict(),
+            "critic_state_dict": self._rein_critic.state_dict(),
+            "critic_target_state_dict": self._rein_critic_target.state_dict(),
+            "critic_optimizer_state_dict": self._rein_critic_optim.state_dict(),
             "imit_critic_state_dict": self._imit_critic.state_dict(),
             "imit_critic_target_state_dict": self._imit_critic_target.state_dict(),
-            "imit_critic_optim_state_dict": self._imit_critic_optim.state_dict(),
-            "rein_critic_state_dict": self._rein_critic.state_dict(),
-            "rein_critic_target_state_dict": self._rein_critic_target.state_dict(),
-            "rein_critic_optim_state_dict": self._rein_critic_optim.state_dict(),
+            "imit_critic_optimizer_state_dict": self._imit_critic_optim.state_dict(),
         }
         if self._automatic_entropy_tuning:
             data["log_alpha"] = self._log_alpha
@@ -482,18 +501,26 @@ class DualSAC(Agent):
         return data
 
     # Load model parameters
-    def load(self, model: Dict[str, Any], evaluate=False):
+    def load(self, model: Dict[str, Any], evaluate=False, load_imit=True):
         self._policy.load_state_dict(model["policy_state_dict"])
-        self._policy_optim.load_state_dict(model["policy_optim_state_dict"])
-        self._imit_critic.load_state_dict(model["imit_critic_state_dict"])
-        self._imit_critic_target.load_state_dict(model["imit_critic_target_state_dict"])
-        self._imit_critic_optim.load_state_dict(model["imit_critic_optim_state_dict"])
-        self._rein_critic.load_state_dict(model["rein_critic_state_dict"])
-        self._rein_critic_target.load_state_dict(model["rein_critic_target_state_dict"])
-        self._rein_critic_optim.load_state_dict(model["rein_critic_optim_state_dict"])
+        self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
+        self._rein_critic.load_state_dict(model["critic_state_dict"])
+        self._rein_critic_target.load_state_dict(model["critic_target_state_dict"])
+        self._rein_critic_optim.load_state_dict(model["critic_optimizer_state_dict"])
+
+        if load_imit:
+            self._imit_critic.load_state_dict(model["imit_critic_state_dict"])
+            self._imit_critic_target.load_state_dict(
+                model["imit_critic_target_state_dict"]
+            )
+            self._imit_critic_optim.load_state_dict(
+                model["imit_critic_optimizer_state_dict"]
+            )
 
         if (
-            "log_alpha" in model and "log_alpha_optim_state_dict" in model
+            self._automatic_entropy_tuning is True
+            and "log_alpha" in model
+            and "log_alpha_optim_state_dict" in model
         ):  # the model was trained with automatic entropy tuning
             self._log_alpha = model["log_alpha"]
             self._alpha = self._log_alpha.exp()
