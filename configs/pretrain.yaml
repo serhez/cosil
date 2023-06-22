@@ -1,15 +1,19 @@
 ---
 defaults:
   - base_pretrain
-  - override /method: coil
-  - override /method/rewarder: env
-  - override /method/agent: sac
   - _self_
 
 env_name: GaitTrackHalfCheetah-v0
-device: cuda
+device: cpu
+updates: 50
+models_dir_path: data/pretrained
+
+method:
+  replay_buffer_path: data/replay_buffers/merged/buffer_1686554160.pt
+  normalization_type: none
 
 logger:
-  group_name: 11-06-2023_pretraining
-  experiment_name: test
-  loggers: console,file,wandb
+  project_name: CoSIL
+  group_name: pretraining
+  experiment_name: dual-sac-gailcrit
+  loggers: console
