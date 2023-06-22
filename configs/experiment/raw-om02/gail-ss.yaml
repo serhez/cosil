@@ -11,7 +11,7 @@ method:
   pretrain: false
   pretrain_path: null
   optimized_demonstrator: true
-  dual_mode: loss_term
+  dual_mode: q
   omega_scheduler: constant
   num_episodes: 275
   episodes_per_morpho: 50
@@ -30,7 +30,7 @@ method:
   normalization_type: scale_shift
   rl_normalization_gamma: 1.0
   rl_normalization_beta: 0.0
-  il_normalization_gamma: 1000.0
+  il_normalization_gamma: 5.0
   il_normalization_beta: 0.0
   normalization_low_clip: null
   normalization_high_clip: null
@@ -38,4 +38,4 @@ method:
 logger:
   group_name: "raw-om02-gail-ss"
   experiment_name: "gail-ss"
-  loggers: console,file,wandb
+  loggers: console

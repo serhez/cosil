@@ -64,16 +64,16 @@ class Normalizer(ABC):
         normalized_tensor = self._normalize_impl(tensor)
 
         # Apply the gamma and beta parameters
-        normalized_tensor *= self._gamma
-        normalized_tensor += self._beta
+        scaled_tensor = normalized_tensor * self._gamma
+        scaled_tensor += self._beta
 
         # Clip the normalized tensor if necessary
         if self._low_clip is not None or self._high_clip is not None:
-            normalized_tensor = torch.clamp(
-                normalized_tensor, min=self._low_clip, max=self._high_clip
+            scaled_tensor = torch.clamp(
+                scaled_tensor, min=self._low_clip, max=self._high_clip
             )
 
-        return normalized_tensor
+        return scaled_tensor
 
     def _call_impl(self, *args, **kwargs):
         return self.normalize(*args, **kwargs)
