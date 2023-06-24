@@ -11,6 +11,7 @@ from gait_track_envs import register_env
 from omegaconf import DictConfig
 
 from agents import SAC
+from common.schedulers import ConstantScheduler
 from config import setup_config
 from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
 from rewarders import EnvReward
@@ -55,9 +56,11 @@ def gen_model_obs(
         obs_size + env.morpho_params.shape[0] if config.morpho_in_state else obs_size,
         env.morpho_params.shape[0],
         rewarder,
+        None,
+        ConstantScheduler(0.0),
     )
 
-    load_model(config.resume, env, agent, co_adapt=False, evaluate=True)
+    load_model(config.resume, env, agent, co_adapt=True, evaluate=True)
 
     return gen_obs_dict(
         config.num_obs,

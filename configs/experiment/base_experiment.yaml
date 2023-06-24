@@ -33,7 +33,7 @@ method:
   sparse_mask: null
 
   # CoIL
-  expert_demos: data/expert_demos_sampled_GaitTrackHalfCheetah-v0.pt
+  expert_demos: data/demos/demos_1687522046.pt
   morpho_warmup: 50000
   episodes_per_morpho: 50  # could be tested
   disc_warmup: 20000

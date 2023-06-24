@@ -745,6 +745,9 @@ class CoSIL2(object):
         # TODO: Remove
         # torch.save(self.morphos, "data/morphos/experiment_morphos.pt")
 
+        if self.config.method.save_final:
+            self._save("final")
+
         return self.ind_agent, self.env.morpho_params
 
     def _pretrain_sail(
@@ -1149,11 +1152,14 @@ class CoSIL2(object):
         self.logger.info(f"Saving model to {model_path}")
 
         data = {
-            "buffer": self.replay_buffer.to_list(),
+            "replay_buffer": self.replay_buffer.to_list(),
+            "current_buffer": self.current_buffer.to_list(),
             "morpho_dict": self.env.morpho_params,
+            "rl_rewarder": self.rl_rewarder.get_model_dict(),
+            "il_rewarder": self.il_rewarder.get_model_dict(),
+            "ind_agent": self.ind_agent.get_model_dict(),
+            "pop_agent": self.pop_agent.get_model_dict(),
         }
-        data.update(self.rl_rewarder.get_model_dict())
-        data.update(self.ind_agent.get_model_dict())
 
         torch.save(data, model_path)
 
@@ -1165,14 +1171,19 @@ class CoSIL2(object):
         if path_name is not None:
             model = torch.load(path_name)
 
-            # TODO: These should be in the ObservationBuffer class
-            self.replay_buffer.replace(model["buffer"])
+            self.replay_buffer.replace(model["replay_buffer"])
+            self.current_buffer.replace(model["current_buffer"])
             self.replay_buffer._position = (
                 len(self.replay_buffer._buffer) % self.replay_buffer.capacity
             )
+            self.current_buffer._position = (
+                len(self.current_buffer._buffer) % self.current_buffer.capacity
+            )
 
-            success &= self.rl_rewarder.load(model)
-            success &= self.ind_agent.load(model)
+            success &= self.rl_rewarder.load(model["rl_rewarder"])
+            success &= self.il_rewarder.load(model["il_rewarder"])
+            success &= self.ind_agent.load(model["ind_agent"])
+            success &= self.pop_agent.load(model["pop_agent"])
 
             self.env.set_task(*model["morpho_dict"])
             self.morphos.append(model["morpho_dict"])

@@ -243,8 +243,8 @@ class MBC(Rewarder):
 
     def get_model_dict(self) -> Dict[str, Any]:
         data = {
-            "demonstrator": self.demonstrator,
-            "batch_demonstrator": self.batch_demonstrator,
+            "demonstrator": self._demonstrator,
+            "batch_demonstrator": self._batch_demonstrator,
         }
         return data
 
