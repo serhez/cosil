@@ -37,6 +37,6 @@ method:
   normalization_high_clip: null
 
 logger:
-  group_name: "raw-om02-gail-nonorm"
+  group_name: "raw-om005-gail-nonorm"
   experiment_name: "gail-nonorm"
   loggers: console,file,wandb
