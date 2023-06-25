@@ -252,7 +252,9 @@ class CoSIL2(object):
                 )
             elif config.method.dual_mode == "q":
                 self.logger.info("Using agent Dual-SAC")
-                self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
+                self.pop_agent = DualSAC(
+                    *common_args, self.il_rewarder, ConstantScheduler(0.0), "pop"
+                )
                 self.ind_agent = DualSAC(
                     *common_args, self.il_rewarder, self.omega_scheduler, "ind"
                 )

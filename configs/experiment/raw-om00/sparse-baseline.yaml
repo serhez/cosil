@@ -4,14 +4,14 @@ defaults:
   - base_experiment
   - override /method: cosil2
   - override /method/agent: sac
-  - override /method/rewarder: gail  # variable
+  - override /method/rewarder: mbc  # variable
 
 method:
   replay_buffer_path: null
   pretrain: false
   pretrain_path: null
   optimized_demonstrator: true
-  dual_mode: q
+  dual_mode: loss_term
   omega_scheduler: constant
   num_episodes: 275
   episodes_per_morpho: 50
@@ -25,17 +25,19 @@ method:
     morphos_path: data/morphos/experiment_morphos_bo.pt
 
   # Variables
-  transfer: true
-  omega_init: 0.2
-  normalization_type: scale_shift
-  rl_normalization_gamma: 1.0
+  transfer: false
+  omega_init: 0.0
+  normalization_type: none
+  normalization_mode: min
+  rl_normalization_gamma: 100.0
   rl_normalization_beta: 0.0
-  il_normalization_gamma: 5.0
+  il_normalization_gamma: 100.0
   il_normalization_beta: 0.0
   normalization_low_clip: null
   normalization_high_clip: null
+  sparse_mask: 5.5
 
 logger:
-  group_name: "raw-om02-gail-ss"
-  experiment_name: "gail-ss"
-  loggers: console,wandb
+  group_name: "sparse-raw-om00"
+  experiment_name: "baseline"
+  loggers: console

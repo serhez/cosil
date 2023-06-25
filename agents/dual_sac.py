@@ -30,8 +30,8 @@ class DualSAC(Agent):
         action_space,
         state_dim: int,
         morpho_dim: int,
-        imitation_rewarder: Rewarder,
         reinforcement_rewarder: EnvReward,
+        imitation_rewarder: Rewarder,
         omega_scheduler: Scheduler,
         logs_suffix: str = "",
     ):
@@ -246,8 +246,8 @@ class DualSAC(Agent):
 
         Parameters
         ----------
-        state -> the state of the environment.
-        action -> the action taken in the environment.
+        `state` -> the state of the environment.
+        `action` -> the action taken in the environment.
 
         Returns
         -------
@@ -259,13 +259,16 @@ class DualSAC(Agent):
         - The normalized reinforcement Q-value.
         """
 
+        # Compute the Q-values
         imit_value = self._imit_critic.min(state, action)
         rein_value = self._rein_critic.min(state, action)
+
+        # Normalize the Q-values
         imit_value_norm = imit_value
         rein_value_norm = rein_value
-
-        if self._imit_norm is not None and self._rein_norm is not None:
+        if self._imit_norm is not None:
             imit_value_norm = self._imit_norm(imit_value)
+        if self._rein_norm is not None:
             rein_value_norm = self._rein_norm(rein_value)
 
         return (
@@ -280,16 +283,17 @@ class DualSAC(Agent):
         )
 
     def update_parameters(
-        self, batch, updates: int, expert_obs=[], update_value_only=False
+        self, batch, updates: int, demos=[], update_value_only=False
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
 
         Parameters
         ----------
-        batch -> the batch of data.
-        updates -> the number of updates.
-        update_value_only -> whether to update the value function only.
+        `batch` -> the batch of data.
+        `updates` -> the number of updates.
+        `demos` -> the demonstrator's observations.
+        `update_value_only` -> whether to update the value function only.
 
         Returns
         -------
@@ -315,7 +319,7 @@ class DualSAC(Agent):
             truncated_batch,
             marker_batch,
             next_marker_batch,
-            morpho,
+            morpho_batch,
         ) = batch
         state_batch = torch.FloatTensor(state_batch).to(self._device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
@@ -329,7 +333,7 @@ class DualSAC(Agent):
         )
         marker_batch = torch.FloatTensor(marker_batch).to(self._device)
         next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
-        morpho = torch.FloatTensor(morpho).to(self._device)
+        morpho_batch = torch.FloatTensor(morpho_batch).to(self._device)
         batch = (
             state_batch,
             action_batch,
@@ -339,10 +343,10 @@ class DualSAC(Agent):
             truncated_batch,
             marker_batch,
             next_marker_batch,
-            morpho,
+            morpho_batch,
         )
 
-        imit_rewards = self._imit_rewarder.compute_rewards(batch, expert_obs)
+        imit_rewards = self._imit_rewarder.compute_rewards(batch, demos)
         rein_rewards = self._rein_rewarder.compute_rewards(batch, None)
         assert reward_batch.shape == imit_rewards.shape
         assert reward_batch.shape == rein_rewards.shape
