@@ -1,5 +1,3 @@
-from typing import Optional
-
 from .scheduler import Scheduler
 
 
@@ -22,7 +20,7 @@ class AlternatingScheduler(Scheduler):
         ----------
         `init_value` -> the parameter's initial value.
         `alt_value` -> the parameter's alternative value.
-        `init_period` -> the number of steps before the parameter is toggled to `alt _value`.
+        `init_period` -> the number of steps before the parameter is toggled to `alt_value`.
         `alt_period` -> the number of steps before the parameter is toggled to `init_value`.
         """
 
@@ -44,6 +42,7 @@ class AlternatingScheduler(Scheduler):
             self._value = self._alt_value
         elif self.value == self._alt_value and self._step % self._alt_period == 0:
             self._value = self._init_value
+            self._step = 0
 
         return self._value
 

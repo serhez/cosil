@@ -505,6 +505,9 @@ class CoSILConfig(CoILConfig):
         "exponential"
     )
 
+    omega_init_ep: int = 5
+    """Number of episodes before starting to change omega."""
+
     reset_omega: bool = True
     """Whether to reset omega before each morphology change."""
 
@@ -574,6 +577,9 @@ class CoSIL2Config(CoILConfig):
     demos_n_ep: float = 10
     """Number of episodes for each morphology to consider as demonstrations, starting from the last episode."""
 
+    add_new_demos: bool = True
+    """Whether to add new demonstrations to the demos buffer when changing morphology."""
+
     optimized_demonstrator: bool = True
     """Whether to use an optimized demonstrator (True) or a previously seen morphology, when using MBC."""
 
@@ -585,6 +591,9 @@ class CoSIL2Config(CoILConfig):
 
     omega_scheduler: Schedulers = "constant"  # pyright: ignore[reportGeneralTypeIssues]
     """The type of scheduler for omega."""
+
+    omega_init_ep: int = 5
+    """Number of episodes before starting to change omega."""
 
 
 @dataclass(kw_only=True)

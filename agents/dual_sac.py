@@ -194,9 +194,17 @@ class DualSAC(Agent):
             for _ in range(n_batches):
                 self._policy_optim.zero_grad()
 
-                state_batch, action_batch, _, _, _, _, marker_batch, _ = memory.sample(
-                    batch_size
-                )
+                (
+                    state_batch,
+                    action_batch,
+                    _,
+                    _,
+                    _,
+                    _,
+                    marker_batch,
+                    _,
+                    _,
+                ) = memory.sample(batch_size)
 
                 state_batch = torch.FloatTensor(state_batch).to(self._device)
                 marker_batch = torch.FloatTensor(marker_batch).to(self._device)

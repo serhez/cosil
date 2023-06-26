@@ -106,11 +106,12 @@ class CoSIL2(object):
                 }
             )
             self.replay_buffer.replace(obs_list)
-            self.demos.extend(
-                get_markers_by_ep(
-                    self.replay_buffer.all(), 1000, self.device, self.demos_n_ep
+            if self.config.method.add_new_demos:
+                self.demos.extend(
+                    get_markers_by_ep(
+                        self.replay_buffer.all(), 1000, self.device, self.demos_n_ep
+                    )
                 )
-            )
             self.morphos = data["morpho"]
 
         self.initial_states_memory = []
@@ -222,6 +223,7 @@ class CoSIL2(object):
             scheduler_period,
             self.config.method.omega_init,
             0.0,
+            n_init_episodes=self.config.method.omega_init_ep,
         )
 
         if config.method.agent.name == "sac":
@@ -650,11 +652,15 @@ class CoSIL2(object):
                 # Copy the contents of the current buffer to the replay buffer
                 # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
-                self.demos.extend(
-                    get_markers_by_ep(
-                        self.current_buffer.all(), 1000, self.device, self.demos_n_ep
+                if self.config.method.add_new_demos:
+                    self.demos.extend(
+                        get_markers_by_ep(
+                            self.current_buffer.all(),
+                            1000,
+                            self.device,
+                            self.demos_n_ep,
+                        )
                     )
-                )
                 self.current_buffer.clear()
 
                 # Train the population agent
