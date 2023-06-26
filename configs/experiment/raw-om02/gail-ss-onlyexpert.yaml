@@ -26,7 +26,7 @@ method:
 
   # Variables
   transfer: true
-  omega_init: 0.5
+  omega_init: 0.2
   normalization_type: scale_shift
   rl_normalization_gamma: 1.0
   rl_normalization_beta: 0.0
@@ -34,8 +34,9 @@ method:
   il_normalization_beta: 0.0
   normalization_low_clip: null
   normalization_high_clip: null
+  add_new_demos: false
 
 logger:
-  group_name: "raw-om05-gail-ss"
+  group_name: "raw-om02-gail-ss-onlyexpert"
   experiment_name: "gail-ss"
   loggers: console,wandb
