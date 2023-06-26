@@ -38,4 +38,4 @@ method:
 logger:
   group_name: "raw-om02-mbc-ss"
   experiment_name: "mbc-ss"
-  loggers: console
+  loggers: console,wandb
