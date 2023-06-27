@@ -30,7 +30,7 @@ method:
   normalization_type: scale_shift
   rl_normalization_gamma: 1.0
   rl_normalization_beta: 0.0
-  il_normalization_gamma: 500.0
+  il_normalization_gamma: 100.0
   il_normalization_beta: 0.0
   normalization_low_clip: null
   normalization_high_clip: null
@@ -38,4 +38,4 @@ method:
 logger:
   group_name: "pt-om02-mbc-ss"
   experiment_name: "mbc-ss"
-  loggers: console,file,wandb
+  loggers: console,wandb

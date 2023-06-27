@@ -150,7 +150,7 @@ class MBC(Rewarder):
     ) -> torch.Tensor:
         options = {"c1": 0.5, "c2": 0.3, "w": 0.9}
         optimizer = ps.single.GlobalBestPSO(
-            n_particles=250,
+            n_particles=10,
             dimensions=self._bounds.shape[0],
             options=options,
             bounds=(self._bounds[:, 0].cpu().numpy(), self._bounds[:, 1].cpu().numpy()),
@@ -168,7 +168,7 @@ class MBC(Rewarder):
 
             return losses
 
-        _, pos = optimizer.optimize(fn, iters=250)
+        _, pos = optimizer.optimize(fn, iters=100)
         optimized_demonstrator = torch.tensor(
             pos, dtype=torch.float32, device=self._device
         )
@@ -221,7 +221,7 @@ class MBC(Rewarder):
                 batch, prev_morphos, q_function, policy, gamma
             )
 
-        batch_demonstrator = self._demonstrator
+        batch_demonstrator = self._demonstrator.detach()
         if len(batch_demonstrator.shape) == 1:
             batch_demonstrator = batch_demonstrator.unsqueeze(0)
         if batch_demonstrator.shape[0] != batch_size:
@@ -238,7 +238,9 @@ class MBC(Rewarder):
         action_batch = batch[1]
         (_, action_demos, *_) = demos
 
-        rewards = -torch.square(action_batch - action_demos)
+        diff = action_batch - action_demos
+        summed_diff = diff.sum(dim=1)
+        rewards = -0.5 * torch.square(summed_diff)
         return rewards
 
     def get_model_dict(self) -> Dict[str, Any]:

@@ -234,6 +234,7 @@ class SAC(Agent):
             return rl_loss, rl_loss_norm
 
         rl_loss = (self._alpha * log_pi) - q_value
+        # rl_loss = (self._alpha * log_pi - q_value) / q_value.mean().detach()
         if self._rl_norm is not None:
             rl_loss_norm = self._rl_norm(rl_loss)
         else:
@@ -280,6 +281,7 @@ class SAC(Agent):
         updates: int,
         demos: Optional[List] = None,
         update_value_only: bool = False,
+        update_imit_critic: bool = True,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -402,8 +404,9 @@ class SAC(Agent):
         #         state_batch, marker_batch, policy_mean
         #     )
         #     rl_loss += vae_loss
-        il_loss, il_loss_norm = self._get_il_loss(batch, pi, demos, omega)
+        il_loss, il_loss_norm = self._get_il_loss(batch, policy_mean, demos, omega)
         policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
+        # policy_loss = (2.5 * rl_loss).mean()
 
         # Update the policy
         self._policy_optim.zero_grad()
