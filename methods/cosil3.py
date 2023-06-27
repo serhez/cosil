@@ -255,10 +255,18 @@ class CoSIL2(object):
             elif config.method.dual_mode == "q":
                 self.logger.info("Using agent Dual-SAC")
                 self.pop_agent = DualSAC(
-                    *common_args, self.il_rewarder, ConstantScheduler(0.0), "pop"
+                    *common_args,
+                    self.il_rewarder,
+                    self.demo_dim,
+                    ConstantScheduler(0.0),
+                    "pop",
                 )
                 self.ind_agent = DualSAC(
-                    *common_args, self.il_rewarder, self.omega_scheduler, "ind"
+                    *common_args,
+                    self.il_rewarder,
+                    self.demo_dim,
+                    self.omega_scheduler,
+                    "ind",
                 )
         else:
             raise ValueError("Invalid agent")
@@ -499,8 +507,15 @@ class CoSIL2(object):
                                 )
                             else:
                                 demos = self.demos
+                            update_imit_critic = (
+                                morpho_episode
+                                > self.config.method.agent.imit_critic_warmup
+                            )
                             new_log = self.ind_agent.update_parameters(
-                                batch, self.ind_updates, demos
+                                batch,
+                                self.ind_updates,
+                                demos,
+                                update_imit_critic=update_imit_critic,
                             )
                             new_log.update(
                                 {

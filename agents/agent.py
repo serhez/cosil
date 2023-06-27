@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import torch
 
@@ -86,20 +86,27 @@ class Agent(ABC):
 
     @abstractmethod
     def update_parameters(
-        self, batch: torch.Tensor, updates: int, update_value_only: bool = False
+        self,
+        batch: torch.Tensor,
+        updates: int,
+        demos: List[torch.Tensor],
+        update_value_only: bool = False,
+        update_imit_critic: bool = True,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
 
         Parameters
         ----------
-        batch -> the batch of data
-        updates -> the number of updates
-        update_value_only -> whether to update the value function only
+        batch -> the batch of data.
+        updates -> the number of updates.
+        demos -> the demonstrations.
+        update_value_only -> whether to update the value function only.
+        update_imit_critic -> whether to update the critic of the imitation rewarder.
 
         Returns
         -------
-        A dict reporting the losses for the different components of the agent, as well as the mean and std of the rewards
+        A dict reporting the losses for the different components of the agent, as well as the mean and std of the rewards and Q-values.
         """
 
         pass

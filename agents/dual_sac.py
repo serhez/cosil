@@ -32,6 +32,7 @@ class DualSAC(Agent):
         morpho_dim: int,
         reinforcement_rewarder: EnvReward,
         imitation_rewarder: Rewarder,
+        markers_dim: int,
         omega_scheduler: Scheduler,
         logs_suffix: str = "",
     ):
@@ -44,6 +45,7 @@ class DualSAC(Agent):
         `logger` -> the logger object.
         `action_space` -> the action space.
         `state_dim` -> the number of state features, which may include the morphology features.
+        `markers_dim` -> the number of markers features.
         `morpho_dim` -> the number of morphology features.
         `imitation_rewarder` -> the imitation rewarder.
         `reinforcement_rewarder` -> the reinforcement rewarder.
@@ -90,8 +92,16 @@ class DualSAC(Agent):
             config.method.normalization_high_clip,
         )
 
+        self._imit_markers = config.method.agent.imit_markers
+        if self._imit_markers:
+            imit_critic_dim = (
+                markers_dim  # we don't include the morphology in the state
+            )
+        else:
+            imit_critic_dim = state_dim
+
         self._imit_critic = EnsembleQNetwork(
-            state_dim,
+            imit_critic_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(device=self._device)
@@ -112,7 +122,7 @@ class DualSAC(Agent):
         )
 
         self._imit_critic_target = EnsembleQNetwork(
-            state_dim,
+            imit_critic_dim,
             action_space.shape[0],
             config.method.agent.hidden_size,
         ).to(self._device)
@@ -240,7 +250,7 @@ class DualSAC(Agent):
                 self._logger.info({"Epoch": i, "Loss": loss})
 
     def get_value(
-        self, state, action
+        self, state, markers, action
     ) -> Tuple[
         torch.FloatTensor,
         torch.FloatTensor,
@@ -268,7 +278,11 @@ class DualSAC(Agent):
         """
 
         # Compute the Q-values
-        imit_value = self._imit_critic.min(state, action)
+        if self._imit_markers:
+            imit_input = markers
+        else:
+            imit_input = state
+        imit_value = self._imit_critic.min(imit_input, action)
         rein_value = self._rein_critic.min(state, action)
 
         # Normalize the Q-values
@@ -291,7 +305,12 @@ class DualSAC(Agent):
         )
 
     def update_parameters(
-        self, batch, updates: int, demos=[], update_value_only=False
+        self,
+        batch,
+        updates: int,
+        demos=[],
+        update_value_only=False,
+        update_imit_critic=True,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -302,6 +321,7 @@ class DualSAC(Agent):
         `updates` -> the number of updates.
         `demos` -> the demonstrator's observations.
         `update_value_only` -> whether to update the value function only.
+        `update_imit_critic` -> whether to update the imitation critic.
 
         Returns
         -------
@@ -376,8 +396,12 @@ class DualSAC(Agent):
             )
             ent = self._alpha * next_state_log_pi
 
+            if self._imit_markers:
+                imit_input = next_marker_batch
+            else:
+                imit_input = next_state_batch
             imit_q_next_target = self._imit_critic_target.min(
-                next_state_batch, next_state_action
+                imit_input, next_state_action
             )
             imit_min_qf_next_target = imit_q_next_target - ent
             imit_next_q_value = (
@@ -399,7 +423,11 @@ class DualSAC(Agent):
         # absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
         # Critics losses
-        imit_qfs = self._imit_critic(state_batch, action_batch)
+        if self._imit_markers:
+            imit_input = marker_batch
+        else:
+            imit_input = state_batch
+        imit_qfs = self._imit_critic(imit_input, action_batch)
         imit_qf_loss = sum(
             [F.mse_loss(q_value, imit_next_q_value) for q_value in imit_qfs]
         )
@@ -409,10 +437,11 @@ class DualSAC(Agent):
         )
 
         # Update the critics
-        self._imit_critic_optim.zero_grad()
-        imit_qf_loss.backward()
-        torch.nn.utils.clip_grad.clip_grad_norm_(self._imit_critic.parameters(), 10)
-        self._imit_critic_optim.step()
+        if update_imit_critic:
+            self._imit_critic_optim.zero_grad()
+            imit_qf_loss.backward()
+            torch.nn.utils.clip_grad.clip_grad_norm_(self._imit_critic.parameters(), 10)
+            self._imit_critic_optim.step()
         self._rein_critic_optim.zero_grad()
         rein_qf_loss.backward()
         torch.nn.utils.clip_grad.clip_grad_norm_(self._rein_critic.parameters(), 10)
@@ -434,7 +463,7 @@ class DualSAC(Agent):
             imit_q_value_norm,
             rein_q_value,
             rein_q_value_norm,
-        ) = self.get_value(state_batch, pi)
+        ) = self.get_value(state_batch, marker_batch, pi)
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
         # VAE term

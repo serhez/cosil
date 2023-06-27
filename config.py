@@ -251,6 +251,15 @@ class SACConfig(AgentConfig):
     This technique has been proposed in the TD3+BC paper: "A minimalist approach to offline reinforcement learning".
     """
 
+    imit_markers: bool = False
+    """
+    Whether to use imitation markers as input to the imitation critic.
+    If false, use the concatenation of the raw state and the morphology parameters instead.
+    """
+
+    imit_critic_warmup: int = 0
+    """Number of episodes for each morphology during which the imitation critic is not updated."""
+
 
 @dataclass(kw_only=True)
 class DualSACConfig(SACConfig):
