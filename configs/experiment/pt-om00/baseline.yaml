@@ -39,4 +39,4 @@ method:
 logger:
   group_name: "pt-om00"
   experiment_name: "baseline"
-  loggers: console,file,wandb
+  loggers: console,wandb
