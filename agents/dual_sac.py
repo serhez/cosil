@@ -374,7 +374,10 @@ class DualSAC(Agent):
         )
 
         # The state representation used for the imitation critic and target critic
-        if self._imit_markers:
+        if prev_morpho is None:
+            imit_input = state_batch
+            next_imit_input = next_state_batch
+        elif self._imit_markers:
             imit_input = marker_batch
             next_imit_input = next_marker_batch
         elif self._imit_critic_prev_morpho:
