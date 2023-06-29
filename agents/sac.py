@@ -282,6 +282,7 @@ class SAC(Agent):
         demos: Optional[List] = None,
         update_value_only: bool = False,
         update_imit_critic: bool = True,
+        prev_morpho=None,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -405,8 +406,22 @@ class SAC(Agent):
         #     )
         #     rl_loss += vae_loss
         il_loss, il_loss_norm = self._get_il_loss(batch, policy_mean, demos, omega)
+        #
+        # def print_grad(f):
+        #     if f is None:
+        #         return
+        #     print(type(f).__name__)
+        #     for f in f.next_functions:
+        #         print_grad(f[0])
+        #
+        # print("Grad graph for rl_loss:")
+        # print_grad(rl_loss.grad_fn)
+        # print("\nGrad graph for il_loss:")
+        # print_grad(il_loss.grad_fn)
+
         policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
-        # policy_loss = (2.5 * rl_loss).mean()
+        # policy_loss = rl_loss.mean()
+        # policy_loss = il_loss_norm.mean()
 
         # Update the policy
         self._policy_optim.zero_grad()
