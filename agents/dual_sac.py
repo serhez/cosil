@@ -16,7 +16,7 @@ from common.schedulers import Scheduler
 from loggers import Logger
 from normalizers import create_normalizer
 from rewarders import SAIL, EnvReward, Rewarder
-from utils.rl import hard_update, soft_update
+from utils.rl import get_feats_for, hard_update, soft_update
 
 from .agent import Agent
 
@@ -92,6 +92,7 @@ class DualSAC(Agent):
             config.method.normalization_high_clip,
         )
 
+        self._imit_critic_prev_morpho = config.method.agent.imit_critic_prev_morpho
         self._imit_markers = config.method.agent.imit_markers
         if self._imit_markers:
             imit_critic_dim = (
@@ -250,7 +251,7 @@ class DualSAC(Agent):
                 self._logger.info({"Epoch": i, "Loss": loss})
 
     def get_value(
-        self, state, markers, action
+        self, state, imit_input, markers, action
     ) -> Tuple[
         torch.FloatTensor,
         torch.FloatTensor,
@@ -278,10 +279,6 @@ class DualSAC(Agent):
         """
 
         # Compute the Q-values
-        if self._imit_markers:
-            imit_input = markers
-        else:
-            imit_input = state
         imit_value = self._imit_critic.min(imit_input, action)
         rein_value = self._rein_critic.min(state, action)
 
@@ -311,6 +308,7 @@ class DualSAC(Agent):
         demos=[],
         update_value_only=False,
         update_imit_critic=True,
+        prev_morpho=None,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -322,6 +320,7 @@ class DualSAC(Agent):
         `demos` -> the demonstrator's observations.
         `update_value_only` -> whether to update the value function only.
         `update_imit_critic` -> whether to update the imitation critic.
+        `prev_morpho` -> the previous morphology to use for the imitation critic.
 
         Returns
         -------
@@ -374,6 +373,17 @@ class DualSAC(Agent):
             morpho_batch,
         )
 
+        # The state representation used for the imitation critic and target critic
+        if self._imit_markers:
+            imit_input = marker_batch
+            next_imit_input = next_marker_batch
+        elif self._imit_critic_prev_morpho:
+            imit_input = get_feats_for(prev_morpho, state_batch)
+            next_imit_input = get_feats_for(prev_morpho, next_state_batch)
+        else:
+            imit_input = state_batch
+            next_imit_input = next_state_batch
+
         imit_rewards = self._imit_rewarder.compute_rewards(batch, demos)
         rein_rewards = self._rein_rewarder.compute_rewards(batch, None)
         assert reward_batch.shape == imit_rewards.shape
@@ -396,12 +406,8 @@ class DualSAC(Agent):
             )
             ent = self._alpha * next_state_log_pi
 
-            if self._imit_markers:
-                imit_input = next_marker_batch
-            else:
-                imit_input = next_state_batch
             imit_q_next_target = self._imit_critic_target.min(
-                imit_input, next_state_action
+                next_imit_input, next_state_action
             )
             imit_min_qf_next_target = imit_q_next_target - ent
             imit_next_q_value = (
@@ -423,10 +429,6 @@ class DualSAC(Agent):
         # absorbing_rewards = reward_batch[marker_feats[:, -1] == 1.0].mean()
 
         # Critics losses
-        if self._imit_markers:
-            imit_input = marker_batch
-        else:
-            imit_input = state_batch
         imit_qfs = self._imit_critic(imit_input, action_batch)
         imit_qf_loss = sum(
             [F.mse_loss(q_value, imit_next_q_value) for q_value in imit_qfs]
@@ -463,7 +465,7 @@ class DualSAC(Agent):
             imit_q_value_norm,
             rein_q_value,
             rein_q_value_norm,
-        ) = self.get_value(state_batch, marker_batch, pi)
+        ) = self.get_value(state_batch, imit_input, marker_batch, pi)
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
         # VAE term

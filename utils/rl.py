@@ -23,6 +23,15 @@ def merge_batches(first_batch, second_batch):
     return [np.concatenate([a, b], axis=0) for a, b in zip(first_batch, second_batch)]
 
 
+@torch.no_grad()
+def get_feats_for(morpho: torch.Tensor, original_feats: torch.Tensor) -> torch.Tensor:
+    morpho = torch.from_numpy(morpho).float().to(original_feats.device).unsqueeze(0)
+    morpho = morpho.repeat(original_feats.shape[0], 1)
+    morpho_size = morpho.shape[1]
+    states = original_feats[:, :-morpho_size]
+    return torch.cat([states, morpho], dim=1)
+
+
 def get_markers_by_ep(
     obs: tuple,
     ep_len: int,
@@ -154,12 +163,6 @@ def gen_obs_list(
         )
 
     return obs_list
-
-
-def obs_to_dict(obs_list: list) -> dict:
-    obs_dict = {
-        "dones": np.array([]),
-    }
 
 
 def gen_obs_dict(

@@ -260,6 +260,12 @@ class SACConfig(AgentConfig):
     imit_critic_warmup: int = 0
     """Number of episodes for each morphology during which the imitation critic is not updated."""
 
+    imit_critic_prev_morpho: bool = False
+    """
+    Whether to use the previous morphology as input to the imitation critic.
+    If False, use the current morphology parameters instead.
+    """
+
 
 @dataclass(kw_only=True)
 class DualSACConfig(SACConfig):

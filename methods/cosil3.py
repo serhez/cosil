@@ -231,10 +231,6 @@ class CoSIL2(object):
                 not config.method.rewarder.name == "gail"
                 and not config.method.rewarder.name == "sail"
             ), "Loss-term dual mode cannot be used with GAIL nor SAIL"
-            assert (
-                not config.method.dual_mode == "q"
-                or not config.method.rewarder.name == "mbc"
-            ), "Dual-Q mode cannot be used with MBC"
 
             common_args = [
                 self.config,
@@ -479,11 +475,15 @@ class CoSIL2(object):
                             ):
                                 self.logger.info("Adapting MBC rewarder")
                                 all_batch = self.current_buffer.all()
+                                if isinstance(self.pop_agent, SAC):
+                                    critic = self.pop_agent._critic
+                                else:
+                                    critic = self.pop_agent._rein_critic
                                 self.il_rewarder.adapt(
                                     all_batch,
                                     self.batch_size,
                                     self.morphos[:-1],
-                                    self.pop_agent._critic,
+                                    critic,
                                     self.pop_agent._policy,
                                     self.pop_agent._gamma,
                                 )
@@ -516,6 +516,7 @@ class CoSIL2(object):
                                 self.ind_updates,
                                 demos,
                                 update_imit_critic=update_imit_critic,
+                                prev_morpho=self.morphos[0],
                             )
                             new_log.update(
                                 {
