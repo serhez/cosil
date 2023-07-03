@@ -63,6 +63,12 @@ class DualModes(StrEnum):
     loss_term = "loss_term"
 
 
+class DemosStrategies(StrEnum):
+    add = "add"
+    replace = "replace"
+    only_expert = "only_expert"
+
+
 class NormalizationTypes(StrEnum):
     range = "range"
     z_score = "z_score"
@@ -559,6 +565,9 @@ class CoSILConfig(CoILConfig):
     dual_mode: DualModes = "q"  # pyright: ignore[reportGeneralTypeIssues]
     """The dual mode, either a duality of Q-values or of reward signals."""
 
+    demos_strategy: DemosStrategies = "add"  # pyright: ignore[reportGeneralTypeIssues]
+    """The strategy to use when adding new demonstrations."""
+
 
 @dataclass(kw_only=True)
 class CoSIL2Config(CoILConfig):
@@ -609,6 +618,9 @@ class CoSIL2Config(CoILConfig):
 
     omega_init_ep: int = 5
     """Number of episodes before starting to change omega."""
+
+    demos_strategy: DemosStrategies = "add"  # pyright: ignore[reportGeneralTypeIssues]
+    """The strategy to use when adding new demonstrations."""
 
 
 @dataclass(kw_only=True)

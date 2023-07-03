@@ -83,36 +83,7 @@ class CoSIL2(object):
 
         self.demos = []
         self.demos_n_ep = self.config.method.demos_n_ep
-        self.batch_size = self.config.method.batch_size
-        self.replay_weight = self.config.method.replay_weight
-        self.replay_buffer = ObservationBuffer(
-            self.config.method.replay_capacity,
-            self.config.method.replay_dim_ratio,
-            self.config.seed,
-        )
-        self.current_buffer = ObservationBuffer(
-            self.config.method.replay_capacity,
-            self.config.method.replay_dim_ratio,
-            self.config.seed,
-        )
-        if config.method.replay_buffer_path is not None:
-            data = torch.load(config.method.replay_buffer_path)
-            obs_list = data["buffer"]
-            self.logger.info(
-                {
-                    "Loading pre-filled replay buffer": None,
-                    "Path": config.method.replay_buffer_path,
-                    "Number of observations": len(obs_list),
-                }
-            )
-            self.replay_buffer.replace(obs_list)
-            if self.config.method.add_new_demos:
-                self.demos.extend(
-                    get_markers_by_ep(
-                        self.replay_buffer.all(), 1000, self.device, self.demos_n_ep
-                    )
-                )
-            self.morphos = data["morpho"]
+        self.demos_strategy = self.config.method.demos_strategy
 
         self.initial_states_memory = []
 
@@ -126,6 +97,7 @@ class CoSIL2(object):
         self.policy_limb_indices = self.config.method.policy_markers
 
         # Load CMU or mujoco-generated demos
+        self.mean_demos_reward = 0
         if os.path.isdir(self.config.method.expert_demos):
             self.expert_obs = []
             for filepath in glob.iglob(
@@ -146,6 +118,7 @@ class CoSIL2(object):
                 self.expert_obs.append(episode_obs)
         else:
             self.expert_obs = torch.load(self.config.method.expert_demos)
+            self.mean_demos_reward = np.mean(self.expert_obs["reward_run"])
             expert_obs_np, self.to_match = get_marker_info(
                 self.expert_obs,
                 expert_legs,
@@ -172,6 +145,43 @@ class CoSIL2(object):
 
         # Add expert_obs to demos
         self.demos.extend(self.expert_obs)
+
+        self.batch_size = self.config.method.batch_size
+        self.replay_weight = self.config.method.replay_weight
+        self.replay_buffer = ObservationBuffer(
+            self.config.method.replay_capacity,
+            self.config.method.replay_dim_ratio,
+            self.config.seed,
+        )
+        self.current_buffer = ObservationBuffer(
+            self.config.method.replay_capacity,
+            self.config.method.replay_dim_ratio,
+            self.config.seed,
+        )
+        if config.method.replay_buffer_path is not None:
+            data = torch.load(config.method.replay_buffer_path)
+            obs_list = data["buffer"]
+            self.logger.info(
+                {
+                    "Loading pre-filled replay buffer": None,
+                    "Path": config.method.replay_buffer_path,
+                    "Number of observations": len(obs_list),
+                }
+            )
+            self.replay_buffer.replace(obs_list)
+            obs = self.replay_buffer.all()
+            mean_reward = np.mean(obs[2])
+            if (
+                self.demos_strategy == "replace"
+                and mean_reward > self.mean_demos_reward
+            ):
+                self.mean_demos_reward = mean_reward
+                self.demos = get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
+            elif self.demos_strategy == "add":
+                self.demos.extend(
+                    get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
+                )
+            self.morphos = data["morpho"]
 
         self.obs_size = self.env.observation_space.shape[0]
         if self.absorbing_state:
@@ -668,14 +678,19 @@ class CoSIL2(object):
                 # Copy the contents of the current buffer to the replay buffer
                 # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
-                if self.config.method.add_new_demos:
+                obs = self.current_buffer.all()
+                mean_reward = np.mean(obs[2])
+                if (
+                    self.demos_strategy == "replace"
+                    and mean_reward > self.mean_demos_reward
+                ):
+                    self.mean_demos_reward = mean_reward
+                    self.demos = get_markers_by_ep(
+                        obs, 1000, self.device, self.demos_n_ep
+                    )
+                elif self.demos_strategy == "add":
                     self.demos.extend(
-                        get_markers_by_ep(
-                            self.current_buffer.all(),
-                            1000,
-                            self.device,
-                            self.demos_n_ep,
-                        )
+                        get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
                     )
                 self.current_buffer.clear()
 
