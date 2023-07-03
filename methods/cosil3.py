@@ -8,6 +8,7 @@ from typing import Any
 import cma
 import gym
 import numpy as np
+import pyswarms as ps
 import torch
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from omegaconf import DictConfig
@@ -669,12 +670,6 @@ class CoSIL2(object):
             if self.config.method.co_adapt and (
                 episode % self.config.method.episodes_per_morpho == 0
             ):
-                # Adapt the morphology using the specified optimizing method
-                self.logger.info("Adapting morphology")
-                optimized_morpho_params = self._adapt_morphology(
-                    epsilon, es, es_buffer, log_dict
-                )
-
                 # Copy the contents of the current buffer to the replay buffer
                 # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
@@ -694,6 +689,12 @@ class CoSIL2(object):
                     )
                 self.current_buffer.clear()
 
+                # Adapt the morphology using the specified optimizing method
+                self.logger.info("Adapting morphology")
+                optimized_morpho_params = self._adapt_morphology(
+                    epsilon, es, es_buffer, log_dict
+                )
+
                 # Train the population agent
                 self.logger.info("Training population agent")
                 took_pop = time.time()
@@ -710,6 +711,7 @@ class CoSIL2(object):
                     if update % 1000 == 0:
                         self.logger.info(f"Population agent update {update}")
                 dict_div(pop_log_dict, pop_logged)
+                pop_log_dict["general/episode"] = episode
                 self.logger.info(pop_log_dict, ["console"])
                 self.logger.info(
                     {
@@ -774,15 +776,13 @@ class CoSIL2(object):
                 train_marker_obs_history = []
 
             log_dict["general/total_steps"] = self.total_numsteps
+            log_dict["general/episode"] = episode
             self.logger.info(log_dict, ["console"])
             log_dict, logged = {}, 0
 
             self.omega_scheduler.step()
             episode += 1
             morpho_episode = new_morpho_episode
-
-        # TODO: Remove
-        # torch.save(self.morphos, "data/morphos/experiment_morphos.pt")
 
         if self.config.method.save_final:
             self._save("final")
@@ -1011,35 +1011,90 @@ class CoSIL2(object):
         elif self.config.method.co_adaptation.dist_optimizer == "pso":
             start_t = time.time()
 
-            self.optimized_morpho = (
-                self.total_numsteps > self.config.method.morpho_warmup
-                and random.random() > epsilon
+            # self.optimized_morpho = (
+            #     self.total_numsteps > self.config.method.morpho_warmup
+            #     and random.random() > epsilon
+            # )
+            # if self.optimized_morpho:
+            #     (
+            #         morpho_loss,
+            #         morpho_params,
+            #         fig,
+            #         grads_abs_sum,
+            #     ) = optimize_morpho_params_pso(
+            #         self.ind_agent,
+            #         self.initial_states_memory,
+            #         self.bounds,
+            #         use_distance_value=self.config.method.train_distance_value,
+            #         device=self.device,
+            #     )
+            #     optimized_morpho_params = morpho_params.clone().cpu().numpy()
+            #     self.morpho_params_np = morpho_params.detach().cpu().numpy()
+            #     log_dict["morpho/morpho_loss"] = morpho_loss
+            #     log_dict["morpho/grads_abs_sum"] = grads_abs_sum
+            # else:
+            #     morpho_params = self.morpho_dist.sample()
+            #     self.morpho_params_np = morpho_params.cpu().numpy()
+
+            policy = self.pop_agent._policy
+            if isinstance(self.pop_agent, SAC):
+                critic = self.pop_agent._critic
+            elif isinstance(self.pop_agent, DualSAC):
+                critic = self.pop_agent._rein_critic
+
+            batch = self.replay_buffer.sample(self.batch_size)
+            morpho_size = len(self.morpho_params_np)
+
+            def f_qval(x_input, **kwargs):
+                shape = x_input.shape
+                cost = np.zeros((shape[0],))
+                with torch.no_grad():
+                    for i in range(shape[0]):
+                        x = torch.from_numpy(x_input[i : i + 1, :]).to(
+                            device=self.device, dtype=torch.float32
+                        )
+                        if len(x.shape) == 1:
+                            x = x.unsqueeze(0)
+                        if x.shape[0] != self.batch_size:
+                            new_shape = [self.batch_size] + ([1] * len(x.shape[1:]))
+                            x = x.repeat(*new_shape)
+
+                        state_batch = torch.from_numpy(batch[0].copy()).to(
+                            device=self.device, dtype=torch.float32
+                        )
+                        state_batch = state_batch[:, :-morpho_size]
+                        state_batch = torch.cat((state_batch, x), dim=1)
+                        (
+                            _,
+                            _,
+                            mean_action,
+                            _,
+                        ) = policy.sample(state_batch)
+                        output = critic.min(state_batch, mean_action)
+                        loss = -output.mean().sum()
+                        fval = float(loss.item())
+                        cost[i] = fval
+                return cost
+
+            options = {"c1": 0.5, "c2": 0.3, "w": 0.9}
+            optimizer = ps.single.GlobalBestPSO(
+                n_particles=700,
+                dimensions=morpho_size,
+                bounds=(
+                    self.bounds[:, 0].cpu().numpy(),
+                    self.bounds[:, 1].cpu().numpy(),
+                ),
+                options=options,
             )
-            if self.optimized_morpho:
-                (
-                    morpho_loss,
-                    morpho_params,
-                    fig,
-                    grads_abs_sum,
-                ) = optimize_morpho_params_pso(
-                    self.ind_agent,
-                    self.initial_states_memory,
-                    self.bounds,
-                    use_distance_value=self.config.method.train_distance_value,
-                    device=self.device,
-                )
-                optimized_morpho_params = morpho_params.clone().cpu().numpy()
-                self.morpho_params_np = morpho_params.detach().cpu().numpy()
-                log_dict["morpho/morpho_loss"] = morpho_loss
-                log_dict["morpho/grads_abs_sum"] = grads_abs_sum
-            else:
-                morpho_params = self.morpho_dist.sample()
-                self.morpho_params_np = morpho_params.cpu().numpy()
+            cost, new_design = optimizer.optimize(
+                f_qval, print_step=100, iters=250, verbose=3
+            )
+            self.morpho_params_np = new_design
 
             self.logger.info(
                 {
                     "Morphology adaptation": "PSO",
-                    "Optimized": self.optimized_morpho,
+                    "Cost": cost,
                     "Took": time.time() - start_t,
                 },
             )
