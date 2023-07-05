@@ -215,13 +215,13 @@ class MBC(Rewarder):
         if self._optimized_demonstrator:
             self._demonstrator = self._optimize_best_demonstrator(
                 batch, q_function, policy, gamma
-            )
+            ).detach()
         else:
             self._demonstrator = self._search_best_demonstrator(
                 batch, prev_morphos, q_function, policy, gamma
-            )
+            ).detach()
 
-        batch_demonstrator = self._demonstrator.detach()
+        batch_demonstrator = self._demonstrator
         if len(batch_demonstrator.shape) == 1:
             batch_demonstrator = batch_demonstrator.unsqueeze(0)
         if batch_demonstrator.shape[0] != batch_size:
@@ -241,7 +241,7 @@ class MBC(Rewarder):
         diff = action_batch - action_demos
         summed_diff = diff.sum(dim=1)
         rewards = -0.5 * torch.square(summed_diff)
-        return rewards
+        return rewards.unsqueeze(1)
 
     def get_model_dict(self) -> Dict[str, Any]:
         data = {
