@@ -40,15 +40,12 @@ class StepScheduler(Scheduler):
                 f"The scheduler's period must be an int or a list of ints, but got {period}"
             )
 
-        self._value = init_value
+        super().__init__(init_value)
+
         self._init_value = init_value
         self._factor = factor
         self._period = period
         self._step = 0
-
-    @property
-    def value(self) -> float:
-        return self._value
 
     def step(self) -> float:
         if isinstance(self._period, int):

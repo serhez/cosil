@@ -63,16 +63,12 @@ class ExponentialScheduler(Scheduler):
             self._T_cur = self._T_cur % self._T_0
         self._n_restarts = 0
 
-        self._last_val = self._calculate_value()
+        super().__init__(self._calculate_value())
 
     def _calculate_value(self) -> float:
         """Returns the current parameter value."""
 
         return self._init_val * self._gamma**self._T_cur
-
-    @property
-    def value(self) -> float:
-        return self._last_val
 
     def step(self) -> float:
         self._T_cur = self._T_cur + 1
@@ -84,9 +80,9 @@ class ExponentialScheduler(Scheduler):
             self._init_val *= self._init_val_decay
             self._n_restarts += 1
 
-        self._last_val = self._calculate_value()
+        self._value = self._calculate_value()
 
-        return self._last_val
+        return self._value
 
     def reset(self, hard: bool = False, **new_hyper_params) -> float:
         # Change the hyper parameters
@@ -107,6 +103,6 @@ class ExponentialScheduler(Scheduler):
                 self._n_restarts += 1
 
         # Calculate the new value
-        self._last_val = self._calculate_value()
+        self._value = self._calculate_value()
 
-        return self._last_val
+        return self._value

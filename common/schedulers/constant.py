@@ -18,11 +18,7 @@ class ConstantScheduler(Scheduler):
         value -> the parameter's constant value.
         """
 
-        self._value = value
-
-    @property
-    def value(self) -> float:
-        return self._value
+        super().__init__(value)
 
     def step(self) -> float:
         return self._value

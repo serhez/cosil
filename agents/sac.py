@@ -17,7 +17,7 @@ from common.schedulers import Scheduler
 from loggers import Logger
 from normalizers import create_normalizer
 from rewarders import MBC, SAIL, Rewarder
-from utils.rl import hard_update, soft_update
+from utils.rl import get_feats_for, hard_update, soft_update
 
 from .agent import Agent
 
@@ -279,10 +279,11 @@ class SAC(Agent):
         self,
         batch: tuple,
         updates: int,
-        demos: Optional[List] = None,
+        demos: List[torch.Tensor],
         update_value_only: bool = False,
         update_imit_critic: bool = True,
-        prev_morpho=None,
+        new_morpho: np.ndarray = None,
+        prev_morpho: np.ndarray = None,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -293,6 +294,8 @@ class SAC(Agent):
         `updates` -> the number of updates.
         `demos` -> the demonstrator's observations.
         `update_value_only` -> whether to update the value function only.
+        `new_morpho` -> the new morphology to use for the MBC term.
+        `prev_morpho` -> not used.
 
         Returns
         -------
@@ -405,6 +408,9 @@ class SAC(Agent):
         #         state_batch, marker_batch, policy_mean
         #     )
         #     rl_loss += vae_loss
+        if new_morpho is not None:
+            new_feats = get_feats_for(new_morpho, state_batch)
+            _, _, policy_mean, _ = self._policy.sample(new_feats)
         il_loss, il_loss_norm = self._get_il_loss(batch, policy_mean, demos, omega)
         #
         # def print_grad(f):

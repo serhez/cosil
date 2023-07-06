@@ -24,16 +24,13 @@ class AlternatingScheduler(Scheduler):
         `alt_period` -> the number of steps before the parameter is toggled to `init_value`.
         """
 
-        self._value = init_value
+        super().__init__(init_value)
+
         self._init_value = init_value
         self._alt_value = alt_value
         self._init_period = init_period
         self._alt_period = alt_period
         self._step = 0
-
-    @property
-    def value(self) -> float:
-        return self._value
 
     def step(self) -> float:
         self._step += 1

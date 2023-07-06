@@ -196,7 +196,7 @@ class ObservationBuffer:
 
         Parameters
         ----------
-        n -> the number of observations to sample.
+        `n` -> the number of observations to sample.
 
         Returns
         ----------
@@ -204,7 +204,7 @@ class ObservationBuffer:
 
         Raises
         ----------
-        ValueError -> if the buffer is empty.
+        `ValueError` -> if the buffer is empty.
         """
 
         buffer_len = len(self._buffer)

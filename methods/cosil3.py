@@ -691,9 +691,7 @@ class CoSIL2(object):
 
                 # Adapt the morphology using the specified optimizing method
                 self.logger.info("Adapting morphology")
-                optimized_morpho_params = self._adapt_morphology(
-                    epsilon, es, es_buffer, log_dict
-                )
+                optimized_morpho_params = self._adapt_morphology(es, es_buffer)
 
                 # Train the population agent
                 self.logger.info("Training population agent")
@@ -729,6 +727,57 @@ class CoSIL2(object):
                 else:
                     self.ind_agent.load(pop_model)
                 self.ind_updates = self.pop_updates
+
+                # Pre-train the policy for this morphology
+                if (
+                    isinstance(self.il_rewarder, MBC)
+                    and self.config.method.pretrain_morpho
+                ):
+                    self.logger.info("Pre-training the policy for the next morphology")
+
+                    took_pretrain = time.time()
+                    self.omega_scheduler.unsafe_set(
+                        self.config.method.pretrain_morpho_omega
+                    )
+
+                    n_updates = self.config.method.pretrain_morpho_updates
+                    for update in range(1, n_updates + 1):
+                        batch = self.replay_buffer.sample(self.batch_size)
+                        with torch.no_grad():
+                            state_batch = torch.FloatTensor(batch[0]).to(self.device)
+                            # TODO: We can try inserting the MBC.demonstrator here,
+                            #       instead of the previous morpho coming from the batch
+                            _, _, mean_action_batch, _ = self.pop_agent._policy.sample(
+                                state_batch
+                            )
+                            demos = (
+                                None,
+                                mean_action_batch,
+                            ) + ((None,) * 7)
+
+                        # We use the batch as demos as it contains the actions by other morphologies
+                        new_log = self.ind_agent.update_parameters(
+                            batch,
+                            self.ind_updates,
+                            demos,
+                            new_morpho=self.morpho_params_np,
+                        )
+                        self.ind_updates += 1
+
+                        new_log["general/step"] = update
+                        # self.logger.info(new_log, ["console"])
+                        if update % 1000 == 0:
+                            self.logger.info(f"Pre-training agent update {update}")
+
+                    self.logger.info(
+                        {
+                            "Pre-training": None,
+                            "Updates": n_updates,
+                            "Omega": self.omega_scheduler.value,
+                            "Took": time.time() - took_pretrain,
+                        },
+                    )
+                    self.omega_scheduler.unsafe_reset()
 
                 # Reset counters and flags
                 new_morpho_episode = 1
@@ -908,10 +957,8 @@ class CoSIL2(object):
     # Line 13 in Algorithm 1
     def _adapt_morphology(
         self,
-        epsilon: float,
         es: cma.CMAEvolutionStrategy | None,
         es_buffer: deque | None,
-        log_dict: dict[str, Any],
     ):
         optimized_morpho_params = None
 
@@ -1247,7 +1294,9 @@ class CoSIL2(object):
 
         data = {
             "replay_buffer": self.replay_buffer.to_list(),
-            "current_buffer": self.current_buffer.to_list(),
+            # "current_buffer": self.current_buffer.to_list(),
+            "morphos": self.morphos,
+            "demos": self.demos,
             "morpho_dict": self.env.morpho_params,
             "rl_rewarder": self.rl_rewarder.get_model_dict(),
             "il_rewarder": self.il_rewarder.get_model_dict(),
@@ -1266,7 +1315,9 @@ class CoSIL2(object):
             model = torch.load(path_name)
 
             self.replay_buffer.replace(model["replay_buffer"])
-            self.current_buffer.replace(model["current_buffer"])
+            # self.current_buffer.replace(model["current_buffer"])
+            self.demos.replace(model["demos"])
+            self.morphos = model["morphos"]
             self.replay_buffer._position = (
                 len(self.replay_buffer._buffer) % self.replay_buffer.capacity
             )
@@ -1279,8 +1330,8 @@ class CoSIL2(object):
             success &= self.ind_agent.load(model["ind_agent"])
             success &= self.pop_agent.load(model["pop_agent"])
 
-            self.env.set_task(*model["morpho_dict"])
-            self.morphos.append(model["morpho_dict"])
+            # self.env.set_task(*model["morpho_dict"])
+            # self.morphos.append(model["morpho_dict"])
         else:
             success = False
         return success

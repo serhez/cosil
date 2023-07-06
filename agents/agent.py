@@ -98,11 +98,11 @@ class Agent(ABC):
 
         Parameters
         ----------
-        batch -> the batch of data.
-        updates -> the number of updates.
-        demos -> the demonstrations.
-        update_value_only -> whether to update the value function only.
-        update_imit_critic -> whether to update the critic of the imitation rewarder.
+        `batch` -> the batch of data.
+        `updates` -> the number of updates.
+        `demos` -> the demonstrations.
+        `update_value_only` -> whether to update the value function only.
+        `update_imit_critic` -> whether to update the critic of the imitation rewarder.
 
         Returns
         -------

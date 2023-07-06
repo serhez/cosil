@@ -622,6 +622,15 @@ class CoSIL2Config(CoILConfig):
     demos_strategy: DemosStrategies = "add"  # pyright: ignore[reportGeneralTypeIssues]
     """The strategy to use when adding new demonstrations."""
 
+    pretrain_morpho: bool = False
+    """Whether to pretrain offline the agent after each morphology change."""
+
+    pretrain_morpho_omega: float = 0.5
+    """The value of omega to use when pretraining the agent."""
+
+    pretrain_morpho_updates: int = 3000
+    """The number of updates to perform when pretraining the agent."""
+
 
 @dataclass(kw_only=True)
 class Config:

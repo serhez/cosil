@@ -22,15 +22,12 @@ class BinaryScheduler(Scheduler):
         `period` -> the number of steps before the parameter adopts the alternative value.
         """
 
-        self._value = init_value
+        super().__init__(init_value)
+
         self._init_value = init_value
         self._alt_value = alt_value
         self._period = period
         self._step = 0
-
-    @property
-    def value(self) -> float:
-        return self._value
 
     def step(self) -> float:
         if self._step >= self._period:
