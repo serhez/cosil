@@ -298,24 +298,6 @@ class CoSIL2(object):
             else:
                 raise ValueError(f"Failed to load {self.config.resume}")
 
-    def load_pretrained(self, path: str) -> None:
-        self.logger.info(f"Loading pretrained agent and rewarders from {path}")
-
-        data = torch.load(path, map_location=self.device)
-
-        # Load agents
-        self.pop_agent.load(data["agent"])
-        self.ind_agent.load(data["agent"])
-
-        # Load rewarders
-        for rewarder in [self.rl_rewarder, self.il_rewarder]:
-            if isinstance(rewarder, DualRewarder):
-                rewarder.load(data["dual"])
-            elif isinstance(rewarder, GAIL):
-                rewarder.load(data["gail"])
-            elif isinstance(rewarder, SAIL):
-                rewarder.load(data["sail"])
-
     @torch.no_grad()
     def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
         morpho_size = morpho.shape[1]
@@ -349,7 +331,7 @@ class CoSIL2(object):
         did_adapt_mbc = False
 
         if self.config.method.pretrain_path is not None:
-            self.load_pretrained(self.config.method.pretrain_path)
+            self._load(self.config.method.pretrain_path)
 
         if len(self.expert_obs) > 1:
             num_comp = 0
@@ -1316,8 +1298,8 @@ class CoSIL2(object):
 
             self.replay_buffer.replace(model["replay_buffer"])
             # self.current_buffer.replace(model["current_buffer"])
-            self.demos.replace(model["demos"])
-            self.morphos = model["morphos"]
+            self.demos = model["demos"]
+            self.morphos.extend(model["morphos"])
             self.replay_buffer._position = (
                 len(self.replay_buffer._buffer) % self.replay_buffer.capacity
             )

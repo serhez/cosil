@@ -9,64 +9,20 @@
             "justMyCode": true
         },
         {
-            "name": "Generate trajectories",
+            "name": "Test: pretrain sac",
             "type": "python",
             "request": "launch",
-            "program": "gen_obs.py",
+            "program": "train.py",
+            "args": ["+experiment=pretrain/sac-mbc"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "Experiment: replica original code",
+            "name": "Test: load sac",
             "type": "python",
             "request": "launch",
             "program": "train.py",
-            "args": ["+experiment=replica_original_code"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: train expert",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=train_expert"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: train with the new demos",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=train_with_new_demos"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: cosil2",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=11-05-2023/methods/cosil2"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: cosil",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=11-05-2023/normalization/range-mean-100"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: cosil2 opt",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=11-05-2023/methods/cosil2-transfer-opt-bo.yaml"],
+            "args": ["+experiment=test/sac-load"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

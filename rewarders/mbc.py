@@ -251,6 +251,6 @@ class MBC(Rewarder):
         return data
 
     def load(self, model: Dict[str, Any]) -> bool:
-        self.demonstrator = model["demonstrator"]
-        self.batch_demonstrator = model["batch_demonstrator"]
+        self._demonstrator = model["demonstrator"]
+        self._batch_demonstrator = model["batch_demonstrator"]
         return True
