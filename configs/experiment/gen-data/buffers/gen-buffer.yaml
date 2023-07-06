@@ -1,0 +1,10 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+  - /gen_buffer.yaml
+  - __self__
+
+logger:
+  group_name: "gen-data_buffers"
+  experiment_name: "gen-buffer"

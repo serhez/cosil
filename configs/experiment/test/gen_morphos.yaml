@@ -16,8 +16,8 @@ method:
   dual_mode: loss_term
   omega_init: 0.0
   omega_scheduler: constant
-  num_episodes: 155
-  episodes_per_morpho: 15
+  num_episodes: 100
+  episodes_per_morpho: 2
   morpho_warmup: 0
   start_steps: 0
   disc_warmup: 0

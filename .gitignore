@@ -8,3 +8,4 @@ report.log
 imitator.pt
 metrics.pt
 slurm*
+.mypy_cache/
