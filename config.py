@@ -647,7 +647,7 @@ class Config:
     seed: int = 1
     """Random seed."""
 
-    device: Devices = "cpu"  # pyright: ignore[reportGeneralTypeIssues]
+    device: Devices = "cuda"  # pyright: ignore[reportGeneralTypeIssues]
     """Device to use."""
 
     env_name: str = MISSING
