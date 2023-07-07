@@ -48,7 +48,7 @@ class DualRewarder(Rewarder):
             torch.FloatTensor,
             torch.FloatTensor,
         ],
-        expert_obs: List[torch.Tensor],
+        demos: List[torch.Tensor],
     ) -> Tuple[float, float, float]:
         """
         Trains the rewarder using the given batch.
@@ -63,12 +63,8 @@ class DualRewarder(Rewarder):
         The loss, the expert probability, and the policy probability
         """
 
-        loss_1, expert_probs_1, policy_probs_1 = self.rewarder_1.train(
-            batch, expert_obs
-        )
-        loss_2, expert_probs_2, policy_probs_2 = self.rewarder_2.train(
-            batch, expert_obs
-        )
+        loss_1, expert_probs_1, policy_probs_1 = self.rewarder_1.train(batch, demos)
+        loss_2, expert_probs_2, policy_probs_2 = self.rewarder_2.train(batch, demos)
         return (
             float(np.mean([loss_1, loss_2], dtype=np.float32)),
             float(np.mean([expert_probs_1, expert_probs_2], dtype=np.float32)),
@@ -87,7 +83,7 @@ class DualRewarder(Rewarder):
             torch.FloatTensor,
             torch.FloatTensor,
         ],
-        expert_obs: List[torch.Tensor],
+        demos: List[torch.Tensor],
     ) -> torch.Tensor:
         """
         Computes the rewards using the given batch and returns the combined rewards.
@@ -102,8 +98,8 @@ class DualRewarder(Rewarder):
         The rewards
         """
 
-        rewards_1 = self.rewarder_1.compute_rewards(batch, expert_obs)
-        rewards_2 = self.rewarder_2.compute_rewards(batch, expert_obs)
+        rewards_1 = self.rewarder_1.compute_rewards(batch, demos)
+        rewards_2 = self.rewarder_2.compute_rewards(batch, demos)
 
         return (
             self._omega_scheduler.value * rewards_1

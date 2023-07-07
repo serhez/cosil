@@ -63,7 +63,7 @@ class SAIL(Rewarder):
             weight_decay=config.method.rewarder.disc_weight_decay,
         )
 
-    def train(self, batch, expert_obs):
+    def train(self, batch, demos):
         (
             disc_loss,
             expert_probs,
@@ -72,7 +72,7 @@ class SAIL(Rewarder):
         ) = train_wgan_critic(
             self.disc_opt,
             self.disc,
-            expert_obs,
+            demos,
             batch,
             use_transitions=self.learn_disc_transitions,
         )
@@ -81,14 +81,14 @@ class SAIL(Rewarder):
 
         return disc_loss, expert_probs, policy_probs
 
-    def _compute_rewards_impl(self, batch, expert_obs):
+    def _compute_rewards_impl(self, batch, demos):
         _, _, _, _, _, _, marker_batch, next_marker_batch, _ = batch
         marker_feats = next_marker_batch
         if self.learn_disc_transitions:
             marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
 
         # Sample expert data as reference for the reward
-        episode_lengths = [len(ep) for ep in expert_obs]
+        episode_lengths = [len(ep) for ep in demos]
         correct_inds = []
         len_sum = 0
         for length in episode_lengths:
@@ -97,16 +97,16 @@ class SAIL(Rewarder):
 
         correct_inds = torch.cat(correct_inds)
 
-        expert_obs = torch.cat(expert_obs, dim=0)
+        demos = torch.cat(demos, dim=0)
         expert_inds = correct_inds[
             torch.randint(0, len(correct_inds), (len(marker_feats[0]),))
         ]
 
-        expert_feats = expert_obs[expert_inds]
+        expert_feats = demos[expert_inds]
 
         if self.learn_disc_transitions:
             expert_feats = torch.cat(
-                (expert_obs[expert_inds], expert_obs[expert_inds + 1]), dim=1
+                (demos[expert_inds], demos[expert_inds + 1]), dim=1
             )
 
         with torch.no_grad():
@@ -147,9 +147,7 @@ class SAIL(Rewarder):
     def load_g_inv(self, file_name):
         self.g_inv.load_state_dict(torch.load(file_name))
 
-    def pretrain_vae(
-        self, expert_obs, batch_size: int, epochs=100, save=False, load=False
-    ):
+    def pretrain_vae(self, demos, batch_size: int, epochs=100, save=False, load=False):
         self.logger.info("Pretraining VAE")
 
         file_name = "pretrained_models/vae.pt"
@@ -161,7 +159,7 @@ class SAIL(Rewarder):
             self.dynamics.load_state_dict(torch.load(file_name))
 
         loss = self.dynamics.train(
-            expert_obs, epochs, self.dynamics_optim, batch_size=batch_size
+            demos, epochs, self.dynamics_optim, batch_size=batch_size
         )
 
         if save:

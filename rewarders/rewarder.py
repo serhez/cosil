@@ -40,14 +40,14 @@ class Rewarder(ABC):
         return rewards
 
     @abstractmethod
-    def train(self, batch, expert_obs) -> Tuple[float, float, float]:
+    def train(self, batch, demos) -> Tuple[float, float, float]:
         """
         Train the rewarder and update the rewarder's parameters.
 
         Parameters
         ----------
         `batch` -> a batch of data.
-        `expert_obs` -> the demonstrator's observations.
+        `demos` -> the demonstrator's observations.
 
         Returns
         -------
@@ -74,21 +74,21 @@ class Rewarder(ABC):
         """
         pass
 
-    def compute_rewards(self, batch: tuple, expert_obs) -> torch.Tensor:
+    def compute_rewards(self, batch: tuple, demos) -> torch.Tensor:
         """
         Compute the rewards for a batch of data and return them normalized.
 
         Parameters
         ----------
         `batch` -> a batch of data.
-        `expert_obs` -> the demonstrator's observations.
+        `demos` -> the demonstrator's observations.
 
         Returns
         -------
         The normalized rewards.
         """
 
-        rewards = self._compute_rewards_impl(batch, expert_obs)
+        rewards = self._compute_rewards_impl(batch, demos)
         return self._normalize(rewards)
 
     @abstractmethod

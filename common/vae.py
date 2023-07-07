@@ -1,18 +1,21 @@
 # From https://github.com/FangchenLiu/SAIL (MIT Licensed)
 
 from collections import deque
-import torch
+
 import numpy as np
+import torch
 import torch.nn.functional as F
 from torch import nn
 
 MAX_LOG_STD = 0.5
 MIN_LOG_STD = -20
 
+
 def latent_loss(z_mean, z_stddev):
     mean_sq = z_mean * z_mean
     stddev_sq = z_stddev * z_stddev
     return 0.5 * torch.mean(mean_sq + stddev_sq - torch.log(stddev_sq) - 1)
+
 
 class Encoder(torch.nn.Module):
     def __init__(self, input_dim, latent_dim, hidden_size=256):
@@ -51,13 +54,15 @@ class VAE(torch.nn.Module):
     def __init__(self, state_dim, hidden_size=128, latent_dim=64):
         super(VAE, self).__init__()
         self.hidden_size = hidden_size
-        self.encoder = Encoder(state_dim, latent_dim=latent_dim, hidden_size=self.hidden_size)
+        self.encoder = Encoder(
+            state_dim, latent_dim=latent_dim, hidden_size=self.hidden_size
+        )
         self.decoder = Decoder(latent_dim, state_dim, hidden_size=self.hidden_size)
 
     def forward(self, state):
         mu, log_sigma = self.encoder(state)
         sigma = torch.exp(log_sigma)
-        sample = mu + torch.randn_like(mu)*sigma
+        sample = mu + torch.randn_like(mu) * sigma
         self.z_mean = mu
         self.z_sigma = sigma
 
@@ -69,16 +74,15 @@ class VAE(torch.nn.Module):
 
     def get_loss(self, state, next_state):
         next_pred = self.get_next_states(state)
-        return ((next_state-next_pred)**2).mean()
+        return ((next_state - next_pred) ** 2).mean()
 
-    def train(self, expert_obs, epoch, optimizer, batch_size=128, beta=0.2):
-        
-        if len(expert_obs) > 1:
-            test_ep = expert_obs[-1]
-            train_eps = expert_obs[:-1]
+    def train(self, demos, epoch, optimizer, batch_size=128, beta=0.2):
+        if len(demos) > 1:
+            test_ep = demos[-1]
+            train_eps = demos[:-1]
         else:
-            test_ep = expert_obs[0]
-            train_eps = expert_obs[0:1]
+            test_ep = demos[0]
+            train_eps = demos[0:1]
 
         episode_lengths = [len(ep) for ep in train_eps]
         correct_inds = []
@@ -101,30 +105,30 @@ class VAE(torch.nn.Module):
             mean_loss = 0
             all_indices = correct_inds[torch.randperm(len(correct_inds))]
 
-            for batch_num in range(num_batch-1):
-                batch_idxs = all_indices[batch_num:batch_num + batch_size]
+            for batch_num in range(num_batch - 1):
+                batch_idxs = all_indices[batch_num : batch_num + batch_size]
 
                 train_in = input[batch_idxs].float()
                 train_targ = input[batch_idxs + 1].float()
                 optimizer.zero_grad()
                 dec = self.forward(train_in)
-                reconstruct_loss = ((train_targ-dec)**2).mean()
+                reconstruct_loss = ((train_targ - dec) ** 2).mean()
                 ll = latent_loss(self.z_mean, self.z_sigma)
-                loss = reconstruct_loss + beta*ll
+                loss = reconstruct_loss + beta * ll
                 loss.backward()
-                
+
                 mean_loss += loss.item()
 
                 optimizer.step()
-            
+
             mean_loss /= num_batch
             val_dec = self.get_next_states(test_ep[:-1])
-            val_loss = ((test_ep[1:]-val_dec)**2).mean()
-            
-            print(f'Epoch {epoch} loss {mean_loss:.5f} val {val_loss:.5f}')
+            val_loss = ((test_ep[1:] - val_dec) ** 2).mean()
+
+            print(f"Epoch {epoch} loss {mean_loss:.5f} val {val_loss:.5f}")
 
             if epoch > 1000 and val_loss > (sum(prev_val_losses) / deq_len):
-                print('Early stopping VAE training due to increasing loss')
+                print("Early stopping VAE training due to increasing loss")
                 break
 
             prev_val_losses.append(val_loss.item())

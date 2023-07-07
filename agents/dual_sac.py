@@ -241,12 +241,12 @@ class DualSAC(Agent):
         return mean_loss
 
     def pretrain_value(
-        self, memory: ObservationBuffer, expert_obs: List[torch.Tensor], batch_size: int
+        self, memory: ObservationBuffer, demos: List[torch.Tensor], batch_size: int
     ):
         self._logger.info("Pretraining value")
         for i in range(3000):
             batch = memory.sample(batch_size)
-            loss = self.update_parameters(batch, i, expert_obs, True)[0]
+            loss = self.update_parameters(batch, i, demos, True)[0]
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
