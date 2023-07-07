@@ -25,6 +25,15 @@
             "args": ["+experiment=test/sac-load"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Experiment: MBC with morpho pretraining",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=raw-om001pt/mbc-ss"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

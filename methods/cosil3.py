@@ -1,6 +1,5 @@
 import glob
 import os
-import random
 import time
 from collections import deque
 from typing import Any
@@ -18,16 +17,9 @@ from agents import SAC, DualSAC
 from common.observation_buffer import ObservationBuffer, multi_sample
 from common.schedulers import ConstantScheduler, create_scheduler
 from loggers import Logger
-from rewarders import GAIL, MBC, SAIL, DualRewarder, create_rewarder
+from rewarders import MBC, SAIL, create_rewarder
 from utils import dict_add, dict_div
-from utils.co_adaptation import (
-    bo_step,
-    compute_distance,
-    get_marker_info,
-    handle_absorbing,
-    optimize_morpho_params_pso,
-    rs_step,
-)
+from utils.co_adaptation import bo_step, get_marker_info, handle_absorbing, rs_step
 from utils.rl import get_markers_by_ep
 
 
@@ -669,7 +661,6 @@ class CoSIL2(object):
                                 mean_action_batch,
                             ) + ((None,) * 7)
 
-                        # We use the batch as demos as it contains the actions by other morphologies
                         new_log = self.ind_agent.update_parameters(
                             batch,
                             self.ind_updates,
@@ -971,31 +962,6 @@ class CoSIL2(object):
         elif self.config.method.co_adaptation.dist_optimizer == "pso":
             start_t = time.time()
 
-            # self.optimized_morpho = (
-            #     self.total_numsteps > self.config.method.morpho_warmup
-            #     and random.random() > epsilon
-            # )
-            # if self.optimized_morpho:
-            #     (
-            #         morpho_loss,
-            #         morpho_params,
-            #         fig,
-            #         grads_abs_sum,
-            #     ) = optimize_morpho_params_pso(
-            #         self.ind_agent,
-            #         self.initial_states_memory,
-            #         self.bounds,
-            #         use_distance_value=self.config.method.train_distance_value,
-            #         device=self.device,
-            #     )
-            #     optimized_morpho_params = morpho_params.clone().cpu().numpy()
-            #     self.morpho_params_np = morpho_params.detach().cpu().numpy()
-            #     log_dict["morpho/morpho_loss"] = morpho_loss
-            #     log_dict["morpho/grads_abs_sum"] = grads_abs_sum
-            # else:
-            #     morpho_params = self.morpho_dist.sample()
-            #     self.morpho_params_np = morpho_params.cpu().numpy()
-
             policy = self.pop_agent._policy
             if isinstance(self.pop_agent, SAC):
                 critic = self.pop_agent._critic
@@ -1046,10 +1012,10 @@ class CoSIL2(object):
                 ),
                 options=options,
             )
-            cost, new_design = optimizer.optimize(
+            cost, optimized_morpho_params = optimizer.optimize(
                 f_qval, print_step=100, iters=250, verbose=3
             )
-            self.morpho_params_np = new_design
+            self.morpho_params_np = optimized_morpho_params
 
             self.logger.info(
                 {
