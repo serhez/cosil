@@ -7,14 +7,14 @@ defaults:
   - override /method/rewarder: mbc  # variable
 
 method:
-  replay_buffer_path: data/replay_buffers/merged/buffer_1686502257.pt
+  replay_buffer_path: null
   pretrain: false
-  pretrain_path: data/pretrained/pretrained_models_1686576083.pt
-  optimized_demonstrator: true
+  pretrain_path: models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/sac-mbc-pretrain_1688719333.pt
+  optimized_demonstrator: false
   dual_mode: loss_term
   omega_scheduler: constant
-  num_episodes: 275
-  episodes_per_morpho: 50
+  num_episodes: 2000
+  episodes_per_morpho: 100
   morpho_warmup: 0
   start_steps: 0
   disc_warmup: 20000
@@ -30,12 +30,12 @@ method:
   normalization_type: scale_shift
   rl_normalization_gamma: 1.0
   rl_normalization_beta: 0.0
-  il_normalization_gamma: 500.0
+  il_normalization_gamma: 10.0
   il_normalization_beta: 0.0
   normalization_low_clip: null
   normalization_high_clip: null
 
 logger:
-  group_name: "pt-om001-mbc-ss"
-  experiment_name: "mbc-ss"
-  loggers: console,file,wandb
+  group_name: "pt-om001-mbc-ss-prev"
+  experiment_name: "mbc-ss-prev"
+  loggers: console,wandb
