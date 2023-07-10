@@ -669,8 +669,8 @@ class Config:
     resume: Optional[str] = None
     """Resume from given policy; specify the path + name of the .pt file to resume from."""
 
-    save_path: str = "./"
-    """Path to the directory where to save the results."""
+    storage_path: str = "./"
+    """Path to the directory where to save large files."""
 
 
 @dataclass(kw_only=True)

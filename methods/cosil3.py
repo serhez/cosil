@@ -42,7 +42,7 @@ class CoSIL2(object):
         self.device = config.device
 
         self.logger = logger
-        self.save_path = config.save_path
+        self.storage_path = config.storage_path
 
         # Bounds for morphology optimization
         highs = torch.tensor(self.env.max_task, device=self.device)
@@ -1267,7 +1267,7 @@ class CoSIL2(object):
             recorder.close()
 
     def _save(self, type="final"):
-        save_path = self.save_path + "models/"
+        save_path = self.storage_path + "models/"
         if type == "final":
             dir_path = save_path + "final/" + self.config.models_dir_path
         elif type == "optimal":
