@@ -1267,13 +1267,15 @@ class CoSIL2(object):
             recorder.close()
 
     def _save(self, type="final"):
-        save_path = self.storage_path + "models/"
+        save_path = os.path.join(self.storage_path, "models")
         if type == "final":
-            dir_path = save_path + "final/" + self.config.models_dir_path
+            dir_path = os.path.join(save_path, "final", self.config.models_dir_path)
         elif type == "optimal":
-            dir_path = save_path + "optimal/" + self.config.models_dir_path
+            dir_path = os.path.join(save_path, "optimal", self.config.models_dir_path)
         elif type == "checkpoint":
-            dir_path = save_path + "checkpoints/" + self.config.models_dir_path
+            dir_path = os.path.join(
+                save_path, "checkpoints", self.config.models_dir_path
+            )
         else:
             raise ValueError("Invalid save type")
 
