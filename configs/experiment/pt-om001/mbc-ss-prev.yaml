@@ -9,7 +9,7 @@ defaults:
 method:
   replay_buffer_path: null
   pretrain: false
-  pretrain_path: models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/sac-mbc-pretrain_1688719333.pt
+  pretrain_path: /scratch/work/hernans2/cosil/models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/sac-mbc-pretrain_1688719333.pt
   optimized_demonstrator: false
   dual_mode: loss_term
   omega_scheduler: constant
