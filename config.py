@@ -61,6 +61,7 @@ class HeadWrtTypes(StrEnum):
 class DualModes(StrEnum):
     q = "q"
     loss_term = "loss_term"
+    reward = "reward"
 
 
 class DemosStrategies(StrEnum):
@@ -667,6 +668,9 @@ class Config:
 
     resume: Optional[str] = None
     """Resume from given policy; specify the path + name of the .pt file to resume from."""
+
+    save_path: str = "./"
+    """Path to the directory where to save the results."""
 
 
 @dataclass(kw_only=True)

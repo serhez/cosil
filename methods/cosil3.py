@@ -1,6 +1,5 @@
 import glob
 import os
-import random
 import time
 from collections import deque
 from typing import Any
@@ -14,18 +13,18 @@ from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from omegaconf import DictConfig
 
 import wandb
-from agents import SAC, DualSAC
+from agents import SAC, DualRewardSAC, DualSAC
 from common.observation_buffer import ObservationBuffer, multi_sample
 from common.schedulers import ConstantScheduler, create_scheduler
 from loggers import Logger
-from rewarders import GAIL, MBC, SAIL, DualRewarder, create_rewarder
+from normalizers import create_normalizer
+from rewarders import MBC, SAIL, create_rewarder
 from utils import dict_add, dict_div
 from utils.co_adaptation import (
     bo_step,
     compute_distance,
     get_marker_info,
     handle_absorbing,
-    optimize_morpho_params_pso,
     rs_step,
 )
 from utils.rl import get_markers_by_ep
@@ -43,6 +42,7 @@ class CoSIL2(object):
         self.device = config.device
 
         self.logger = logger
+        self.save_path = config.save_path
 
         # Bounds for morphology optimization
         highs = torch.tensor(self.env.max_task, device=self.device)
@@ -202,6 +202,26 @@ class CoSIL2(object):
 
         # Create the RL and IL rewarders
         self.logger.info("Using RL rewarder env")
+        if config.method.dual_mode == "reward":
+            rl_normalizer = create_normalizer(
+                config.method.normalization_type,
+                config.method.normalization_mode,
+                config.method.rl_normalization_gamma,
+                config.method.rl_normalization_beta,
+                config.method.normalization_low_clip,
+                config.method.normalization_high_clip,
+            )
+            il_normalizer = create_normalizer(
+                config.method.normalization_type,
+                config.method.normalization_mode,
+                config.method.il_normalization_gamma,
+                config.method.il_normalization_beta,
+                config.method.normalization_low_clip,
+                config.method.normalization_high_clip,
+            )
+        else:
+            rl_normalizer = None
+            il_normalizer = None
         self.rl_rewarder = create_rewarder(
             "env",
             config,
@@ -209,6 +229,7 @@ class CoSIL2(object):
             self.env,
             self.demo_dim,
             self.bounds,
+            rl_normalizer,
         )
         self.logger.info(f"Using IL rewarder {config.method.rewarder.name}")
         self.il_rewarder = create_rewarder(
@@ -218,6 +239,7 @@ class CoSIL2(object):
             self.env,
             self.demo_dim,
             self.bounds,
+            il_normalizer,
         )
         self.rewarder_batch_size = self.config.method.rewarder.batch_size
 
@@ -272,6 +294,20 @@ class CoSIL2(object):
                     *common_args,
                     self.il_rewarder,
                     self.demo_dim,
+                    self.omega_scheduler,
+                    "ind",
+                )
+            elif config.method.dual_mode == "reward":
+                self.logger.info("Using agent Dual-Reward-SAC")
+                self.pop_agent = DualRewardSAC(
+                    *common_args,
+                    self.il_rewarder,
+                    ConstantScheduler(0.0),
+                    "pop",
+                )
+                self.ind_agent = DualRewardSAC(
+                    *common_args,
+                    self.il_rewarder,
                     self.omega_scheduler,
                     "ind",
                 )
@@ -1040,31 +1076,6 @@ class CoSIL2(object):
         elif self.config.method.co_adaptation.dist_optimizer == "pso":
             start_t = time.time()
 
-            # self.optimized_morpho = (
-            #     self.total_numsteps > self.config.method.morpho_warmup
-            #     and random.random() > epsilon
-            # )
-            # if self.optimized_morpho:
-            #     (
-            #         morpho_loss,
-            #         morpho_params,
-            #         fig,
-            #         grads_abs_sum,
-            #     ) = optimize_morpho_params_pso(
-            #         self.ind_agent,
-            #         self.initial_states_memory,
-            #         self.bounds,
-            #         use_distance_value=self.config.method.train_distance_value,
-            #         device=self.device,
-            #     )
-            #     optimized_morpho_params = morpho_params.clone().cpu().numpy()
-            #     self.morpho_params_np = morpho_params.detach().cpu().numpy()
-            #     log_dict["morpho/morpho_loss"] = morpho_loss
-            #     log_dict["morpho/grads_abs_sum"] = grads_abs_sum
-            # else:
-            #     morpho_params = self.morpho_dist.sample()
-            #     self.morpho_params_np = morpho_params.cpu().numpy()
-
             policy = self.pop_agent._policy
             if isinstance(self.pop_agent, SAC):
                 critic = self.pop_agent._critic
@@ -1256,12 +1267,13 @@ class CoSIL2(object):
             recorder.close()
 
     def _save(self, type="final"):
+        save_path = self.save_path + "models/"
         if type == "final":
-            dir_path = "models/final/" + self.config.models_dir_path
+            dir_path = save_path + "final/" + self.config.models_dir_path
         elif type == "optimal":
-            dir_path = "models/optimal/" + self.config.models_dir_path
+            dir_path = save_path + "optimal/" + self.config.models_dir_path
         elif type == "checkpoint":
-            dir_path = "models/checkpoints/" + self.config.models_dir_path
+            dir_path = save_path + "checkpoints/" + self.config.models_dir_path
         else:
             raise ValueError("Invalid save type")
 
@@ -1294,7 +1306,7 @@ class CoSIL2(object):
         self.logger.info(f"Loading model from {path_name}")
         success = True
         if path_name is not None:
-            model = torch.load(path_name)
+            model = torch.load(path_name, map_location=self.device)
 
             self.replay_buffer.replace(model["replay_buffer"])
             # self.current_buffer.replace(model["current_buffer"])
