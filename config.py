@@ -632,6 +632,12 @@ class CoSIL2Config(CoILConfig):
     pretrain_morpho_updates: int = 3000
     """The number of updates to perform when pretraining the agent."""
 
+    pretrain_morpho_ind_demonstrators: bool = False
+    """
+    Whether to optimize the chosen demonstrators for every observation in a batch (True),
+    or to choose the best demonstrators for the batch holistically (False) when pretraining the agent.
+    """
+
 
 @dataclass(kw_only=True)
 class Config:

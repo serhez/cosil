@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -250,8 +250,12 @@ class DualSAC(Agent):
             if i % 100 == 0:
                 self._logger.info({"Epoch": i, "Loss": loss})
 
-    def get_value(
-        self, state, imit_input, markers, action
+    def get_value(self, state, action) -> torch.FloatTensor:
+        q_value, _, _, _, _ = self._get_value(state, action)
+        return q_value
+
+    def _get_value(
+        self, state, action, imit_input=None
     ) -> Tuple[
         torch.FloatTensor,
         torch.FloatTensor,
@@ -278,6 +282,9 @@ class DualSAC(Agent):
         - The normalized reinforcement Q-value.
         """
 
+        if imit_input is None:
+            imit_input = state
+
         # Compute the Q-values
         imit_value = self._imit_critic.min(imit_input, action)
         rein_value = self._rein_critic.min(state, action)
@@ -300,6 +307,48 @@ class DualSAC(Agent):
             rein_value,
             rein_value_norm,
         )
+
+    def get_imit_input(
+        self,
+        states: torch.Tensor,
+        next_states: torch.Tensor = None,
+        markers: torch.Tensor = None,
+        next_markers: torch.Tensor = None,
+        prev_morpho: Optional[torch.Tensor] = None,
+    ):
+        """
+        Constructs the state representation used for the imitation critic (and its target).
+
+        Parameters
+        ----------
+        `states` -> the current states of the environment.
+        `next_states` -> the next states of the environment.
+        `markers` -> the current markers of the environment.
+        `next_markers` -> the next markers of the environment.
+        `prev_morpho` -> the previous morphology to use.
+
+        Returns
+        -------
+        A tuple containing:
+        - The representation of the state.
+        - The representation of the next state.
+        """
+
+        # Default
+        imit_input = states
+        next_imit_input = next_states
+
+        if prev_morpho is None:
+            imit_input = states
+            next_imit_input = next_states
+        elif self._imit_markers:
+            imit_input = markers
+            next_imit_input = next_markers
+        elif self._imit_critic_prev_morpho:
+            imit_input = get_feats_for(prev_morpho, states)
+            next_imit_input = get_feats_for(prev_morpho, next_states)
+
+        return imit_input, next_imit_input
 
     def update_parameters(
         self,
@@ -373,19 +422,9 @@ class DualSAC(Agent):
             morpho_batch,
         )
 
-        # The state representation used for the imitation critic and target critic
-        if prev_morpho is None:
-            imit_input = state_batch
-            next_imit_input = next_state_batch
-        elif self._imit_markers:
-            imit_input = marker_batch
-            next_imit_input = next_marker_batch
-        elif self._imit_critic_prev_morpho:
-            imit_input = get_feats_for(prev_morpho, state_batch)
-            next_imit_input = get_feats_for(prev_morpho, next_state_batch)
-        else:
-            imit_input = state_batch
-            next_imit_input = next_state_batch
+        imit_input, next_imit_input = self.get_imit_input(
+            state_batch, next_state_batch, marker_batch, next_marker_batch, prev_morpho
+        )
 
         imit_rewards = self._imit_rewarder.compute_rewards(batch, demos)
         rein_rewards = self._rein_rewarder.compute_rewards(batch, None)
@@ -468,7 +507,7 @@ class DualSAC(Agent):
             imit_q_value_norm,
             rein_q_value,
             rein_q_value_norm,
-        ) = self.get_value(state_batch, imit_input, marker_batch, pi)
+        ) = self._get_value(state_batch, pi, imit_input)
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
         # VAE term

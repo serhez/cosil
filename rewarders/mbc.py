@@ -85,9 +85,8 @@ class MBC(Rewarder):
 
         losses = np.zeros(n_morphos)
         for i in range(n_morphos):
-            morpho = morphos[i]
+            morpho = morphos[i].unsqueeze(0)
 
-            morpho = morpho.unsqueeze(0)
             new_shape = [batch_shape] + ([1] * len(morpho.shape[1:]))
             morpho = morpho.repeat(*new_shape)
 
@@ -111,6 +110,70 @@ class MBC(Rewarder):
             ).item()
 
         return losses
+
+    def get_demonstrators_for(
+        self,
+        batch: tuple,
+        prev_morphos: list[np.ndarray],
+        q_function: EnsembleQNetwork,
+        policy: GaussianPolicy,
+        gamma: float,
+    ) -> torch.Tensor:
+        """
+        Returns the best demonstrator for each observation in the given batch, out of all previous morphologies.
+
+        Parameters
+        ----------
+        `batch` -> the batch of observations.
+        `prev_morphos` -> the previous morphologies.
+        `q_function` -> the Q-function to use for the loss.
+        `policy` -> the policy to use for the loss.
+        `gamma` -> the discount factor to use for the loss.
+        """
+
+        assert (
+            len(prev_morphos) > 0
+        ), "Must have at least one previous morphology to search for the best demonstrator."
+
+        batch_size = batch[0].shape[0]
+        feats_batch = torch.FloatTensor(batch[0]).to(self._device)
+        action_batch = torch.FloatTensor(batch[1]).to(self._device)
+        reward_batch = torch.FloatTensor(batch[2]).to(self._device).unsqueeze(1)
+        next_feats_batch = torch.FloatTensor(batch[3]).to(self._device)
+        batch = (
+            feats_batch,
+            action_batch,
+            reward_batch,
+            next_feats_batch,
+            *batch[4:],
+        )
+
+        prev_morphos_t = [
+            torch.tensor(m, dtype=torch.float32, device=self._device)
+            for m in prev_morphos
+        ]
+
+        best_demonstrators = torch.zeros(batch_size, *(prev_morphos_t[0].shape)).to(
+            self._device
+        )
+
+        for i in range(batch_size):
+            best_loss = float("inf")
+            for prev_morpho in prev_morphos_t:
+                prev_morpho = prev_morpho.to(self._device)
+                obs = (
+                    batch[0][i].unsqueeze(0),
+                    batch[1][i].unsqueeze(0),
+                    batch[2][i].unsqueeze(0),
+                    batch[3][i].unsqueeze(0),
+                    None,
+                )
+                loss = self._loss(obs, prev_morpho, q_function, policy, gamma)[0]
+                if loss < best_loss:
+                    best_loss = loss
+                    best_demonstrators[i] = prev_morpho
+
+        return best_demonstrators.detach()
 
     def _search_best_demonstrator(
         self,

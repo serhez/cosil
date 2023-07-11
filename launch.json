@@ -43,6 +43,15 @@
             "args": ["+experiment=raw-om04alt/gailrew-ss-repdemos"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Experiment: MBC pt-opt",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=pt-om001/mbc-ss-prev-pt"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

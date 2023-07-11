@@ -335,23 +335,16 @@ class CoSIL2(object):
                 raise ValueError(f"Failed to load {self.config.resume}")
 
     @torch.no_grad()
-    def _get_demos_for(self, morpho: torch.Tensor, batch: tuple) -> tuple:
-        morpho_size = morpho.shape[1]
+    def _get_demos_for(self, morphos: torch.Tensor, batch: tuple) -> tuple:
+        morpho_size = morphos.shape[1]
         feats_batch = torch.FloatTensor(batch[0]).to(self.device)
         states_batch = feats_batch[:, :-morpho_size]
-        demo_feats_batch = torch.cat([states_batch, morpho], dim=1)
+        demo_feats_batch = torch.cat([states_batch, morphos], dim=1)
         _, _, demo_actions, _ = self.pop_agent._policy.sample(demo_feats_batch)
         return (
             None,
             demo_actions,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
+        ) + ((None,) * 7)
 
     def train(self):
         self.adapt_morphos = []
@@ -762,16 +755,17 @@ class CoSIL2(object):
                     for update in range(1, n_updates + 1):
                         batch = self.replay_buffer.sample(self.batch_size)
                         with torch.no_grad():
-                            state_batch = torch.FloatTensor(batch[0]).to(self.device)
-                            # TODO: We can try inserting the MBC.demonstrator here,
-                            #       instead of the previous morpho coming from the batch
-                            _, _, mean_action_batch, _ = self.pop_agent._policy.sample(
-                                state_batch
-                            )
-                            demos = (
-                                None,
-                                mean_action_batch,
-                            ) + ((None,) * 7)
+                            if self.config.method.pretrain_morpho_ind_demonstrators:
+                                demonstrators = self.il_rewarder.get_demonstrators_for(
+                                    batch,
+                                    self.morphos[:-1],
+                                    self.pop_agent._critic,
+                                    self.pop_agent._policy,
+                                    self.pop_agent._gamma,
+                                )
+                            else:
+                                demonstrators = self.il_rewarder.batch_demonstrator
+                            demos = self._get_demos_for(demonstrators, batch)
 
                         # We use the batch as demos as it contains the actions by other morphologies
                         new_log = self.ind_agent.update_parameters(
@@ -1077,11 +1071,6 @@ class CoSIL2(object):
             start_t = time.time()
 
             policy = self.pop_agent._policy
-            if isinstance(self.pop_agent, SAC):
-                critic = self.pop_agent._critic
-            elif isinstance(self.pop_agent, DualSAC):
-                critic = self.pop_agent._rein_critic
-
             batch = self.replay_buffer.sample(self.batch_size)
             morpho_size = len(self.morpho_params_np)
 
@@ -1110,7 +1099,7 @@ class CoSIL2(object):
                             mean_action,
                             _,
                         ) = policy.sample(state_batch)
-                        output = critic.min(state_batch, mean_action)
+                        output = self.pop_agent.get_value(state_batch, mean_action)
                         loss = -output.mean().sum()
                         fval = float(loss.item())
                         cost[i] = fval

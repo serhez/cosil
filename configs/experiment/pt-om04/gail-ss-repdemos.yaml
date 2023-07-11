@@ -39,4 +39,4 @@ method:
 logger:
   group_name: "pt-om04-gail-ss-repdemos"
   experiment_name: "gail-ss-repdemos"
-  loggers: console,wandb
+  loggers: console

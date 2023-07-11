@@ -9,20 +9,20 @@ defaults:
 method:
   replay_buffer_path: null
   pretrain: false
-  pretrain_path: null
-  optimized_demonstrator: true
+  pretrain_path: models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/sac-mbc-pretrain_1688719333.pt
+  optimized_demonstrator: false
   dual_mode: loss_term
   omega_scheduler: constant
-  num_episodes: 275
-  episodes_per_morpho: 50
+  num_episodes: 2000
+  episodes_per_morpho: 2
   morpho_warmup: 0
-  start_steps: 10000
-  disc_warmup: 20000
+  start_steps: 0
+  disc_warmup: 0
   agent:
     alpha: 0.05
     automatic_entropy_tuning: false
   co_adaptation:
-    morphos_path: data/morphos/experiment_morphos_bo_old.pt
+    morphos_path: data/morphos/experiment_morphos_bo.pt
 
   # Variables
   transfer: true
@@ -39,6 +39,6 @@ method:
   pretrain_morpho_updates: 10000
 
 logger:
-  group_name: "TEST-raw-om001pt-mbc-ss"
-  experiment_name: "mbc-ss-pt"
-  loggers: console,wandb
+  group_name: "pt-om001-mbc-ss-prev-pt"
+  experiment_name: "mbc-ss-prev-pt"
+  loggers: console
