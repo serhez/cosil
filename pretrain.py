@@ -9,7 +9,7 @@ import torch
 from gait_track_envs import register_env
 from omegaconf import DictConfig
 
-from agents import DualSAC
+from agents import SAC, Agent, DualSAC
 from common.observation_buffer import ObservationBuffer
 from common.schedulers import ConstantScheduler
 from config import GAILConfig, SAILConfig, setup_config
@@ -22,7 +22,7 @@ from utils.rl import get_markers_by_ep
 def train(
     config: DictConfig,
     logger: Logger,
-    agent: DualSAC,
+    agent: Agent,
     replay_buffer: ObservationBuffer,
     rewarders: list[Rewarder],
 ) -> None:
@@ -81,9 +81,7 @@ def train(
     return log_dict
 
 
-def save(
-    agent: DualSAC, rewarders: list[Rewarder], dir_path: str, models_id: int
-) -> str:
+def save(agent: Agent, rewarders: list[Rewarder], dir_path: str, models_id: int) -> str:
     """
     Save the agent and the rewarders models to a file as a dict with the following structure:
     ```
@@ -128,7 +126,7 @@ def save(
 
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
-    file_name = "pretrained_models_" + models_id + ".pt"
+    file_name = "pretrained_models_" + str(models_id) + ".pt"
     file_path = os.path.join(dir_path, file_name)
     torch.save(model, file_path)
 
@@ -204,7 +202,7 @@ def main(config: DictConfig) -> None:
     config_sail = config
     config_sail.method.rewarder = SAILConfig()
     sail = SAIL(logger, env, demo_dim, config_sail)
-    rewarders = [env_reward, gail, sail]
+    rewarders = [gail, sail]
 
     # Agent
     omega_scheduler = ConstantScheduler(0.0)
@@ -216,6 +214,7 @@ def main(config: DictConfig) -> None:
         num_morpho,
         env_reward,
         gail,
+        demo_dim,
         omega_scheduler,
     )
 

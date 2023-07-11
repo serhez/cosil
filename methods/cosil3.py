@@ -20,13 +20,7 @@ from loggers import Logger
 from normalizers import create_normalizer
 from rewarders import MBC, SAIL, create_rewarder
 from utils import dict_add, dict_div
-from utils.co_adaptation import (
-    bo_step,
-    compute_distance,
-    get_marker_info,
-    handle_absorbing,
-    rs_step,
-)
+from utils.co_adaptation import bo_step, get_marker_info, handle_absorbing, rs_step
 from utils.rl import get_markers_by_ep
 
 
@@ -100,7 +94,6 @@ class CoSIL2(object):
         # Load CMU or mujoco-generated demos
         self.mean_demos_reward = 0
         if os.path.isdir(self.config.method.expert_demos):
-            self.expert_obs = []
             for filepath in glob.iglob(
                 f"{self.config.method.expert_demos}/expert_cmu_{self.config.method.subject_id}*.pt"
             ):
@@ -116,12 +109,12 @@ class CoSIL2(object):
                     head_wrt=self.config.method.head_wrt,
                 )
                 episode_obs = torch.from_numpy(episode_obs_np).float().to(self.device)
-                self.expert_obs.append(episode_obs)
+                self.demos.append(episode_obs)
         else:
-            self.expert_obs = torch.load(self.config.method.expert_demos)
-            self.mean_demos_reward = np.mean(self.expert_obs["reward_run"])
+            expert_obs = torch.load(self.config.method.expert_demos)
+            self.mean_demos_reward = np.mean(expert_obs["reward_run"])
             expert_obs_np, self.to_match = get_marker_info(
-                self.expert_obs,
+                expert_obs,
                 expert_legs,
                 expert_limb_indices,
                 pos_type=self.config.method.pos_type,
@@ -130,22 +123,20 @@ class CoSIL2(object):
                 head_type=self.config.method.head_type,
                 head_wrt=self.config.method.head_wrt,
             )
-            self.expert_obs = [
+            expert_obs = [
                 torch.from_numpy(x).float().to(self.device) for x in expert_obs_np
             ]
-            self.logger.info(f"Demonstrator obs {len(self.expert_obs)} episodes loaded")
+            self.logger.info(f"Demonstrator obs {len(expert_obs)} episodes loaded")
+            self.demos.extend(expert_obs)
 
         # For terminating environments like Humanoid it is important to use absorbing state
         # From paper Discriminator-actor-critic: Addressing sample inefficiency and reward bias in adversarial imitation learning
         if self.absorbing_state:
             self.logger.info("Adding absorbing states")
-            self.expert_obs = [
+            self.demos = [
                 torch.cat([ep, torch.zeros(ep.size(0), 1, device=self.device)], dim=-1)
-                for ep in self.expert_obs
+                for ep in self.demos
             ]
-
-        # Add expert_obs to demos
-        self.demos.extend(self.expert_obs)
 
         self.batch_size = self.config.method.batch_size
         self.replay_weight = self.config.method.replay_weight
@@ -189,7 +180,7 @@ class CoSIL2(object):
             self.obs_size += 1
 
         # The dimensionality of each state in demo (marker state)
-        self.demo_dim = self.expert_obs[0].shape[-1]
+        self.demo_dim = self.demos[0].shape[-1]
 
         # If training the discriminator on transitions, it becomes (s, s')
         if self.config.learn_disc_transitions:
@@ -197,7 +188,7 @@ class CoSIL2(object):
 
         self.logger.info({"Keys to match": self.to_match})
         self.logger.info(
-            {"Expert observation shapes": [x.shape for x in self.expert_obs]},
+            {"Expert observation shapes": [x.shape for x in self.demos]},
         )
 
         # Create the RL and IL rewarders
@@ -316,7 +307,7 @@ class CoSIL2(object):
 
         # SAIL includes a pretraining step for the VAE and inverse dynamics
         if isinstance(self.il_rewarder, SAIL):
-            self.vae_loss = self.il_rewarder.pretrain_vae(self.expert_obs, 10000)
+            self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, 10000)
             if not self.config.resume:
                 self.il_rewarder.g_inv_loss = self._pretrain_sail(
                     self.il_rewarder, co_adapt=self.config.method.co_adapt
@@ -348,37 +339,13 @@ class CoSIL2(object):
 
     def train(self):
         self.adapt_morphos = []
-        self.distances = []
-        self.pos_train_distances = []
+        self.pos_train_distances = []  # TODO: delete (still used by BO)
         self.optimized_or_not = [False]
-
-        # Compute the mean distance between expert demonstrations
-        # This is "demonstrations" in the paper plots
-        pos_baseline_distance = 0
-        vel_baseline_distance = 0
 
         did_adapt_mbc = False
 
         if self.config.method.pretrain_path is not None:
             self._load(self.config.method.pretrain_path)
-
-        if len(self.expert_obs) > 1:
-            num_comp = 0
-            for i in range(len(self.expert_obs)):
-                for j in range(len(self.expert_obs)):
-                    # W(x, y) = W(y, x), so there's no need to calculate both
-                    if j >= i:
-                        continue
-                    ep_a = self.expert_obs[i].cpu().numpy()
-                    ep_b = self.expert_obs[j].cpu().numpy()
-
-                    pos_dist, vel_dist = compute_distance(ep_a, ep_b, self.to_match)
-                    pos_baseline_distance += pos_dist
-                    vel_baseline_distance += vel_dist
-                    num_comp += 1
-
-            pos_baseline_distance /= num_comp
-            vel_baseline_distance /= num_comp
 
         # For linear annealing of exploration in Q-function variant
         epsilon = 1.0
@@ -437,7 +404,6 @@ class CoSIL2(object):
             else:
                 self.initial_states_memory.append(feats)
 
-            train_marker_obs_history = []
             (
                 disc_loss,
                 expert_probs,
@@ -446,14 +412,6 @@ class CoSIL2(object):
                 self.g_inv_loss,
                 self.vae_loss,
             ) = (0, 0, 0, 0, 0, 0)
-
-            x_pos_history = None
-            x_pos_index = None
-            if self.config.method.torso_type and self.config.method.torso_type != [
-                "vel"
-            ]:
-                x_pos_history = []
-                x_pos_index = self.to_match.index("track/abs/pos/torso") * 3
 
             while not done:
                 # Sample random action
@@ -571,11 +529,6 @@ class CoSIL2(object):
                     head_wrt=self.config.method.head_wrt,
                 )
 
-                if x_pos_history is not None:
-                    x_pos_history.append(next_marker_obs[x_pos_index])
-
-                train_marker_obs_history.append(marker_obs)
-
                 episode_steps += 1
                 self.total_numsteps += 1
                 # Change reward to remove action penalty
@@ -632,37 +585,10 @@ class CoSIL2(object):
 
                 epsilon -= 1.0 / 1e6
 
+            self.adapt_morphos.append(self.env.morpho_params.flatten())
+
             # Logging
             dict_div(log_dict, logged)
-            start_t = time.time()
-            train_marker_obs_history = np.stack(train_marker_obs_history)
-
-            # Compare Wasserstein distance of episode to all demos
-            all_demos = torch.cat(self.expert_obs).cpu().numpy()
-            if self.absorbing_state:
-                all_demos = all_demos[:, :-1]
-
-            pos_train_distance, vel_train_distance = compute_distance(
-                train_marker_obs_history, all_demos, self.to_match
-            )
-            train_distance = pos_train_distance + vel_train_distance
-            self.adapt_morphos.append(self.env.morpho_params.flatten())
-            self.distances.append(train_distance)
-            self.pos_train_distances.append(pos_train_distance)
-
-            self.logger.info(
-                {
-                    "Train distance": train_distance,
-                    "Baseline distance": pos_baseline_distance + vel_baseline_distance,
-                    "Took": time.time() - start_t,
-                },
-            )
-            if x_pos_history is not None:
-                log_dict["xpos"] = wandb.Histogram(np.stack(x_pos_history))
-            log_dict["distr_distances/pos_train_distance"] = pos_train_distance
-            log_dict["distr_distances/vel_train_distance"] = vel_train_distance
-            log_dict["distr_distances/pos_baseline_distance"] = pos_baseline_distance
-            log_dict["distr_distances/vel_baseline_distance"] = vel_baseline_distance
             log_dict["buffers/replay_size"] = len(self.replay_buffer)
             log_dict["buffers/current_size"] = len(self.current_buffer)
             log_dict["buffers/demos_size"] = len(self.demos)
@@ -767,7 +693,6 @@ class CoSIL2(object):
                                 demonstrators = self.il_rewarder.batch_demonstrator
                             demos = self._get_demos_for(demonstrators, batch)
 
-                        # We use the batch as demos as it contains the actions by other morphologies
                         new_log = self.ind_agent.update_parameters(
                             batch,
                             self.ind_updates,
@@ -834,7 +759,6 @@ class CoSIL2(object):
                 and episode % self.config.method.eval_per_episodes == 0
             ):
                 self._evaluate(episode, optimized_morpho_params, log_dict)
-                train_marker_obs_history = []
 
             log_dict["general/total_steps"] = self.total_numsteps
             log_dict["general/episode"] = episode
@@ -1115,10 +1039,10 @@ class CoSIL2(object):
                 ),
                 options=options,
             )
-            cost, new_design = optimizer.optimize(
+            cost, optimized_morpho_params = optimizer.optimize(
                 f_qval, print_step=100, iters=250, verbose=3
             )
-            self.morpho_params_np = new_design
+            self.morpho_params_np = optimized_morpho_params
 
             self.logger.info(
                 {
@@ -1229,28 +1153,6 @@ class CoSIL2(object):
 
         if self.config.method.save_checkpoints:
             self._save("checkpoint")
-
-        # Compute and log distribution distances
-        start_t = time.time()
-        test_marker_obs_history = np.stack(test_marker_obs_history)
-        short_exp_demos = torch.cat(self.expert_obs).cpu().numpy()
-        if self.absorbing_state:
-            short_exp_demos = short_exp_demos[:, :-1]
-        pos_test_distance, vel_test_distance = compute_distance(
-            test_marker_obs_history, short_exp_demos, self.to_match
-        )
-        log_dict["distr_distances/vel_test"] = vel_test_distance
-        log_dict["distr_distances/pos_test"] = pos_test_distance
-
-        self.logger.info(
-            {
-                "Computed distributional distance": None,
-                "Vel. test distance": vel_test_distance,
-                "Pos. test distance": pos_test_distance,
-                "Reward": avg_reward,
-                "Took": time.time() - start_t,
-            },
-        )
 
         if recorder is not None:
             recorder.close()

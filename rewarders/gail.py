@@ -26,11 +26,11 @@ class GAIL(Rewarder):
             weight_decay=config.method.rewarder.disc_weight_decay,
         )
 
-    def train(self, batch, expert_obs):
+    def train(self, batch, demos):
         return train_disc(
             self.disc_opt,
             self.disc,
-            expert_obs,
+            demos,
             batch,
             use_transitions=self.learn_disc_transitions,
         )
