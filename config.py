@@ -520,6 +520,9 @@ class CoSILConfig(CoILConfig):
     name: str = "cosil"
     """Name of the method."""
 
+    pop_omega_init: float = 0.0
+    """Initial value for omega (population agent)."""
+
     omega_init: float = 1.0
     """Initial value for omega."""
 
@@ -611,6 +614,9 @@ class CoSIL2Config(CoILConfig):
     dual_mode: DualModes = "loss_term"  # pyright: ignore[reportGeneralTypeIssues]
     """The dual mode, either a duality of Q-values or an IL loss term."""
 
+    pop_omega_init: float = 0.0
+    """Initial value for omega (population agent)."""
+
     omega_init: float = 0.2
     """Initial value for omega."""
 
@@ -637,6 +643,9 @@ class CoSIL2Config(CoILConfig):
     Whether to optimize the chosen demonstrators for every observation in a batch (True),
     or to choose the best demonstrators for the batch holistically (False) when pretraining the agent.
     """
+
+    adapt_morpho_omega: float = 0.0
+    """The value of omega to use when adapting the morphology (PSO)."""
 
 
 @dataclass(kw_only=True)

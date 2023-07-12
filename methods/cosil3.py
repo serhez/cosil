@@ -52,18 +52,16 @@ class CoSIL2(object):
         # Is the current morpho optimized or random?
         self.optimized_morpho = True
         self.loaded_morphos = []
-        if self.config.method.co_adaptation.morphos_path is not None:
-            self.loaded_morphos = torch.load(
-                self.config.method.co_adaptation.morphos_path
-            )
+        if config.method.co_adaptation.morphos_path is not None:
+            self.loaded_morphos = torch.load(config.method.co_adaptation.morphos_path)
             self.logger.info(
                 {
                     "Loaded pre-defined morphologies": None,
-                    "Path": self.config.method.co_adaptation.morphos_path,
+                    "Path": config.method.co_adaptation.morphos_path,
                     "Number of morphologies": len(self.loaded_morphos),
                 }
             )
-        if self.config.method.co_adapt:
+        if config.method.co_adapt:
             if self.loaded_morphos:
                 morpho_params = self.loaded_morphos.pop(0)
             else:
@@ -77,8 +75,8 @@ class CoSIL2(object):
         self.num_morpho = self.env.morpho_params.shape[0]
 
         self.demos = []
-        self.demos_n_ep = self.config.method.demos_n_ep
-        self.demos_strategy = self.config.method.demos_strategy
+        self.demos_n_ep = config.method.demos_n_ep
+        self.demos_strategy = config.method.demos_strategy
 
         self.initial_states_memory = []
 
@@ -86,42 +84,42 @@ class CoSIL2(object):
         self.pop_updates = 0
         self.ind_updates = 0
 
-        expert_legs = self.config.method.expert_legs
-        self.policy_legs = self.config.method.policy_legs
-        expert_limb_indices = self.config.method.expert_markers
-        self.policy_limb_indices = self.config.method.policy_markers
+        expert_legs = config.method.expert_legs
+        self.policy_legs = config.method.policy_legs
+        expert_limb_indices = config.method.expert_markers
+        self.policy_limb_indices = config.method.policy_markers
 
         # Load CMU or mujoco-generated demos
         self.mean_demos_reward = 0
-        if os.path.isdir(self.config.method.expert_demos):
+        if os.path.isdir(config.method.expert_demos):
             for filepath in glob.iglob(
-                f"{self.config.method.expert_demos}/expert_cmu_{self.config.method.subject_id}*.pt"
+                f"{config.method.expert_demos}/expert_cmu_{config.method.subject_id}*.pt"
             ):
                 episode = torch.load(filepath)
                 episode_obs_np, self.to_match = get_marker_info(
                     episode,
                     expert_legs,
                     expert_limb_indices,
-                    pos_type=self.config.method.pos_type,
-                    vel_type=self.config.method.vel_type,
-                    torso_type=self.config.method.torso_type,
-                    head_type=self.config.method.head_type,
-                    head_wrt=self.config.method.head_wrt,
+                    pos_type=config.method.pos_type,
+                    vel_type=config.method.vel_type,
+                    torso_type=config.method.torso_type,
+                    head_type=config.method.head_type,
+                    head_wrt=config.method.head_wrt,
                 )
                 episode_obs = torch.from_numpy(episode_obs_np).float().to(self.device)
                 self.demos.append(episode_obs)
         else:
-            expert_obs = torch.load(self.config.method.expert_demos)
+            expert_obs = torch.load(config.method.expert_demos)
             self.mean_demos_reward = np.mean(expert_obs["reward_run"])
             expert_obs_np, self.to_match = get_marker_info(
                 expert_obs,
                 expert_legs,
                 expert_limb_indices,
-                pos_type=self.config.method.pos_type,
-                vel_type=self.config.method.vel_type,
-                torso_type=self.config.method.torso_type,
-                head_type=self.config.method.head_type,
-                head_wrt=self.config.method.head_wrt,
+                pos_type=config.method.pos_type,
+                vel_type=config.method.vel_type,
+                torso_type=config.method.torso_type,
+                head_type=config.method.head_type,
+                head_wrt=config.method.head_wrt,
             )
             expert_obs = [
                 torch.from_numpy(x).float().to(self.device) for x in expert_obs_np
@@ -138,17 +136,17 @@ class CoSIL2(object):
                 for ep in self.demos
             ]
 
-        self.batch_size = self.config.method.batch_size
-        self.replay_weight = self.config.method.replay_weight
+        self.batch_size = config.method.batch_size
+        self.replay_weight = config.method.replay_weight
         self.replay_buffer = ObservationBuffer(
-            self.config.method.replay_capacity,
-            self.config.method.replay_dim_ratio,
-            self.config.seed,
+            config.method.replay_capacity,
+            config.method.replay_dim_ratio,
+            config.seed,
         )
         self.current_buffer = ObservationBuffer(
-            self.config.method.replay_capacity,
-            self.config.method.replay_dim_ratio,
-            self.config.seed,
+            config.method.replay_capacity,
+            config.method.replay_dim_ratio,
+            config.seed,
         )
         if config.method.replay_buffer_path is not None:
             data = torch.load(config.method.replay_buffer_path)
@@ -183,7 +181,7 @@ class CoSIL2(object):
         self.demo_dim = self.demos[0].shape[-1]
 
         # If training the discriminator on transitions, it becomes (s, s')
-        if self.config.learn_disc_transitions:
+        if config.learn_disc_transitions:
             self.demo_dim *= 2
 
         self.logger.info({"Keys to match": self.to_match})
@@ -232,22 +230,23 @@ class CoSIL2(object):
             self.bounds,
             il_normalizer,
         )
-        self.rewarder_batch_size = self.config.method.rewarder.batch_size
+        self.rewarder_batch_size = config.method.rewarder.batch_size
 
-        if not self.config.method.transfer or not self.config.method.co_adapt:
-            self.config.method.omega_scheduler = "constant"
-            self.config.method.omega_init = 0.0
+        if not config.method.transfer or not config.method.co_adapt:
+            config.method.omega_scheduler = "constant"
+            config.method.omega_init = 0.0
         scheduler_period = (
-            self.config.method.episodes_per_morpho
-            if self.config.method.co_adapt
-            else self.config.method.num_episodes
+            config.method.episodes_per_morpho
+            if config.method.co_adapt
+            else config.method.num_episodes
         )
+        self.pop_omega_scheduler = ConstantScheduler(config.method.pop_omega_init)
         self.omega_scheduler = create_scheduler(
-            self.config.method.omega_scheduler,
+            config.method.omega_scheduler,
             scheduler_period,
-            self.config.method.omega_init,
+            config.method.omega_init,
             0.0,
-            n_init_episodes=self.config.method.omega_init_ep,
+            n_init_episodes=config.method.omega_init_ep,
         )
 
         if config.method.agent.name == "sac":
@@ -257,7 +256,7 @@ class CoSIL2(object):
             ), "Loss-term dual mode cannot be used with GAIL nor SAIL"
 
             common_args = [
-                self.config,
+                config,
                 self.logger,
                 self.env.action_space,
                 self.obs_size + self.num_morpho
@@ -268,7 +267,12 @@ class CoSIL2(object):
             ]
             if config.method.dual_mode == "loss_term":
                 self.logger.info("Using agent SAC")
-                self.pop_agent = SAC(*common_args, None, ConstantScheduler(0.0), "pop")
+                self.pop_agent = SAC(
+                    *common_args,
+                    None,
+                    self.pop_omega_scheduler,
+                    "pop",
+                )
                 self.ind_agent = SAC(
                     *common_args, self.il_rewarder, self.omega_scheduler, "ind"
                 )
@@ -278,7 +282,7 @@ class CoSIL2(object):
                     *common_args,
                     self.il_rewarder,
                     self.demo_dim,
-                    ConstantScheduler(0.0),
+                    self.pop_omega_scheduler,
                     "pop",
                 )
                 self.ind_agent = DualSAC(
@@ -293,7 +297,7 @@ class CoSIL2(object):
                 self.pop_agent = DualRewardSAC(
                     *common_args,
                     self.il_rewarder,
-                    ConstantScheduler(0.0),
+                    self.pop_omega_scheduler,
                     "pop",
                 )
                 self.ind_agent = DualRewardSAC(
@@ -308,22 +312,22 @@ class CoSIL2(object):
         # SAIL includes a pretraining step for the VAE and inverse dynamics
         if isinstance(self.il_rewarder, SAIL):
             self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, 10000)
-            if not self.config.resume:
+            if not config.resume:
                 self.il_rewarder.g_inv_loss = self._pretrain_sail(
-                    self.il_rewarder, co_adapt=self.config.method.co_adapt
+                    self.il_rewarder, co_adapt=config.method.co_adapt
                 )
 
         if config.resume is not None:
-            if self._load(self.config.resume):
+            if self._load(config.resume):
                 self.logger.info(
                     {
                         "Resumming CoIL": None,
-                        "File": self.config.resume,
+                        "File": config.resume,
                         "Num transitions": len(self.replay_buffer),
                     },
                 )
             else:
-                raise ValueError(f"Failed to load {self.config.resume}")
+                raise ValueError(f"Failed to load {config.resume}")
 
     @torch.no_grad()
     def _get_demos_for(self, morphos: torch.Tensor, batch: tuple) -> tuple:
@@ -637,8 +641,14 @@ class CoSIL2(object):
                 n_updates = episode_updates * morpho_episode
                 for update in range(1, n_updates + 1):
                     batch = self.replay_buffer.sample(self.batch_size)
+                    if isinstance(self.il_rewarder, MBC):
+                        demos = self._get_demos_for(
+                            self.il_rewarder.batch_demonstrator, batch
+                        )
+                    else:
+                        demos = self.demos
                     new_log = self.pop_agent.update_parameters(
-                        batch, self.pop_updates, self.demos
+                        batch, self.pop_updates, demos
                     )
                     dict_add(pop_log_dict, new_log)
                     pop_logged += 1
@@ -993,6 +1003,7 @@ class CoSIL2(object):
         # Particle Swarm Optimization (Eberhart and Kennedy 1995)
         elif self.config.method.co_adaptation.dist_optimizer == "pso":
             start_t = time.time()
+            self.pop_omega_scheduler.unsafe_set(self.config.method.adapt_morpho_omega)
 
             policy = self.pop_agent._policy
             batch = self.replay_buffer.sample(self.batch_size)
@@ -1043,6 +1054,8 @@ class CoSIL2(object):
                 f_qval, print_step=100, iters=250, verbose=3
             )
             self.morpho_params_np = optimized_morpho_params
+
+            self.pop_omega_scheduler.unsafe_reset()
 
             self.logger.info(
                 {
