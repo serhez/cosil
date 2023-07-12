@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=pt-om001/mbc-ss-prev ++seed=54
+srun python train.py +experiment=13-07-2023/baseline/dualsac ++seed=54
