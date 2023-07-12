@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --time=50:00:00
+#SBATCH --time=55:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem-per-cpu=8G
 #SBATCH --gres=gpu:1
@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=pt-om04/gail-ss-repdemos ++seed=214
+srun python train.py +experiment=pt-om001/mbc-ss-prev ++seed=214
