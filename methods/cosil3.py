@@ -568,10 +568,12 @@ class CoSIL2(object):
                         next_marker_obs,
                         self.obs_size,
                     )
-                    for obs in obs_list:
-                        self.current_buffer.push(obs + (self.env.morpho_params,))
+                    for current_obs in obs_list:
+                        self.current_buffer.push(
+                            current_obs + (self.env.morpho_params,)
+                        )
                 else:
-                    obs = (
+                    current_obs = (
                         feats,
                         action,
                         reward,
@@ -582,7 +584,7 @@ class CoSIL2(object):
                         next_marker_obs,
                         self.env.morpho_params,
                     )
-                    self.current_buffer.push(obs)
+                    self.current_buffer.push(current_obs)
 
                 state = next_state
                 marker_obs = next_marker_obs
@@ -612,23 +614,7 @@ class CoSIL2(object):
                 episode % self.config.method.episodes_per_morpho == 0
             ):
                 # Copy the contents of the current buffer to the replay buffer
-                # and clear it
                 self.replay_buffer.push(self.current_buffer.to_list())
-                obs = self.current_buffer.all()
-                mean_reward = np.mean(obs[2])
-                if (
-                    self.demos_strategy == "replace"
-                    and mean_reward > self.mean_demos_reward
-                ):
-                    self.mean_demos_reward = mean_reward
-                    self.demos = get_markers_by_ep(
-                        obs, 1000, self.device, self.demos_n_ep
-                    )
-                elif self.demos_strategy == "add":
-                    self.demos.extend(
-                        get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
-                    )
-                self.current_buffer.clear()
 
                 # Adapt the morphology using the specified optimizing method
                 self.logger.info("Adapting morphology")
@@ -674,6 +660,27 @@ class CoSIL2(object):
                 else:
                     self.ind_agent.load(pop_model)
                 self.ind_updates = self.pop_updates
+
+                # Update the demonstrations
+                current_obs = self.current_buffer.all()
+                mean_reward = np.mean(current_obs[2])
+                if (
+                    self.demos_strategy == "replace"
+                    and mean_reward > self.mean_demos_reward
+                ):
+                    self.mean_demos_reward = mean_reward
+                    self.demos = get_markers_by_ep(
+                        current_obs, 1000, self.device, self.demos_n_ep
+                    )
+                elif self.demos_strategy == "add":
+                    self.demos.extend(
+                        get_markers_by_ep(
+                            current_obs, 1000, self.device, self.demos_n_ep
+                        )
+                    )
+
+                # Clear the current buffer
+                self.current_buffer.clear()
 
                 # Pre-train the policy for this morphology
                 if (
