@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=13-07-2023/baseline/dualsac-psoimit ++seed=96
+srun python train.py +experiment=13-07-2023/gail/om04-pom04-ss-repdemos ++seed=96
