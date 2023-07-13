@@ -9,7 +9,7 @@ defaults:
 method:
   replay_buffer_path: null
   pretrain: false
-  pretrain_path: models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/dualsac-gail-pretrain_1688719431.pt
+  pretrain_path: /scratch/work/hernans2/cosil/models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/dualsac-gail-pretrain_1689060342.pt
   optimized_demonstrator: false
   dual_mode: q
   omega_scheduler: constant
