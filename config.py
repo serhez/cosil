@@ -46,6 +46,7 @@ class PosVelTypes(StrEnum):
     abs = "abs"
     rel = "rel"
     norm = "norm"
+    skip = "skip"
 
 
 class TorsoHeadTypes(StrEnum):
