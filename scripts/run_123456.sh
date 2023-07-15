@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=pretrain/dualsac-gail-skpos ++seed=123456
+srun python train.py +experiment=pretrain/dualsac-gail-skvel ++seed=123456
