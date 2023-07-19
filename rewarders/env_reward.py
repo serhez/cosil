@@ -40,8 +40,8 @@ class EnvReward(Rewarder):
             reward_batch[reward_batch < self._sparse_mask] = 0.0
         return reward_batch
 
-    def get_model_dict(self) -> Dict[str, Any]:
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
         return {}
 
-    def load(self, model: Dict[str, Any]) -> bool:
-        return True
+    def _load_impl(self, model: Dict[str, Any]):
+        return

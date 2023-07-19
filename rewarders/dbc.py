@@ -40,8 +40,8 @@ class DBC(Rewarder):
 
         return -torch.square(action_batch - action_demos)
 
-    def get_model_dict(self) -> Dict[str, Any]:
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
         return {}
 
-    def load(self, model: Dict[str, Any]) -> bool:
-        return True
+    def _load_impl(self, model: Dict[str, Any]):
+        return

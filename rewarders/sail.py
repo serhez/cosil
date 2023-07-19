@@ -118,29 +118,6 @@ class SAIL(Rewarder):
 
         return rewards
 
-    def get_model_dict(self) -> Dict[str, Any]:
-        data = {
-            "disc_state_dict": self.disc.state_dict(),
-            "disc_optim_state_dict": self.disc_opt.state_dict(),
-            "g_inv_state_dict": self.g_inv.state_dict(),
-            "g_inv_optim_state_dict": self.g_inv_optim.state_dict(),
-            "dynamics_state_dict": self.dynamics.state_dict(),
-            "dynamics_optim_state_dict": self.dynamics_optim.state_dict(),
-        }
-        return data
-
-    def load(self, model: Dict[str, Any]) -> bool:
-        self.disc.load_state_dict(model["disc_state_dict"])
-        self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
-        if "dynamics_state_dict" in model:
-            self.dynamics.load_state_dict(model["dynamics_state_dict"])
-            self.dynamics_optim.load_state_dict(model["dynamics_optim_state_dict"])
-            self.g_inv.load_state_dict(model["g_inv_state_dict"])
-            self.g_inv_optim.load_state_dict(model["g_inv_optim_state_dict"])
-        else:
-            return False
-        return True
-
     def get_g_inv_dict(self):
         return self.g_inv.state_dict()
 
@@ -239,3 +216,25 @@ class SAIL(Rewarder):
         return self.g_inv(
             marker_batch, self.dynamics.get_next_states(marker_batch), morpho_params
         )
+
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
+        return {
+            "disc_state_dict": self.disc.state_dict(),
+            "disc_optim_state_dict": self.disc_opt.state_dict(),
+            "g_inv_state_dict": self.g_inv.state_dict(),
+            "g_inv_optim_state_dict": self.g_inv_optim.state_dict(),
+            "dynamics_state_dict": self.dynamics.state_dict(),
+            "dynamics_optim_state_dict": self.dynamics_optim.state_dict(),
+        }
+
+    def _load_impl(self, model: Dict[str, Any]):
+        try:
+            self.disc.load_state_dict(model["disc_state_dict"])
+            self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
+            if "dynamics_state_dict" in model:
+                self.dynamics.load_state_dict(model["dynamics_state_dict"])
+                self.dynamics_optim.load_state_dict(model["dynamics_optim_state_dict"])
+                self.g_inv.load_state_dict(model["g_inv_state_dict"])
+                self.g_inv_optim.load_state_dict(model["g_inv_optim_state_dict"])
+        except KeyError:
+            raise ValueError("Invalid SAIL model")

@@ -602,6 +602,8 @@ class DualSAC(Agent):
             "imit_critic_state_dict": self._imit_critic.state_dict(),
             "imit_critic_target_state_dict": self._imit_critic_target.state_dict(),
             "imit_critic_optimizer_state_dict": self._imit_critic_optim.state_dict(),
+            "rein_norm_state_dict": self._rein_norm.get_model_dict(),
+            "imit_norm_state_dict": self._imit_norm.get_model_dict(),
         }
         if self._automatic_entropy_tuning:
             data["log_alpha"] = self._log_alpha
@@ -616,6 +618,8 @@ class DualSAC(Agent):
         self._rein_critic.load_state_dict(model["critic_state_dict"])
         self._rein_critic_target.load_state_dict(model["critic_target_state_dict"])
         self._rein_critic_optim.load_state_dict(model["critic_optimizer_state_dict"])
+        self._rein_norm.load(model["rein_norm_state_dict"])
+        self._imit_norm.load(model["imit_norm_state_dict"])
 
         if load_imit:
             self._imit_critic.load_state_dict(model["imit_critic_state_dict"])

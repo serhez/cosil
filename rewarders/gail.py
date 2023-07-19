@@ -82,14 +82,15 @@ class GAIL(Rewarder):
 
         return rewards
 
-    def get_model_dict(self) -> Dict[str, Any]:
-        data = {
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
+        return {
             "disc_state_dict": self.disc.state_dict(),
             "disc_optim_state_dict": self.disc_opt.state_dict(),
         }
-        return data
 
-    def load(self, model: Dict[str, Any]) -> bool:
-        self.disc.load_state_dict(model["disc_state_dict"])
-        self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
-        return True
+    def _load_impl(self, model: Dict[str, Any]):
+        try:
+            self.disc.load_state_dict(model["disc_state_dict"])
+            self.disc_opt.load_state_dict(model["disc_optim_state_dict"])
+        except KeyError:
+            raise ValueError("Invalid GAIL model")

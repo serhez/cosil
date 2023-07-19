@@ -45,6 +45,7 @@ class Normalizer(ABC):
         -------
         None.
         """
+
         raise NotImplementedError
 
     @abstractmethod
@@ -62,6 +63,7 @@ class Normalizer(ABC):
         -------
         The normalized tensor.
         """
+
         raise NotImplementedError
 
     def normalize(self, tensor: torch.Tensor) -> torch.Tensor:
@@ -100,6 +102,23 @@ class Normalizer(ABC):
 
     __call__: Callable[..., Any] = _call_impl
 
+    @abstractmethod
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
+        """
+        The internal child-class-specfic implementation of `get_model_dict`.
+        Do not call this method directly.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        A dictionary of the normalizer's parameters.
+        """
+
+        raise NotImplementedError
+
     def get_model_dict(self) -> Dict[str, Any]:
         """
         Get the normalizer's parameters.
@@ -119,8 +138,32 @@ class Normalizer(ABC):
             "low_clip": self._low_clip,
             "high_clip": self._high_clip,
         }
+        model_dict.update(self._get_model_dict_impl())
 
         return model_dict
+
+    @abstractmethod
+    def _load_impl(self, model: Dict[str, Any]):
+        """
+        The internal child-class-specfic implementation of `load`.
+        Do not call this method directly.
+        When implementing this method, make sure not to overwrite the parameters `gamma`,
+        `beta`, `low_clip`, and `high_clip`.
+
+        Parameters
+        ----------
+        model -> a dictionary of the normalizer's parameters.
+
+        Returns
+        -------
+        None.
+
+        Raises
+        ------
+        ValueError -> if the model is invalid.
+        """
+
+        raise NotImplementedError
 
     def load(self, model: Dict[str, Any]):
         """
@@ -133,6 +176,10 @@ class Normalizer(ABC):
         Returns
         -------
         None.
+
+        Raises
+        ------
+        ValueError -> if the model is invalid.
         """
 
         try:
@@ -140,5 +187,7 @@ class Normalizer(ABC):
             self._beta = model["beta"]
             self._low_clip = model["low_clip"]
             self._high_clip = model["high_clip"]
-        except KeyError as e:
-            raise ValueError(f"Invalid model: {model}") from e
+        except KeyError:
+            raise ValueError("Invalid normalizer model")
+
+        self._load_impl(model)

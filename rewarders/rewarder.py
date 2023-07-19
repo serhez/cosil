@@ -71,7 +71,8 @@ class Rewarder(ABC):
         The probability of the expert's action.
         The probability of the policy's action.
         """
-        pass
+
+        raise NotImplementedError
 
     @abstractmethod
     def _compute_rewards_impl(self, batch: tuple, demos) -> torch.Tensor:
@@ -88,7 +89,8 @@ class Rewarder(ABC):
         -------
         The rewards.
         """
-        pass
+
+        raise NotImplementedError
 
     def compute_rewards(self, batch: tuple, demos) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -111,6 +113,19 @@ class Rewarder(ABC):
         return rewards, norm_rewards
 
     @abstractmethod
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
+        """
+        The internal child-class-specfic implementation of `get_model_dict`.
+        Do not call this method directly.
+        When implementing this method, make sure not to overwrite the parameter `normalizer`.
+
+        Returns
+        -------
+        A dictionary of the rewarder's parameters.
+        """
+
+        raise NotImplementedError
+
     def get_model_dict(self) -> Dict[str, Any]:
         """
         Get the rewarder's parameters.
@@ -119,12 +134,17 @@ class Rewarder(ABC):
         -------
         A dictionary of the rewarder's parameters.
         """
-        pass
+
+        model = {"normalizer": self._normalizer.get_model_dict()}
+        model.update(self._get_model_dict_impl())
+
+        return model
 
     @abstractmethod
-    def load(self, model: Dict[str, Any]) -> bool:
+    def _load_impl(self, model: Dict[str, Any]):
         """
-        Load the rewarder's parameters from a model.
+        The internal child-class-specfic implementation of `load`.
+        Do not call this method directly.
 
         Parameters
         ----------
@@ -134,4 +154,29 @@ class Rewarder(ABC):
         -------
         Whether the model was successfully loaded.
         """
-        pass
+
+        raise NotImplementedError
+
+    def load(self, model: Dict[str, Any]):
+        """
+        Load the rewarder's parameters from a model.
+
+        Parameters
+        ----------
+        `model` -> a dictionary of the rewarder's parameters.
+
+        Returns
+        -------
+        None.
+
+        Raises
+        ------
+        ValueError -> if the model is invalid.
+        """
+
+        try:
+            self._normalizer.load(model["normalizer"])
+        except KeyError:
+            raise ValueError("Invalid rewarder model")
+
+        self._load_impl(model)

@@ -70,73 +70,27 @@ class RangeNormalizer(Normalizer):
         else:
             raise ValueError(f"Invalid normalizer mode: {self._mode}")
 
-    def get_model_dict(self) -> Dict[str, Any]:
-        """
-        Get the normalizer's parameters.
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
+        return {
+            "mode": self._mode,
+            "max": self._max,
+            "min": self._min,
+            "sum": self._sum,
+            "count": self._count,
+            "fixed_min": self._fixed_min,
+            "fixed_mean": self._fixed_mean,
+            "fixed_max": self._fixed_max,
+        }
 
-        Returns
-        -------
-        A dictionary of the normalizer's parameters, containing the following keys:
-        - mode -> the mode to use for normalization, with possible values:
-          - "min" -> subtract the minimum value.
-          - "mean" -> subtract the mean value.
-        - gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
-        - beta -> the beta scaling parameter, which is added to the normalized values.
-        - max -> the maximum value.
-        - min -> the minimum value.
-        - sum -> the sum of all values.
-        - count -> the number of values.
-        - low_clip -> the lower bound for clipping.
-        - high_clip -> the higher bound for clipping.
-        """
-        model_dict = super().get_model_dict()
-
-        model_dict.update(
-            {
-                "mode": self._mode,
-                "max": self._max,
-                "min": self._min,
-                "sum": self._sum,
-                "count": self._count,
-            }
-        )
-
-        return model_dict
-
-    def load(self, model: Dict[str, Any]):
-        """
-        Load the normalizer's parameters from a model.
-
-        Parameters
-        ----------
-        model -> the model dictionary, containing the following keys:
-        - mode -> the mode to use for normalization, with possible values:
-          - "min" -> subtract the minimum value.
-          - "mean" -> subtract the mean value.
-        - gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
-        - beta -> the beta scaling parameter, which is added to the normalized values.
-        - max -> the maximum value.
-        - min -> the minimum value.
-        - sum -> the sum of all values.
-        - count -> the number of values.
-        - low_clip -> the lower bound for clipping.
-        - high_clip -> the higher bound for clipping.
-
-        Returns
-        -------
-        None.
-
-        Raises
-        ------
-        ValueError -> if the model is invalid.
-        """
-        super().load(model)
-
+    def _load_impl(self, model: Dict[str, Any]):
         try:
             self._mode = model["mode"]
             self._max = model["max"]
             self._min = model["min"]
             self._sum = model["sum"]
             self._count = model["count"]
-        except KeyError as e:
-            raise ValueError(f"Invalid model: {model}") from e
+            self._fixed_min = model["fixed_min"]
+            self._fixed_mean = model["fixed_mean"]
+            self._fixed_max = model["fixed_max"]
+        except KeyError:
+            raise ValueError("Invalid model for RangeNormalizer")

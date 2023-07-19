@@ -306,14 +306,17 @@ class MBC(Rewarder):
         rewards = -0.5 * torch.square(summed_diff)
         return rewards.unsqueeze(1)
 
-    def get_model_dict(self) -> Dict[str, Any]:
-        data = {
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
+        return {
             "demonstrator": self._demonstrator,
             "batch_demonstrator": self._batch_demonstrator,
+            "bounds": self._bounds,
         }
-        return data
 
-    def load(self, model: Dict[str, Any]) -> bool:
-        self._demonstrator = model["demonstrator"]
-        self._batch_demonstrator = model["batch_demonstrator"]
-        return True
+    def _load_impl(self, model: Dict[str, Any]):
+        try:
+            self._demonstrator = model["demonstrator"]
+            self._batch_demonstrator = model["batch_demonstrator"]
+            self._bounds = model["bounds"]
+        except KeyError:
+            raise ValueError("Invalid MBC model")

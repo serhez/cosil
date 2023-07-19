@@ -128,15 +128,9 @@ class DualRewarder(Rewarder):
             + (1 - self._omega_scheduler.value) * rewards_2
         )
 
-    def get_model_dict(self) -> Dict[str, Any]:
-        """
-        Returns the model dictionary of the two rewarders, with the keys prefixed with 'rewarder_1.' and 'rewarder_2.'.
+        return {}
 
-        Returns
-        -------
-        The model dictionary
-        """
-
+    def _get_model_dict_impl(self) -> Dict[str, Any]:
         model_dict = {}
 
         model_dict_1 = self.rewarder_1.get_model_dict()
@@ -149,19 +143,7 @@ class DualRewarder(Rewarder):
 
         return model_dict
 
-    def load(self, model: Dict[str, Any]) -> bool:
-        """
-        Loads the model dictionary of the two rewarders, with the keys prefixed with 'rewarder_1.' and 'rewarder_2.'.
-
-        Parameters
-        ----------
-        model -> the model dictionary
-
-        Returns
-        -------
-        Whether the model is successfully loaded
-        """
-
+    def _load_impl(self, model: Dict[str, Any]):
         model_dict_1 = {}
         model_dict_2 = {}
         prefix_len = len("rewarder_1.")
