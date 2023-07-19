@@ -191,26 +191,22 @@ class CoSIL2(object):
 
         # Create the RL and IL rewarders
         self.logger.info("Using RL rewarder env")
-        if config.method.dual_mode == "reward":
-            rl_normalizer = create_normalizer(
-                config.method.normalization_type,
-                config.method.normalization_mode,
-                config.method.rl_normalization_gamma,
-                config.method.rl_normalization_beta,
-                config.method.normalization_low_clip,
-                config.method.normalization_high_clip,
-            )
-            il_normalizer = create_normalizer(
-                config.method.normalization_type,
-                config.method.normalization_mode,
-                config.method.il_normalization_gamma,
-                config.method.il_normalization_beta,
-                config.method.normalization_low_clip,
-                config.method.normalization_high_clip,
-            )
-        else:
-            rl_normalizer = None
-            il_normalizer = None
+        rl_normalizer = create_normalizer(
+            config.method.rewarder.norm_type,
+            config.method.rewarder.norm_mode,
+            config.method.rewarder.rl_norm_gamma,
+            config.method.rewarder.rl_norm_beta,
+            config.method.rewarder.norm_low_clip,
+            config.method.rewarder.norm_high_clip,
+        )
+        il_normalizer = create_normalizer(
+            config.method.rewarder.norm_type,
+            config.method.rewarder.norm_mode,
+            config.method.rewarder.il_norm_gamma,
+            config.method.rewarder.il_norm_beta,
+            config.method.rewarder.norm_low_clip,
+            config.method.rewarder.norm_high_clip,
+        )
         self.rl_rewarder = create_rewarder(
             "env",
             config,
@@ -241,7 +237,7 @@ class CoSIL2(object):
             else config.method.num_episodes
         )
         self.pop_omega_scheduler = ConstantScheduler(config.method.pop_omega_init)
-        self.omega_scheduler = create_scheduler(
+        self.ind_omega_scheduler = create_scheduler(
             config.method.omega_scheduler,
             scheduler_period,
             config.method.omega_init,
@@ -274,23 +270,7 @@ class CoSIL2(object):
                     "pop",
                 )
                 self.ind_agent = SAC(
-                    *common_args, self.il_rewarder, self.omega_scheduler, "ind"
-                )
-            elif config.method.dual_mode == "q":
-                self.logger.info("Using agent Dual-SAC")
-                self.pop_agent = DualSAC(
-                    *common_args,
-                    self.il_rewarder,
-                    self.demo_dim,
-                    self.pop_omega_scheduler,
-                    "pop",
-                )
-                self.ind_agent = DualSAC(
-                    *common_args,
-                    self.il_rewarder,
-                    self.demo_dim,
-                    self.omega_scheduler,
-                    "ind",
+                    *common_args, self.il_rewarder, self.ind_omega_scheduler, "ind"
                 )
             elif config.method.dual_mode == "reward":
                 self.logger.info("Using agent Dual-Reward-SAC")
@@ -303,9 +283,35 @@ class CoSIL2(object):
                 self.ind_agent = DualRewardSAC(
                     *common_args,
                     self.il_rewarder,
-                    self.omega_scheduler,
+                    self.ind_omega_scheduler,
                     "ind",
                 )
+        elif config.method.agent.name == "dual_sac":
+            self.logger.info("Using agent Dual-SAC")
+            common_args = [
+                config,
+                self.logger,
+                self.env.action_space,
+                self.obs_size + self.num_morpho
+                if config.morpho_in_state
+                else self.obs_size,
+                self.num_morpho,
+                self.rl_rewarder,
+            ]
+            self.pop_agent = DualSAC(
+                *common_args,
+                self.il_rewarder,
+                self.demo_dim,
+                self.pop_omega_scheduler,
+                "pop",
+            )
+            self.ind_agent = DualSAC(
+                *common_args,
+                self.il_rewarder,
+                self.demo_dim,
+                self.ind_omega_scheduler,
+                "ind",
+            )
         else:
             raise ValueError("Invalid agent")
 
@@ -600,7 +606,7 @@ class CoSIL2(object):
             log_dict["buffers/demos_size"] = len(self.demos)
             log_dict["general/episode_steps"] = episode_steps
             log_dict["general/episode_updates"] = episode_updates
-            log_dict["general/omega"] = self.omega_scheduler.value
+            log_dict["general/omega"] = self.ind_omega_scheduler.value
             log_dict["general/total_steps"] = self.total_numsteps
             morpho_log = {}
             for i in range(len(self.morpho_params_np)):
@@ -668,11 +674,13 @@ class CoSIL2(object):
                     self.demos_strategy == "replace"
                     and mean_reward > self.mean_demos_reward
                 ):
+                    self.logger.info("Replacing the demonstrations")
                     self.mean_demos_reward = mean_reward
                     self.demos = get_markers_by_ep(
                         current_obs, 1000, self.device, self.demos_n_ep
                     )
                 elif self.demos_strategy == "add":
+                    self.logger.info("Adding new demonstrations")
                     self.demos.extend(
                         get_markers_by_ep(
                             current_obs, 1000, self.device, self.demos_n_ep
@@ -690,7 +698,7 @@ class CoSIL2(object):
                     self.logger.info("Pre-training the policy for the next morphology")
 
                     took_pretrain = time.time()
-                    self.omega_scheduler.unsafe_set(
+                    self.ind_omega_scheduler.unsafe_set(
                         self.config.method.pretrain_morpho_omega
                     )
 
@@ -727,11 +735,11 @@ class CoSIL2(object):
                         {
                             "Pre-training": None,
                             "Updates": n_updates,
-                            "Omega": self.omega_scheduler.value,
+                            "Omega": self.ind_omega_scheduler.value,
                             "Took": time.time() - took_pretrain,
                         },
                     )
-                    self.omega_scheduler.unsafe_reset()
+                    self.ind_omega_scheduler.unsafe_reset()
 
                 # Reset counters and flags
                 new_morpho_episode = 1
@@ -764,7 +772,7 @@ class CoSIL2(object):
                     "Updates": episode_updates,
                     "Replay buffer": len(self.replay_buffer),
                     "Current buffer": len(self.current_buffer),
-                    "Omega": self.omega_scheduler.value,
+                    "Omega": self.ind_omega_scheduler.value,
                     "Took": took,
                 },
             )
@@ -782,7 +790,7 @@ class CoSIL2(object):
             self.logger.info(log_dict, ["console"])
             log_dict, logged = {}, 0
 
-            self.omega_scheduler.step()
+            self.ind_omega_scheduler.step()
             episode += 1
             morpho_episode = new_morpho_episode
 

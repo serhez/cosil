@@ -286,16 +286,16 @@ class DualRewardSAC(Agent):
             morpho_batch,
         )
 
-        rl_reward_batch = self._rl_rewarder.compute_rewards(batch, demos)
-        il_reward_batch = self._il_rewarder.compute_rewards(batch, demos)
+        rl_rewards, rl_norm_rewards = self._rl_rewarder.compute_rewards(batch, demos)
+        il_rewards, il_norm_rewards = self._il_rewarder.compute_rewards(batch, demos)
 
-        assert reward_batch.shape == rl_reward_batch.shape
-        assert reward_batch.shape == il_reward_batch.shape
+        assert reward_batch.shape == rl_norm_rewards.shape
+        assert reward_batch.shape == il_norm_rewards.shape
 
         # Balanced reward
         reward_batch = (
-            self._omega_scheduler.value * il_reward_batch
-            + (1 - self._omega_scheduler.value) * rl_reward_batch
+            self._omega_scheduler.value * il_norm_rewards
+            + (1 - self._omega_scheduler.value) * rl_norm_rewards
         )
 
         # Compute the next Q-values
@@ -381,8 +381,8 @@ class DualRewardSAC(Agent):
         # TODO: we could include also the "reward/reinforcement_mean" and "reward/imitation_mean" if we are using a dual rewarder
         return {
             "reward/mean" + self.logs_suffix: reward_batch.mean().item(),
-            "reward/rl_mean" + self.logs_suffix: rl_reward_batch.mean().item(),
-            "reward/il_mean" + self.logs_suffix: il_reward_batch.mean().item(),
+            "reward/rl_mean" + self.logs_suffix: rl_norm_rewards.mean().item(),
+            "reward/il_mean" + self.logs_suffix: il_norm_rewards.mean().item(),
             # "reward/absorbing_mean" + self.logs_suffix: absorbing_rewards.item(),
             "q-value/mean" + self.logs_suffix: q_value.mean().item(),
             "loss/critic" + self.logs_suffix: qf_loss.item(),

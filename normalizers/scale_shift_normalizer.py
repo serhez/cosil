@@ -28,6 +28,10 @@ class ScaleShiftNormalizer(Normalizer):
         """
         super().__init__(gamma, beta, low_clip, high_clip)
 
+    def update_stats(self, tensor: torch.Tensor) -> None:
+        # There are no statistics to update.
+        return
+
     def _normalize_impl(self, tensor: torch.Tensor) -> torch.Tensor:
         # An identity function; the scaling and shifting is performed by the parent `Normalizer` class.
         return tensor

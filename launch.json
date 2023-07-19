@@ -52,6 +52,15 @@
             "args": ["+experiment=pt-om001/mbc-ss-prev-pt"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Experiment: fixing GAIL",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=test/om1-gail-ss-repdemos"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

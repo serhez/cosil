@@ -76,20 +76,12 @@ class SAC(Agent):
         self._omega_scheduler = omega_scheduler
 
         self._rl_norm = create_normalizer(
-            name=config.method.normalization_type,
-            mode=config.method.normalization_mode,
-            gamma=config.method.rl_normalization_gamma,
-            beta=config.method.rl_normalization_beta,
-            low_clip=config.method.normalization_low_clip,
-            high_clip=config.method.normalization_high_clip,
-        )
-        self._il_norm = create_normalizer(
-            name=config.method.normalization_type,
-            mode=config.method.normalization_mode,
-            gamma=config.method.il_normalization_gamma,
-            beta=config.method.il_normalization_beta,
-            low_clip=config.method.normalization_low_clip,
-            high_clip=config.method.normalization_high_clip,
+            name=config.method.agent.norm_type,
+            mode=config.method.agent.norm_mode,
+            gamma=config.method.agent.norm_gamma,
+            beta=config.method.agent.norm_beta,
+            low_clip=config.method.agent.norm_low_clip,
+            high_clip=config.method.agent.norm_high_clip,
         )
 
         self._critic = EnsembleQNetwork(
@@ -249,9 +241,9 @@ class SAC(Agent):
         omega: float,
     ) -> torch.Tensor:
         if self._il_rewarder is None or np.isclose(omega, 0.0):
-            il_loss = torch.tensor(0.0, device=self._device)
-            il_loss_norm = il_loss
-            return il_loss, il_loss_norm
+            il_norm_loss = torch.tensor(0.0, device=self._device)
+            il_loss_norm = il_norm_loss
+            return il_norm_loss, il_loss_norm
 
         batch = (
             batch[0],
@@ -265,11 +257,9 @@ class SAC(Agent):
             batch[8],
         )
 
-        il_loss = -self._il_rewarder.compute_rewards(batch, demos)
-        if self._il_norm is not None:
-            il_loss_norm = self._il_norm(il_loss)
-        else:
-            il_loss_norm = il_loss
+        il_rewards, il_norm_rewards = self._il_rewarder.compute_rewards(batch, demos)
+        il_loss, il_norm_loss = -il_rewards, -il_norm_rewards
+
         return il_loss, il_loss_norm
 
     def get_value(self, state, action) -> torch.FloatTensor:
@@ -351,9 +341,9 @@ class SAC(Agent):
             morpho_batch,
         )
 
-        rewards = self._rl_rewarder.compute_rewards(batch, demos)
-        assert reward_batch.shape == rewards.shape
-        reward_batch = rewards
+        rewards, norm_rewards = self._rl_rewarder.compute_rewards(batch, demos)
+        assert reward_batch.shape == norm_rewards.shape
+        reward_batch = norm_rewards
 
         # Compute the next Q-values
         with torch.no_grad():
@@ -456,12 +446,13 @@ class SAC(Agent):
             soft_update(self._critic_target, self._critic, self._tau)
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
-        # TODO: we could include also the "reward/reinforcement_mean" and "reward/imitation_mean" if we are using a dual rewarder
         return {
-            "reward/mean" + self.logs_suffix: reward_batch.mean().item(),
+            "reward/reinforcement_mean" + self.logs_suffix: rewards.mean().item(),
+            "reward/reinforcement_norm_mean"
+            + self.logs_suffix: norm_rewards.mean().item(),
             # "reward/absorbing_mean" + self.logs_suffix: absorbing_rewards.item(),
             "q-value/mean" + self.logs_suffix: q_value.mean().item(),
-            "loss/critic" + self.logs_suffix: qf_loss.item(),
+            "loss/reinforcement_critic" + self.logs_suffix: qf_loss.item(),
             "loss/policy_mean" + self.logs_suffix: policy_loss.item(),
             "loss/reinforcement_norm_mean"
             + self.logs_suffix: rl_loss_norm.mean().item(),

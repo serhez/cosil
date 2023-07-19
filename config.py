@@ -71,14 +71,14 @@ class DemosStrategies(StrEnum):
     only_expert = "only_expert"
 
 
-class NormalizationTypes(StrEnum):
+class NormTypes(StrEnum):
     range = "range"
     z_score = "z_score"
     scale_shift = "scale_shift"
     none = "none"
 
 
-class NormalizationModes(StrEnum):
+class NormModes(StrEnum):
     min = "min"
     mean = "mean"
 
@@ -129,6 +129,30 @@ class RewarderConfig:
     batch_size: int = 64
     """Batch size for training."""
 
+    norm_type: NormTypes = "z_score"
+    """Normalization type for the rewards."""
+
+    norm_mode: NormModes = "min"
+    """Normalization mode for the rewards."""
+
+    rl_norm_gamma: float = 1.0
+    """Normalization gamma for the reinforcement rewards."""
+
+    rl_norm_beta: float = 0.0
+    """Normalization beta for the reinforcement rewards."""
+
+    il_norm_gamma: float = 1.0
+    """Normalization gamma for the imitation rewards."""
+
+    il_norm_beta: float = 0.0
+    """Normalization beta for the imitation rewards."""
+
+    norm_low_clip: Optional[float] = None
+    """Normalization lower bound for the clipping of the rewards."""
+
+    norm_high_clip: Optional[float] = None
+    """Normalization upper bound for the clipping of the rewards."""
+
 
 @dataclass(kw_only=True)
 class EnvRewarderConfig(RewarderConfig):
@@ -171,7 +195,7 @@ class GAILConfig(RewarderConfig):
     disc_weight_decay: float = 1
     """Weight decay for the discriminator."""
 
-    reward_style: AILRewardStyles = "airl"  # pyright: ignore[reportGeneralTypeIssues]
+    reward_style: AILRewardStyles = "airl"
     """
     The reward formulation to use for GAIL.
     - GAIL (Ho and Ermon, 2016).
@@ -235,7 +259,7 @@ class SACConfig(AgentConfig):
     name: str = "sac"
     """Name of the agent."""
 
-    policy_type: PolicyTypes = "gaussian"  # pyright: ignore[reportGeneralTypeIssues]
+    policy_type: PolicyTypes = "gaussian"
     """Type of policy."""
 
     target_entropy: str = "auto"
@@ -274,6 +298,24 @@ class SACConfig(AgentConfig):
     If False, use the current morphology parameters instead.
     """
 
+    norm_type: NormTypes = "z_score"
+    """Normalization type for the policy loss (RL part)."""
+
+    norm_mode: NormModes = "min"
+    """Normalization mode for the policy loss (RL part)."""
+
+    norm_gamma: float = 1.0
+    """Normalization gamma for the policy loss (RL part)."""
+
+    norm_beta: float = 0.0
+    """Normalization beta for the policy loss (RL part)."""
+
+    norm_low_clip: Optional[float] = None
+    """Normalization lower bound for the clipping of the policy loss (RL part)."""
+
+    norm_high_clip: Optional[float] = None
+    """Normalization upper bound for the clipping of the policy loss (RL part)."""
+
 
 @dataclass(kw_only=True)
 class DualSACConfig(SACConfig):
@@ -283,6 +325,30 @@ class DualSACConfig(SACConfig):
 
     name: str = "dual_sac"
     """Name of the agent."""
+
+    norm_type: NormTypes = "z_score"
+    """Normalization type for the Q-values."""
+
+    norm_mode: NormModes = "min"
+    """Normalization mode for the Q-values."""
+
+    rl_norm_gamma: float = 1.0
+    """Normalization gamma for the reinforcement Q-values."""
+
+    rl_norm_beta: float = 0.0
+    """Normalization beta for the reinforcement Q-values."""
+
+    il_norm_gamma: float = 1.0
+    """Normalization gamma for the imitation Q-values."""
+
+    il_norm_beta: float = 0.0
+    """Normalization beta for the imitation Q-values."""
+
+    norm_low_clip: Optional[float] = None
+    """Normalization lower bound for the clipping of the Q-values."""
+
+    norm_high_clip: Optional[float] = None
+    """Normalization upper bound for the clipping of the Q-values."""
 
 
 @dataclass(kw_only=True)
@@ -298,7 +364,7 @@ class CoAdaptationConfig:
     Once the list of morphologies is exhausted, co-adaptation will continue with the specified `dist_optimizer`.
     """
 
-    dist_optimizer: DistOptimizers = "bo"  # pyright: ignore[reportGeneralTypeIssues]
+    dist_optimizer: DistOptimizers = "bo"
     """
     Optimizer for the distributional distance, either:
     - bo -> Bayesian optimization
@@ -307,7 +373,7 @@ class CoAdaptationConfig:
     - pso -> Particle Swarm Optimization (Eberhart and Kennedy 1995)
     """
 
-    bo_gp_mean: BOGPMeans = "Zero"  # pyright: ignore[reportGeneralTypeIssues]
+    bo_gp_mean: BOGPMeans = "Zero"
     """The type of Gaussian process mean for Bayesian optimization."""
 
     acq_weight: float = 2.0
@@ -390,34 +456,6 @@ class MethodConfig:
     If None, no mask is applied.
     """
 
-    normalization_type: NormalizationTypes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "z_score"
-    )
-    """Normalization type for the reward or Q-values."""
-
-    normalization_mode: NormalizationModes = (  # pyright: ignore[reportGeneralTypeIssues]
-        "min"
-    )
-    """Normalization mode for the reward or Q-values."""
-
-    rl_normalization_gamma: float = 1.0
-    """Normalization gamma for the reinforcement reward or Q-values."""
-
-    rl_normalization_beta: float = 0.0
-    """Normalization beta for the reinforcement reward or Q-values."""
-
-    il_normalization_gamma: float = 1.0
-    """Normalization gamma for the imitation reward or Q-values."""
-
-    il_normalization_beta: float = 0.0
-    """Normalization beta for the imitation reward or Q-values."""
-
-    normalization_low_clip: Optional[float] = None
-    """Normalization lower bound for the clipping of the reward or Q-values."""
-
-    normalization_high_clip: Optional[float] = None
-    """Normalization upper bound for the clipping of the reward or Q-values."""
-
 
 @dataclass(kw_only=True)
 class CoILConfig(MethodConfig):
@@ -454,10 +492,10 @@ class CoILConfig(MethodConfig):
     disc_warmup: int = 20000
     """Steps before starting to train the agent."""
 
-    pos_type: Optional[PosVelTypes] = "norm"  # pyright: ignore[reportGeneralTypeIssues]
+    pos_type: Optional[PosVelTypes] = "norm"
     """Which position marker coordinate to use."""
 
-    vel_type: Optional[PosVelTypes] = "rel"  # pyright: ignore[reportGeneralTypeIssues]
+    vel_type: Optional[PosVelTypes] = "rel"
     """Which velocity marker coordinate to use."""
 
     expert_legs: List[int] = field(default_factory=lambda: [0, 1])
@@ -481,17 +519,13 @@ class CoILConfig(MethodConfig):
     subject_id: int = 8
     """Expert subject name when using CMU dataset."""
 
-    torso_type: Optional[
-        TorsoHeadTypes  # pyright: ignore[reportGeneralTypeIssues]
-    ] = None
+    torso_type: Optional[TorsoHeadTypes] = None
     """Use torso velocity, position or None."""
 
-    head_type: Optional[
-        TorsoHeadTypes  # pyright: ignore[reportGeneralTypeIssues]
-    ] = None
+    head_type: Optional[TorsoHeadTypes] = None
     """Use head velocity, position or None."""
 
-    head_wrt: Optional[HeadWrtTypes] = None  # pyright: ignore[reportGeneralTypeIssues]
+    head_wrt: Optional[HeadWrtTypes] = None
     """Use head with respect to body part."""
 
     omit_done: bool = False
@@ -527,9 +561,7 @@ class CoSILConfig(CoILConfig):
     omega_init: float = 1.0
     """Initial value for omega."""
 
-    omega_scheduler: Schedulers = (  # pyright: ignore[reportGeneralTypeIssues]
-        "exponential"
-    )
+    omega_scheduler: Schedulers = "exponential"
 
     omega_init_ep: int = 5
     """Number of episodes before starting to change omega."""
@@ -567,10 +599,10 @@ class CoSILConfig(CoILConfig):
     The warmup is used even when `clear_imitation` is False, since newer demonstrations may still have a higher weight when sampling from the imitation buffer.
     """
 
-    dual_mode: DualModes = "q"  # pyright: ignore[reportGeneralTypeIssues]
+    dual_mode: DualModes = "q"
     """The dual mode, either a duality of Q-values or of reward signals."""
 
-    demos_strategy: DemosStrategies = "add"  # pyright: ignore[reportGeneralTypeIssues]
+    demos_strategy: DemosStrategies = "add"
     """The strategy to use when adding new demonstrations."""
 
 
@@ -612,7 +644,7 @@ class CoSIL2Config(CoILConfig):
     optimized_demonstrator: bool = True
     """Whether to use an optimized demonstrator (True) or a previously seen morphology, when using MBC."""
 
-    dual_mode: DualModes = "loss_term"  # pyright: ignore[reportGeneralTypeIssues]
+    dual_mode: DualModes = "loss_term"
     """The dual mode, either a duality of Q-values or an IL loss term."""
 
     pop_omega_init: float = 0.0
@@ -621,13 +653,13 @@ class CoSIL2Config(CoILConfig):
     omega_init: float = 0.2
     """Initial value for omega."""
 
-    omega_scheduler: Schedulers = "constant"  # pyright: ignore[reportGeneralTypeIssues]
+    omega_scheduler: Schedulers = "constant"
     """The type of scheduler for omega."""
 
     omega_init_ep: int = 5
     """Number of episodes before starting to change omega."""
 
-    demos_strategy: DemosStrategies = "add"  # pyright: ignore[reportGeneralTypeIssues]
+    demos_strategy: DemosStrategies = "add"
     """The strategy to use when adding new demonstrations."""
 
     pretrain_morpho: bool = False
@@ -664,7 +696,7 @@ class Config:
     seed: int = 1
     """Random seed."""
 
-    device: Devices = "cuda"  # pyright: ignore[reportGeneralTypeIssues]
+    device: Devices = "cuda"
     """Device to use."""
 
     env_name: str = MISSING

@@ -191,42 +191,42 @@ class CoSIL(object):
 
         # Instantiate the rewarders' normalizers, if in dual-reward mode
         if self.dual_mode == "r":
-            if config.method.normalization_type == "none":
+            if config.method.norm_type == "none":
                 if config.method.agent.bc_regularization:
                     raise ValueError(
                         "Behavior cloning regularization is not supported without normalization"
                     )
                 imit_norm = None
                 rein_norm = None
-            elif config.method.normalization_type == "range":
+            elif config.method.norm_type == "range":
                 imit_norm = RangeNormalizer(
-                    mode=config.method.normalization_mode,
-                    gamma=config.method.normalization_gamma,
-                    beta=config.method.normalization_beta,
+                    mode=config.method.norm_mode,
+                    gamma=config.method.norm_gamma,
+                    beta=config.method.norm_beta,
                 )
                 rein_norm = RangeNormalizer(
-                    mode=config.method.normalization_mode,
-                    gamma=config.method.normalization_gamma,
-                    beta=config.method.normalization_beta,
+                    mode=config.method.norm_mode,
+                    gamma=config.method.norm_gamma,
+                    beta=config.method.norm_beta,
                 )
-            elif config.method.normalization_type == "z_score":
+            elif config.method.norm_type == "z_score":
                 imit_norm = ZScoreNormalizer(
-                    mode=config.method.normalization_mode,
-                    gamma=config.method.normalization_gamma,
-                    beta=config.method.normalization_beta,
-                    low_clip=config.method.normalization_low_clip,
-                    high_clip=config.method.normalization_high_clip,
+                    mode=config.method.norm_mode,
+                    gamma=config.method.norm_gamma,
+                    beta=config.method.norm_beta,
+                    low_clip=config.method.norm_low_clip,
+                    high_clip=config.method.norm_high_clip,
                 )
                 rein_norm = ZScoreNormalizer(
-                    mode=config.method.normalization_mode,
-                    gamma=config.method.normalization_gamma,
-                    beta=config.method.normalization_beta,
-                    low_clip=config.method.normalization_low_clip,
-                    high_clip=config.method.normalization_high_clip,
+                    mode=config.method.norm_mode,
+                    gamma=config.method.norm_gamma,
+                    beta=config.method.norm_beta,
+                    low_clip=config.method.norm_low_clip,
+                    high_clip=config.method.norm_high_clip,
                 )
             else:
                 raise ValueError(
-                    f"Invalid dual normalization: {config.method.normalization_type}"
+                    f"Invalid dual normalization: {config.method.norm_type}"
                 )
         else:
             rein_norm = None

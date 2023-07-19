@@ -1,0 +1,61 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: dual_sac
+  - override /method/rewarder: gail  # variable
+
+# learn_disc_transitions: false
+
+method:
+  replay_buffer_path: null
+  pretrain: false
+  pretrain_path: null
+  optimized_demonstrator: true
+  dual_mode: q
+  omega_scheduler: binary
+  num_episodes: 275
+  episodes_per_morpho: 50
+  morpho_warmup: 0
+  start_steps: 10000
+  disc_warmup: 20000
+  co_adaptation:
+    morphos_path: data/morphos/experiment_morphos_bo.pt
+
+  #### Variables
+
+  # General
+  transfer: true
+  omega_init: 0.0
+  demos_strategy: replace
+
+  # Rewards normalization
+  rewarder:
+    norm_type: scale_shift
+    norm_mode: mean
+    rl_norm_gamma: 1.0
+    rl_norm_beta: 0.0
+    il_norm_gamma: 2.0
+    il_norm_beta: 0.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+  # Agent normalization and entropy
+  agent:
+    alpha: 0.05
+    automatic_entropy_tuning: false
+    norm_type: none
+    norm_mode: mean
+    rl_norm_gamma: 1.0
+    rl_norm_beta: 0.0
+    il_norm_gamma: 2.0
+    il_norm_beta: 0.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+
+logger:
+  group_name: "test"
+  experiment_name: "om1-gail-ss-repdemos-disctrans"
+  loggers: console,wandb

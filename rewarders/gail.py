@@ -1,11 +1,12 @@
 from typing import Any, Dict, Optional
 
+import numpy as np
 import torch
+import torch.nn as nn
 from torch import optim
 
 from common.models import Discriminator
 from normalizers import Normalizer
-from utils.imitation import train_disc
 
 from .rewarder import Rewarder
 
@@ -27,12 +28,46 @@ class GAIL(Rewarder):
         )
 
     def train(self, batch, demos):
-        return train_disc(
-            self.disc_opt,
-            self.disc,
-            demos,
-            batch,
-            use_transitions=self.learn_disc_transitions,
+        self.disc.train()
+
+        disc_loss = nn.BCEWithLogitsLoss()
+
+        # Get the markers from the demonstrations
+        demos = torch.cat(demos, dim=0)
+        if self.learn_disc_transitions:
+            ids = [i for i in range(len(demos) - 1)]
+            demos = torch.cat((demos[ids], demos[ids + 1]), dim=1)
+        demos_ids = torch.randint(0, len(demos), (len(batch[0]),))
+        demos_batch = demos[demos_ids]
+
+        # Get the markers from the batch
+        _, _, _, _, _, _, markers, next_markers, _ = batch
+        markers = torch.as_tensor(markers).float().to(self.device)
+        if self.learn_disc_transitions:
+            next_markers = torch.as_tensor(next_markers).float().to(self.device)
+            markers = np.concatenate((markers, next_markers), axis=1)
+
+        assert demos_batch.shape == markers.shape
+
+        # Get the discriminator scores
+        expert_scores = self.disc(demos_batch)
+        policy_scores = self.disc(markers)
+
+        expert_labels = torch.ones_like(expert_scores)
+        policy_labels = torch.zeros_like(policy_scores)
+
+        # Calculate the loss and backpropagate
+        self.disc_opt.zero_grad()
+        expert_loss = disc_loss(expert_scores, expert_labels)
+        policy_loss = disc_loss(policy_scores, policy_labels)
+        loss = expert_loss + policy_loss
+        loss.backward()
+        self.disc_opt.step()
+
+        return (
+            loss.item(),
+            expert_scores.sigmoid().detach().mean().item(),
+            policy_scores.sigmoid().detach().mean().item(),
         )
 
     def _compute_rewards_impl(self, batch, _):
@@ -44,20 +79,6 @@ class GAIL(Rewarder):
         self.disc.train(False)
 
         rewards = (self.disc(feats).sigmoid() + 1e-7).detach()
-
-        if self.reward_style == "gail":
-            if self.log_scale_rewards:
-                rewards = -(1 - rewards).log()
-            else:
-                rewards = -(1 - rewards)
-        elif self.reward_style == "airl":
-            if self.log_scale_rewards:
-                rewards = (rewards).log() - (1 - rewards).log()
-            else:
-                rewards = rewards - (1 - rewards)
-        else:
-            if self.log_scale_rewards:
-                rewards = rewards.log()
 
         return rewards
 

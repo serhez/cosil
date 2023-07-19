@@ -1,0 +1,59 @@
+# @package _global_
+---
+defaults:
+  - base_experiment
+  - override /method: cosil2
+  - override /method/agent: dual_sac
+  - override /method/rewarder: gail  # variable
+
+method:
+  replay_buffer_path: null
+  pretrain: false
+  # pretrain_path: /scratch/work/hernans2/cosil/models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/dualsac-gail-pretrain_1689060342.pt
+  pretrain_path: models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/dualsac-gail-pretrain_1689060342.pt
+  optimized_demonstrator: false
+  dual_mode: q
+  omega_scheduler: constant
+  num_episodes: 2000
+  episodes_per_morpho: 100
+  morpho_warmup: 0
+  start_steps: 0
+  disc_warmup: 20000
+  co_adaptation:
+    morphos_path: data/morphos/experiment_morphos_bo.pt
+
+  #### Variables
+
+  # General
+  transfer: true
+  omega_init: 0.4
+  demos_strategy: replace
+
+  # Rewards normalization
+  rewarder:
+    norm_type: none
+    norm_mode: mean
+    rl_norm_gamma: 1.0
+    rl_norm_beta: 0.0
+    il_norm_gamma: 1.0
+    il_norm_beta: 0.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+  # Agent normalization and entropy
+  agent:
+    alpha: 0.05
+    automatic_entropy_tuning: false
+    norm_type: none
+    norm_mode: mean
+    rl_norm_gamma: 1.0
+    rl_norm_beta: 0.0
+    il_norm_gamma: 1.0
+    il_norm_beta: 0.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+logger:
+  group_name: "TEST-om04-nnrew-nnage"
+  experiment_name: "gail-repdemos"
+  loggers: console,wandb

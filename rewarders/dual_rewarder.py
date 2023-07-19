@@ -98,8 +98,30 @@ class DualRewarder(Rewarder):
         The rewards
         """
 
-        rewards_1 = self.rewarder_1.compute_rewards(batch, demos)
-        rewards_2 = self.rewarder_2.compute_rewards(batch, demos)
+        rewards_1, norm_rewards_1 = self.rewarder_1.compute_rewards(batch, demos)
+        rewards_2, norm_rewards_2 = self.rewarder_2.compute_rewards(batch, demos)
+
+        rewards = self._combine_rewards(rewards_1, rewards_2)
+        norm_rewards = self._combine_rewards(norm_rewards_1, norm_rewards_2)
+
+        return rewards, norm_rewards
+
+    def _combine_rewards(
+        self, rewards_1: torch.Tensor, rewards_2: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Combines the two rewards using the omega parameter.
+        The reward is computed as omega * reward_1 + (1 - omega) * reward_2.
+
+        Parameters
+        ----------
+        `rewards_1` -> the first reward.
+        `rewards_2` -> the second reward.
+
+        Returns
+        -------
+        The combined reward.
+        """
 
         return (
             self._omega_scheduler.value * rewards_1

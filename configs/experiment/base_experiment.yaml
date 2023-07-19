@@ -52,26 +52,6 @@ method:
   omit_done: false
   fixed_morpho: null
 
-  # CoSIL
-  # omega_init: 1.0
-  # omega_scheduler: exponential
-  # reset_omega: true  # could be tested
-  # imitation_capacity: 100000
-  # imitation_dim_ratio: 0.8  # could be tested
-  # imitate_morphos: true  # variable
-  # clear_imitation: true  # variable
-  # obs_per_morpho: 10000
-  # morpho_policy_warmup: 0  # could be tested
-  # dual_mode: q  # variable
-  # normalization_type: z_score  # variable
-  # normalization_mode: mean  # variable
-  # rl_normalization_gamma: 1.0  # variable
-  # rl_normalization_beta: 0.0  # could be tested
-  # il_normalization_gamma: 1.0  # variable
-  # il_normalization_beta: 0.0  # could be tested
-  # normalization_low_clip: null  # could be tested
-  # normalization_high_clip: null  # could be tested
-
   agent:
     gamma: 0.99
     tau: 0.005
@@ -81,8 +61,8 @@ method:
     # SAC
     policy_type: gaussian
     target_entropy: auto
-    alpha: 0.2
-    automatic_entropy_tuning: true
+    alpha: 0.05
+    automatic_entropy_tuning: false
     hidden_size: 256
     target_update_interval: 1
     bc_regularization: false

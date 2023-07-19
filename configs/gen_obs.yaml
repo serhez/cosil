@@ -4,6 +4,6 @@ defaults:
   - _self_
 
 num_obs: 10000
-env_name: GaitTrackHalfCheetahOriginal-v0
-resume: models/optimal/expert/GaitTrackHalfCheetahOriginal-v0/123456/1683291577.pt
-save_path: data/
+env_name: GaitTrackHalfCheetah-v0
+resume: models/final/CoSIL/GaitTrackHalfCheetah-v0/seed-123456/demonstrator_1687515731.pt
+save_path: data/demos/

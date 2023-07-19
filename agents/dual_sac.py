@@ -76,20 +76,20 @@ class DualSAC(Agent):
             self._morpho_slice = slice(-morpho_dim - 1, -1)
 
         self._imit_norm = create_normalizer(
-            config.method.normalization_type,
-            config.method.normalization_mode,
-            config.method.il_normalization_gamma,
-            config.method.il_normalization_beta,
-            config.method.normalization_low_clip,
-            config.method.normalization_high_clip,
+            config.method.agent.norm_type,
+            config.method.agent.norm_mode,
+            config.method.agent.il_norm_gamma,
+            config.method.agent.il_norm_beta,
+            config.method.agent.norm_low_clip,
+            config.method.agent.norm_high_clip,
         )
         self._rein_norm = create_normalizer(
-            config.method.normalization_type,
-            config.method.normalization_mode,
-            config.method.rl_normalization_gamma,
-            config.method.rl_normalization_beta,
-            config.method.normalization_low_clip,
-            config.method.normalization_high_clip,
+            config.method.agent.norm_type,
+            config.method.agent.norm_mode,
+            config.method.agent.rl_norm_gamma,
+            config.method.agent.rl_norm_beta,
+            config.method.agent.norm_low_clip,
+            config.method.agent.norm_high_clip,
         )
 
         self._imit_critic_prev_morpho = config.method.agent.imit_critic_prev_morpho
@@ -184,6 +184,26 @@ class DualSAC(Agent):
         else:
             _, _, action, _ = self._policy.sample(state)
         return action.detach().cpu().numpy()[0]
+
+    # @torch.no_grad()
+    # def update_normalizers(self, batch: tuple) -> None:
+    #     (
+    #         states,
+    #         actions,
+    #         rewards,
+    #         next_states,
+    #         _,
+    #         _,
+    #         markers,
+    #         next_markers,
+    #         _,
+    #         _,
+    #     ) = batch
+    #     imit_input = self.get_imit_input(states, next_states, markers, next_markers)
+    #     imit_values = self._imit_critic.min(imit_input, actions)
+    #     rein_values = self._rein_critic.min(states, actions)
+    #     self._imit_norm.update(imit_values)
+    #     self._rein_norm.update(rein_values)
 
     def pretrain_policy(
         self,
@@ -426,10 +446,10 @@ class DualSAC(Agent):
             state_batch, next_state_batch, marker_batch, next_marker_batch, prev_morpho
         )
 
-        imit_rewards = self._imit_rewarder.compute_rewards(batch, demos)
-        rein_rewards = self._rein_rewarder.compute_rewards(batch, None)
-        assert reward_batch.shape == imit_rewards.shape
-        assert reward_batch.shape == rein_rewards.shape
+        il_rewards, il_norm_rewards = self._imit_rewarder.compute_rewards(batch, demos)
+        rl_rewards, rl_norm_rewards = self._rein_rewarder.compute_rewards(batch, None)
+        assert reward_batch.shape == il_norm_rewards.shape
+        assert reward_batch.shape == rl_norm_rewards.shape
 
         # Compute the next Q-values
         with torch.no_grad():
@@ -453,7 +473,7 @@ class DualSAC(Agent):
             )
             imit_min_qf_next_target = imit_q_next_target - ent
             imit_next_q_value = (
-                imit_rewards + dones * self._gamma * imit_min_qf_next_target
+                il_norm_rewards + dones * self._gamma * imit_min_qf_next_target
             )
 
             rein_q_next_target = self._rein_critic_target.min(
@@ -461,7 +481,7 @@ class DualSAC(Agent):
             )
             rein_min_qf_next_target = rein_q_next_target - ent
             rein_next_q_value = (
-                rein_rewards + dones * self._gamma * rein_min_qf_next_target
+                rl_norm_rewards + dones * self._gamma * rein_min_qf_next_target
             )
 
         # Plot absorbing rewards
@@ -547,8 +567,12 @@ class DualSAC(Agent):
 
         # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
         return {
-            "reward/imitation_mean" + self.logs_suffix: imit_rewards.mean().item(),
-            "reward/reinforcement_mean" + self.logs_suffix: rein_rewards.mean().item(),
+            "reward/imitation_mean" + self.logs_suffix: il_rewards.mean().item(),
+            "reward/reinforcement_mean" + self.logs_suffix: rl_rewards.mean().item(),
+            "reward/imitation_norm_mean"
+            + self.logs_suffix: il_norm_rewards.mean().item(),
+            "reward/reinforcement_norm_mean"
+            + self.logs_suffix: rl_norm_rewards.mean().item(),
             # "reward/absorbing_mean" + self.logs_suffix: absorbing_rewards.item(),
             "q-value/mean" + self.logs_suffix: q_value.mean().item(),
             "q-value/imitation_mean" + self.logs_suffix: imit_q_value.mean().item(),

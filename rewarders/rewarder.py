@@ -22,6 +22,22 @@ class Rewarder(ABC):
 
         self._normalizer = normalizer
 
+    def update_normalizer(self, batch: tuple) -> None:
+        """
+        Update the normalizer of the rewarder.
+
+        Parameters
+        ----------
+        batch -> the batch of data to update the normalizer with.
+
+        Returns
+        -------
+        None
+        """
+
+        if self._normalizer is not None:
+            self._normalizer.update_stats(batch)
+
     def _normalize(self, rewards):
         """
         Normalize the rewards.
@@ -74,7 +90,7 @@ class Rewarder(ABC):
         """
         pass
 
-    def compute_rewards(self, batch: tuple, demos) -> torch.Tensor:
+    def compute_rewards(self, batch: tuple, demos) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Compute the rewards for a batch of data and return them normalized.
 
@@ -85,11 +101,14 @@ class Rewarder(ABC):
 
         Returns
         -------
-        The normalized rewards.
+        A tuple containing:
+        - The rewards.
+        - The normalized rewards.
         """
 
         rewards = self._compute_rewards_impl(batch, demos)
-        return self._normalize(rewards)
+        norm_rewards = self._normalize(rewards)
+        return rewards, norm_rewards
 
     @abstractmethod
     def get_model_dict(self) -> Dict[str, Any]:

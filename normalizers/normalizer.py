@@ -33,9 +33,26 @@ class Normalizer(ABC):
         self._high_clip = high_clip
 
     @abstractmethod
+    def update_stats(self, tensor: torch.Tensor) -> None:
+        """
+        Update the normalizer's statistics without normalizing the tensor.
+
+        Parameters
+        ----------
+        tensor -> the tensor to update the statistics with.
+
+        Returns
+        -------
+        None.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def _normalize_impl(self, tensor: torch.Tensor) -> torch.Tensor:
         """
         The internal child class implementation of the normalization method.
+        It should not update the internal running statistics, as this is done by the
+        parent class.
 
         Parameters
         ----------
@@ -49,7 +66,7 @@ class Normalizer(ABC):
 
     def normalize(self, tensor: torch.Tensor) -> torch.Tensor:
         """
-        Normalize a tensor.
+        Normalizes a tensor and updates the internal running statistics.
 
         Parameters
         ----------
@@ -60,20 +77,23 @@ class Normalizer(ABC):
         The normalized tensor.
         """
 
+        # First update the running statistics
+        self.update_stats(tensor)
+
         # Obtain the normalized tensor given by the child class implementation
-        normalized_tensor = self._normalize_impl(tensor)
+        norm_t = self._normalize_impl(tensor)
 
         # Apply the gamma and beta parameters
-        scaled_tensor = normalized_tensor * self._gamma
-        scaled_tensor += self._beta
+        norm_scaled_t = norm_t * self._gamma
+        norm_scaled_t += self._beta
 
         # Clip the normalized tensor if necessary
         if self._low_clip is not None or self._high_clip is not None:
-            scaled_tensor = torch.clamp(
-                scaled_tensor, min=self._low_clip, max=self._high_clip
+            norm_scaled_t = torch.clamp(
+                norm_scaled_t, min=self._low_clip, max=self._high_clip
             )
 
-        return scaled_tensor
+        return norm_scaled_t
 
     def _call_impl(self, *args, **kwargs):
         return self.normalize(*args, **kwargs)

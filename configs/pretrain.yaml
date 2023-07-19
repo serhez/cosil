@@ -10,7 +10,7 @@ models_dir_path: data/pretrained
 
 method:
   replay_buffer_path: data/replay_buffers/merged/buffer_1686554160.pt
-  normalization_type: none
+  norm_type: none
 
 logger:
   project_name: CoSIL

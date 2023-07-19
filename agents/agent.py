@@ -11,6 +11,22 @@ class Agent(ABC):
     This class describes an interface for agent objects.
     """
 
+    # @abstractmethod
+    # def update_normalizers(self, batch: tuple) -> None:
+    #     """
+    #     Update the normalizers of the agent.
+    #
+    #     Parameters
+    #     ----------
+    #     batch -> the batch of data to update the normalizers with.
+    #
+    #     Returns
+    #     -------
+    #     None
+    #     """
+    #
+    #     raise NotImplementedError
+
     @abstractmethod
     def select_action(self, state: torch.Tensor, evaluate: bool = False):
         """
@@ -26,7 +42,7 @@ class Agent(ABC):
         The action
         """
 
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_value(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
@@ -43,7 +59,7 @@ class Agent(ABC):
         The values of the state-action pair.
         """
 
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pretrain_policy(
@@ -64,7 +80,7 @@ class Agent(ABC):
         The mean loss
         """
 
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def pretrain_value(self, memory: ObservationBuffer, batch_size: int):
@@ -82,7 +98,7 @@ class Agent(ABC):
         None
         """
 
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def update_parameters(
@@ -109,7 +125,7 @@ class Agent(ABC):
         A dict reporting the losses for the different components of the agent, as well as the mean and std of the rewards and Q-values.
         """
 
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_model_dict(self) -> Dict[str, Any]:
@@ -121,7 +137,7 @@ class Agent(ABC):
         The agent's parameters
         """
 
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def load(self, model: Dict[str, Any]):
@@ -137,4 +153,4 @@ class Agent(ABC):
         None
         """
 
-        pass
+        raise NotImplementedError

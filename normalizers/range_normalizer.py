@@ -21,17 +21,23 @@ class RangeNormalizer(Normalizer):
         beta: float = 0.0,
         low_clip: Optional[float] = None,
         high_clip: Optional[float] = None,
+        fixed_min: Optional[float] = None,
+        fixed_mean: Optional[float] = None,
+        fixed_max: Optional[float] = None,
     ):
         """
         Parameters
         ----------
-        mode -> the mode to use for normalization, with possible values:
+        `mode` -> the mode to use for normalization, with possible values:
         - "min" -> subtract the minimum value.
         - "mean" -> subtract the mean value.
-        gamma -> the gamma scaling parameter, which is multiplied by the normalized values.
-        beta -> the beta scaling parameter, which is added to the normalized values.
-        low_clip -> the lower bound for clipping; not applied if set to None.
-        high_clip -> the higher bound for clipping; not applied if set to None.
+        `gamma` -> the gamma scaling parameter, which is multiplied by the normalized values.
+        `beta` -> the beta scaling parameter, which is added to the normalized values.
+        `low_clip` -> the lower bound for clipping; not applied if set to `None`.
+        `high_clip` -> the higher bound for clipping; not applied if set to `None`.
+        `fixed_min` -> a fixed minimum value to use for normalization; if set to `None`, the minimum value will be estimated given the values provided to `normalize()`.
+        `fixed_mean` -> a fixed mean value to use for normalization; if set to `None`, the mean value will be estimated given the values provided to `normalize()`.
+        `fixed_max` -> a fixed maximum value to use for normalization; if set to `None`, the standard deviation will be estimated given the values provided to `normalize()`.
         """
         super().__init__(gamma, beta, low_clip, high_clip)
 
@@ -46,27 +52,27 @@ class RangeNormalizer(Normalizer):
         self._sum = 0.0
         self._count = 0
 
-    def _normalize_impl(self, tensor: torch.Tensor) -> torch.Tensor:
-        # Update the statistical measures
+    def update_stats(self, tensor: torch.Tensor) -> None:
         self._max = max(self._max, tensor.max().item())
         self._min = min(self._min, tensor.min().item())
         self._sum += tensor.sum().item()
         self._count += tensor.numel()
 
+    def _normalize_impl(self, tensor: torch.Tensor) -> torch.Tensor:
+        min = self._min if self._fixed_min is None else self._fixed_min
+        mean = self._sum / self._count if self._fixed_mean is None else self._fixed_mean
+        max = self._max if self._fixed_max is None else self._fixed_max
+
         if self._mode == "min":
-            return (tensor - self._min) / (self._max - self._min)
+            return (tensor - min) / (max - min)
         elif self._mode == "mean":
-            return (tensor - self._sum / self._count) / (self._max - self._min)
+            return (tensor - mean) / (max - min)
         else:
             raise ValueError(f"Invalid normalizer mode: {self._mode}")
 
     def get_model_dict(self) -> Dict[str, Any]:
         """
         Get the normalizer's parameters.
-
-        Parameters
-        ----------
-        None.
 
         Returns
         -------

@@ -173,20 +173,20 @@ class CoSIL2(object):
         # Otherwise, the normalizers are applied to the loss terms and created by the agent
         if self.config.method.dual_mode == "q":
             rl_norm = create_normalizer(
-                name=config.method.normalization_type,
-                mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
-                low_clip=config.method.normalization_low_clip,
-                high_clip=config.method.normalization_high_clip,
+                name=config.method.norm_type,
+                mode=config.method.norm_mode,
+                gamma=config.method.norm_gamma,
+                beta=config.method.norm_beta,
+                low_clip=config.method.norm_low_clip,
+                high_clip=config.method.norm_high_clip,
             )
             il_norm = create_normalizer(
-                name=config.method.normalization_type,
-                mode=config.method.normalization_mode,
-                gamma=config.method.normalization_gamma,
-                beta=config.method.normalization_beta,
-                low_clip=config.method.normalization_low_clip,
-                high_clip=config.method.normalization_high_clip,
+                name=config.method.norm_type,
+                mode=config.method.norm_mode,
+                gamma=config.method.norm_gamma,
+                beta=config.method.norm_beta,
+                low_clip=config.method.norm_low_clip,
+                high_clip=config.method.norm_high_clip,
             )
         else:
             rl_norm = None
