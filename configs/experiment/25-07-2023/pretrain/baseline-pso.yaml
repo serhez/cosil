@@ -64,6 +64,6 @@ method:
 
 
 logger:
-  group_name: "pretrain-baseline-pso"
+  group_name: "pretrain-baseline"
   experiment_name: "baseline-pso"
   loggers: console,wandb
