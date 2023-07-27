@@ -22,10 +22,6 @@ def main(config: DictConfig) -> None:
             config.models_dir_path = (
                 f"{config.logger.group_name}/" + config.models_dir_path
             )
-        if config.logger.project_name != "":
-            config.models_dir_path = (
-                f"{config.logger.project_name}/" + config.models_dir_path
-            )
 
         # Set up environment
         register_env(config.env_name)
