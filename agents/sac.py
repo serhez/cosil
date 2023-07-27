@@ -392,32 +392,12 @@ class SAC(Agent):
         # Compute the loss
         omega = self._omega_scheduler.value
         rl_loss, rl_loss_norm = self._get_rl_loss(log_pi, q_value, omega)
-        # vae_loss = torch.tensor(0.0, device=self._device)
-        # if isinstance(self._rl_rewarder, SAIL):
-        #     vae_loss = self._rl_rewarder.get_vae_loss(
-        #         state_batch, marker_batch, policy_mean
-        #     )
-        #     rl_loss += vae_loss
         if new_morpho is not None:
             new_feats = get_feats_for(new_morpho, state_batch)
             _, _, policy_mean, _ = self._policy.sample(new_feats)
         il_loss, il_loss_norm = self._get_il_loss(batch, policy_mean, demos, omega)
-        #
-        # def print_grad(f):
-        #     if f is None:
-        #         return
-        #     print(type(f).__name__)
-        #     for f in f.next_functions:
-        #         print_grad(f[0])
-        #
-        # print("Grad graph for rl_loss:")
-        # print_grad(rl_loss.grad_fn)
-        # print("\nGrad graph for il_loss:")
-        # print_grad(il_loss.grad_fn)
 
         policy_loss = (1 - omega) * rl_loss_norm.mean() + omega * il_loss_norm.mean()
-        # policy_loss = rl_loss.mean()
-        # policy_loss = il_loss_norm.mean()
 
         # Update the policy
         self._policy_optim.zero_grad()

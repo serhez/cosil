@@ -18,6 +18,9 @@ class AIRL(Rewarder):
         self.learn_disc_transitions = config.learn_disc_transitions
         self.log_scale_rewards = config.method.rewarder.log_scale_rewards
 
+        if self.learn_disc_transitions:
+            demo_dim *= 2
+
         self.disc = Discriminator(demo_dim).to(self.device)
         self.disc_opt = optim.AdamW(
             self.disc.parameters(),

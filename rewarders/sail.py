@@ -29,7 +29,7 @@ class SAIL(Rewarder):
 
         num_morpho_obs = env.morpho_params.shape[0]
         self.morpho_slice = slice(-num_morpho_obs, None)
-        if config.absorbing_state:
+        if self.absorbing_state:
             self.morpho_slice = slice(-num_morpho_obs - 1, -1)
 
         self.g_inv = InverseDynamics(
@@ -54,6 +54,9 @@ class SAIL(Rewarder):
             self.g_inv_loss,
             self.vae_loss,
         ) = (0, 0, 0)
+
+        if self.learn_disc_transitions:
+            demo_dim *= 2
 
         self.disc = WassersteinCritic(demo_dim, None).to(self.device)
         self.disc_opt = optim.Adam(
@@ -105,9 +108,7 @@ class SAIL(Rewarder):
         expert_feats = demos[expert_inds]
 
         if self.learn_disc_transitions:
-            expert_feats = torch.cat(
-                (demos[expert_inds], demos[expert_inds + 1]), dim=1
-            )
+            expert_feats = torch.cat((expert_feats, demos[expert_inds + 1]), dim=1)
 
         with torch.no_grad():
             # SAIL reward: difference between W-critic score of policy and expert
@@ -206,9 +207,7 @@ class SAIL(Rewarder):
 
     def get_vae_loss(self, state_batch, marker_batch, policy_mean):
         morpho_params = state_batch[..., self.morpho_slice]
-        prior_mean = self.g_inv(
-            marker_batch, self.dynamics.get_next_states(marker_batch), morpho_params
-        )
+        prior_mean = self.get_prior_mean(marker_batch, morpho_params)
         vae_loss = (prior_mean - policy_mean).pow(2).mean()
         return self.vae_scaler * vae_loss
 

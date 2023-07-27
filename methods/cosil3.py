@@ -122,10 +122,6 @@ class CoSIL2(object):
         # The dimensionality of each state in demo (marker state)
         self.demo_dim = self.demos[0].shape[-1]
 
-        # If training the discriminator on transitions, it becomes (s, s')
-        if config.learn_disc_transitions:
-            self.demo_dim *= 2
-
         self.logger.info({"Keys to match": self.to_match})
         self.logger.info(
             {"Expert observation shapes": [x.shape for x in self.demos]},
@@ -321,15 +317,15 @@ class CoSIL2(object):
 
             self.pop_updates += 1
             if update % 1000 == 0:
+                dict_div(log_dict, logged)
+                log_dict["general/update"] = update
+                self.logger.info(log_dict, ["console"])
                 self.logger.info(
                     {
                         "Update": update,
                     },
                 )
 
-        dict_div(log_dict, logged)
-        log_dict["general/episode"] = episode
-        self.logger.info(log_dict, ["console"])
         self.logger.info(
             {
                 "Population agent training": None,

@@ -185,26 +185,6 @@ class DualSAC(Agent):
             _, _, action, _ = self._policy.sample(state)
         return action.detach().cpu().numpy()[0]
 
-    # @torch.no_grad()
-    # def update_normalizers(self, batch: tuple) -> None:
-    #     (
-    #         states,
-    #         actions,
-    #         rewards,
-    #         next_states,
-    #         _,
-    #         _,
-    #         markers,
-    #         next_markers,
-    #         _,
-    #         _,
-    #     ) = batch
-    #     imit_input = self.get_imit_input(states, next_states, markers, next_markers)
-    #     imit_values = self._imit_critic.min(imit_input, actions)
-    #     rein_values = self._rein_critic.min(states, actions)
-    #     self._imit_norm.update(imit_values)
-    #     self._rein_norm.update(rein_values)
-
     def pretrain_policy(
         self,
         rewarder: SAIL,
@@ -531,12 +511,12 @@ class DualSAC(Agent):
         policy_loss = ((self._alpha * log_pi) - q_value).mean()
 
         # VAE term
-        # vae_loss = torch.tensor(0.0, device=self._device)
-        # if isinstance(self._imit_rewarder, SAIL):
-        #     vae_loss = self._imit_rewarder.get_vae_loss(
-        #         state_batch, marker_batch, policy_mean
-        #     )
-        #     policy_loss += vae_loss
+        vae_loss = torch.tensor(0.0, device=self._device)
+        if isinstance(self._imit_rewarder, SAIL):
+            vae_loss = self._imit_rewarder.get_vae_loss(
+                state_batch, marker_batch, policy_mean
+            )
+            policy_loss += vae_loss
 
         self._policy_optim.zero_grad()
         policy_loss.backward()
