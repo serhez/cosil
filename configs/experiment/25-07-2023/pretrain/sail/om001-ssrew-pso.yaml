@@ -65,5 +65,5 @@ method:
 
 logger:
   group_name: "pretrain-sail"
-  experiment_name: "om001-ssrew"
+  experiment_name: "om001-ssrew-pso"
   loggers: console,wandb

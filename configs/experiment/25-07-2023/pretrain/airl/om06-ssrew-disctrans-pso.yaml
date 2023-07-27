@@ -65,5 +65,5 @@ method:
 
 logger:
   group_name: "pretrain-airl"
-  experiment_name: "om06-ssrew-disctrans"
+  experiment_name: "om06-ssrew-disctrans-pso"
   loggers: console,wandb

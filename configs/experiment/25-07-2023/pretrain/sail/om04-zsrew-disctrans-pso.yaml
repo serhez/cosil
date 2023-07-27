@@ -65,5 +65,5 @@ method:
 
 logger:
   group_name: "pretrain-sail"
-  experiment_name: "om04-zsrew-disctrans"
+  experiment_name: "om04-zsrew-disctrans-pso"
   loggers: console,wandb
