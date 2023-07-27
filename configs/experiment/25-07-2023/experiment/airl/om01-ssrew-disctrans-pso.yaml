@@ -10,29 +10,31 @@ defaults:
 learn_disc_transitions: true
 
 method:
-  replay_buffer_path: /scratch/work/hernans2/cosil/models/final/CoSIL/replay_buffers/GaitTrackHalfCheetah-v0/seed-123456/dualsac-gail-pretrain_1689060342.pt
+  replay_buffer_path: null
   pretrain: false
-  pretrain_path: null
+  pretrain_path: PENDING
   dual_mode: q
   omega_scheduler: constant
-  num_episodes: 70
-  episodes_per_morpho: 70
+  num_episodes: 2000
+  episodes_per_morpho: 100
   morpho_warmup: 0
-  start_steps: 10000
-  disc_warmup: 20000
+  start_steps: 0
+  disc_warmup: 0
   eval: false
   record_test: false
   save_checkpoints: false
   save_optimal: false
-  save_final: true
+  save_final: false
   co_adaptation:
-    morphos_path: data/morphos/pretrain_morphos_bo.pt
+    morphos_path: null
+    dist_optimizer: pso
 
   #### Variables
 
   # General
   transfer: true
-  omega_init: 0.01
+  omega_init: 0.1
+  adapt_morpho_omega: 0.01
   demos_strategy: replace
 
   # Rewards normalization
@@ -62,6 +64,6 @@ method:
 
 
 logger:
-  group_name: "airl-om001-ssrew-disctrans"
-  experiment_name: "om001-ssrew-disctrans"
+  group_name: "airl-om01-ssrew-disctrans-pso"
+  experiment_name: "airl-om01-ssrew-disctrans-pso"
   loggers: console,wandb
