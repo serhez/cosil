@@ -1,7 +1,7 @@
 #!/bin/bash -l
-#SBATCH --time=70:00:00
+#SBATCH --time=02:00:00
 #SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=8G
+#SBATCH --mem=16G
 #SBATCH --gres=gpu:1
 #SBATCH --mail-user=sergio.hernandezgutierrez@aalto.fi
 #SBATCH --mail-type=ALL
@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=pretrain/dualsac-gail-skvel ++seed=123456
+srun python train.py +experiment=25-07-2023/pretrain/baseline ++seed=123456
