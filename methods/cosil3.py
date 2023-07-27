@@ -325,6 +325,7 @@ class CoSIL2(object):
                         "Update": update,
                     },
                 )
+                log_dict, logged = {}, 0
 
         self.logger.info(
             {
