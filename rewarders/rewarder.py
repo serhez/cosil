@@ -133,8 +133,10 @@ class Rewarder(ABC):
         A dictionary of the rewarder's parameters.
         """
 
+        model = {}
+
         if self._normalizer is not None:
-            model = {"normalizer": self._normalizer.get_model_dict()}
+            model["normalizer"] = self._normalizer.get_model_dict()
 
         model.update(self._get_model_dict_impl())
 
