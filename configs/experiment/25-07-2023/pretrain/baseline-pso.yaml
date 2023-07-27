@@ -26,13 +26,15 @@ method:
   save_optimal: false
   save_final: true
   co_adaptation:
-    morphos_path: data/morphos/pretrain_morphos_bo.pt
+    morphos_path: null
+    dist_optimizer: pso
 
   #### Variables
 
   # General
   transfer: false
   omega_init: 0.0
+  adapt_morpho_omega: 0.0
   demos_strategy: replace
 
   # Rewards normalization
@@ -62,6 +64,6 @@ method:
 
 
 logger:
-  group_name: "pretrain-baseline"
-  experiment_name: "baseline"
+  group_name: "pretrain-baseline-pso"
+  experiment_name: "baseline-pso"
   loggers: console,wandb
