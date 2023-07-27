@@ -1,4 +1,3 @@
-import glob
 import os
 import time
 from collections import deque
@@ -13,7 +12,7 @@ from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from omegaconf import DictConfig
 
 import wandb
-from agents import SAC, DualRewardSAC, DualSAC
+from agents import SAC, DualSAC, create_dual_agents
 from common.observation_buffer import ObservationBuffer, multi_sample
 from common.schedulers import ConstantScheduler, create_scheduler
 from loggers import Logger
@@ -21,6 +20,7 @@ from normalizers import create_normalizer
 from rewarders import MBC, SAIL, create_rewarder
 from utils import dict_add, dict_div
 from utils.co_adaptation import bo_step, get_marker_info, handle_absorbing, rs_step
+from utils.imitation import get_bc_demos_for, load_demos
 from utils.rl import get_markers_by_ep
 
 
@@ -84,48 +84,12 @@ class CoSIL2(object):
         self.pop_updates = 0
         self.ind_updates = 0
 
-        expert_legs = config.method.expert_legs
         self.policy_legs = config.method.policy_legs
-        expert_limb_indices = config.method.expert_markers
         self.policy_limb_indices = config.method.policy_markers
 
         # Load CMU or mujoco-generated demos
-        self.mean_demos_reward = 0
-        if os.path.isdir(config.method.expert_demos):
-            for filepath in glob.iglob(
-                f"{config.method.expert_demos}/expert_cmu_{config.method.subject_id}*.pt"
-            ):
-                episode = torch.load(filepath)
-                episode_obs_np, self.to_match = get_marker_info(
-                    episode,
-                    expert_legs,
-                    expert_limb_indices,
-                    pos_type=config.method.pos_type,
-                    vel_type=config.method.vel_type,
-                    torso_type=config.method.torso_type,
-                    head_type=config.method.head_type,
-                    head_wrt=config.method.head_wrt,
-                )
-                episode_obs = torch.from_numpy(episode_obs_np).float().to(self.device)
-                self.demos.append(episode_obs)
-        else:
-            expert_obs = torch.load(config.method.expert_demos)
-            self.mean_demos_reward = np.mean(expert_obs["reward_run"])
-            expert_obs_np, self.to_match = get_marker_info(
-                expert_obs,
-                expert_legs,
-                expert_limb_indices,
-                pos_type=config.method.pos_type,
-                vel_type=config.method.vel_type,
-                torso_type=config.method.torso_type,
-                head_type=config.method.head_type,
-                head_wrt=config.method.head_wrt,
-            )
-            expert_obs = [
-                torch.from_numpy(x).float().to(self.device) for x in expert_obs_np
-            ]
-            self.logger.info(f"Demonstrator obs {len(expert_obs)} episodes loaded")
-            self.demos.extend(expert_obs)
+        expert_demos, self.to_match, self.mean_demos_reward = load_demos(config)
+        self.demos.extend(expert_demos)
 
         # For terminating environments like Humanoid it is important to use absorbing state
         # From paper Discriminator-actor-critic: Addressing sample inefficiency and reward bias in adversarial imitation learning
@@ -149,29 +113,7 @@ class CoSIL2(object):
             config.seed,
         )
         if config.method.replay_buffer_path is not None:
-            data = torch.load(config.method.replay_buffer_path)
-            obs_list = data["buffer"]
-            self.logger.info(
-                {
-                    "Loading pre-filled replay buffer": None,
-                    "Path": config.method.replay_buffer_path,
-                    "Number of observations": len(obs_list),
-                }
-            )
-            self.replay_buffer.replace(obs_list)
-            obs = self.replay_buffer.all()
-            mean_reward = np.mean(obs[2])
-            if (
-                self.demos_strategy == "replace"
-                and mean_reward > self.mean_demos_reward
-            ):
-                self.mean_demos_reward = mean_reward
-                self.demos = get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
-            elif self.demos_strategy == "add":
-                self.demos.extend(
-                    get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
-                )
-            self.morphos = data["morpho"]
+            self._load_replay_buffer(config.method.replay_buffer_path)
 
         self.obs_size = self.env.observation_space.shape[0]
         if self.absorbing_state:
@@ -245,78 +187,24 @@ class CoSIL2(object):
             n_init_episodes=config.method.omega_init_ep,
         )
 
-        if config.method.agent.name == "sac":
-            assert not config.method.dual_mode == "loss_term" or (
-                not config.method.rewarder.name == "gail"
-                and not config.method.rewarder.name == "sail"
-            ), "Loss-term dual mode cannot be used with GAIL nor SAIL"
-
-            common_args = [
-                config,
-                self.logger,
-                self.env.action_space,
-                self.obs_size + self.num_morpho
-                if config.morpho_in_state
-                else self.obs_size,
-                self.num_morpho,
-                self.rl_rewarder,
-            ]
-            if config.method.dual_mode == "loss_term":
-                self.logger.info("Using agent SAC")
-                self.pop_agent = SAC(
-                    *common_args,
-                    None,
-                    self.pop_omega_scheduler,
-                    "pop",
-                )
-                self.ind_agent = SAC(
-                    *common_args, self.il_rewarder, self.ind_omega_scheduler, "ind"
-                )
-            elif config.method.dual_mode == "reward":
-                self.logger.info("Using agent Dual-Reward-SAC")
-                self.pop_agent = DualRewardSAC(
-                    *common_args,
-                    self.il_rewarder,
-                    self.pop_omega_scheduler,
-                    "pop",
-                )
-                self.ind_agent = DualRewardSAC(
-                    *common_args,
-                    self.il_rewarder,
-                    self.ind_omega_scheduler,
-                    "ind",
-                )
-        elif config.method.agent.name == "dual_sac":
-            self.logger.info("Using agent Dual-SAC")
-            common_args = [
-                config,
-                self.logger,
-                self.env.action_space,
-                self.obs_size + self.num_morpho
-                if config.morpho_in_state
-                else self.obs_size,
-                self.num_morpho,
-                self.rl_rewarder,
-            ]
-            self.pop_agent = DualSAC(
-                *common_args,
-                self.il_rewarder,
-                self.demo_dim,
-                self.pop_omega_scheduler,
-                "pop",
-            )
-            self.ind_agent = DualSAC(
-                *common_args,
-                self.il_rewarder,
-                self.demo_dim,
-                self.ind_omega_scheduler,
-                "ind",
-            )
-        else:
-            raise ValueError("Invalid agent")
+        self.ind_agent, self.pop_agent = create_dual_agents(
+            config,
+            self.logger,
+            self.env,
+            self.rl_rewarder,
+            self.il_rewarder,
+            self.pop_omega_scheduler,
+            self.ind_omega_scheduler,
+            self.demo_dim,
+            self.obs_size,
+            self.num_morpho,
+        )
 
         # SAIL includes a pretraining step for the VAE and inverse dynamics
-        if isinstance(self.il_rewarder, SAIL):
+        if (
+            isinstance(self.il_rewarder, SAIL)
+            and self.config.method.pretrain_path is None
+        ):
             self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, 10000)
             if not config.resume:
                 self.il_rewarder.g_inv_loss = self._pretrain_sail(
@@ -335,17 +223,254 @@ class CoSIL2(object):
             else:
                 raise ValueError(f"Failed to load {config.resume}")
 
-    @torch.no_grad()
-    def _get_demos_for(self, morphos: torch.Tensor, batch: tuple) -> tuple:
-        morpho_size = morphos.shape[1]
-        feats_batch = torch.FloatTensor(batch[0]).to(self.device)
-        states_batch = feats_batch[:, :-morpho_size]
-        demo_feats_batch = torch.cat([states_batch, morphos], dim=1)
-        _, _, demo_actions, _ = self.pop_agent._policy.sample(demo_feats_batch)
-        return (
-            None,
-            demo_actions,
-        ) + ((None,) * 7)
+    def _load_replay_buffer(self, path: str) -> None:
+        """
+        Loads a replay buffer from a file.
+
+        Parameters
+        ----------
+        path -> the path to the file containing the replay buffer.
+        """
+
+        data = torch.load(path)
+        obs_list = data["buffer"]
+        self.logger.info(
+            {
+                "Loading pre-filled replay buffer": None,
+                "Path": path,
+                "Number of observations": len(obs_list),
+            }
+        )
+        self.replay_buffer.replace(obs_list)
+        self._update_demos(self.replay_buffer.all())
+        self.morphos = data["morphos"]
+
+    def _update_demos(self, obs: list[tuple]) -> None:
+        """
+        Updates the demonstrations used for the imitation rewarder.
+        Only the markers are added as demonstrations.
+        Based on the strategy specified at `config.demos_strategy`, it will either:
+        - Add all observations from the last `config.demos_n_ep` episodes to `self.demos`.
+        - Replace the contents of `self.demos` with all the observations from the last `config.demos_n_ep` episodes.
+        """
+
+        mean_reward = np.mean(obs[2])
+        if self.demos_strategy == "replace" and mean_reward > self.mean_demos_reward:
+            self.logger.info("Replacing the demonstrations")
+            self.mean_demos_reward = mean_reward
+            self.demos = get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
+        elif self.demos_strategy == "add":
+            self.logger.info("Adding new demonstrations")
+            self.demos.extend(
+                get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
+            )
+
+    def _train_pop_agent(
+        self,
+        episode: int,
+        episode_updates: int,
+        morpho_episode: int,
+        ind_load_imit: bool = True,
+        train_rewarder: bool = False,
+    ) -> None:
+        """
+        Trains the population agent for `episode_updates * morpho_episode` updates,
+        and copies the parameters to the individual agent.
+
+        Parameters
+        ----------
+        `episode` -> the current episode.
+        `episode_updates` -> the number of updates to perform per episode.
+        `morpho_episode` -> the episode for the current morphology.
+        `ind_load_imit` -> whether to load the imitation critic parameters to the individual agent.
+        `train_rewarder` -> whether to train the imitation rewarder.
+        """
+
+        # Train the population agent
+        self.logger.info("Training population agent")
+
+        took = time.time()
+        log_dict, logged = {}, 0
+
+        n_updates = episode_updates * morpho_episode
+        for update in range(1, n_updates + 1):
+            # Rewarder (i.e., discriminator) update
+            if train_rewarder:
+                batch = self.replay_buffer.sample(self.rewarder_batch_size)
+                (
+                    disc_loss,
+                    expert_probs,
+                    policy_probs,
+                ) = self.il_rewarder.train(batch, self.demos)
+
+            # Update the population agent
+            batch = self.replay_buffer.sample(self.batch_size)
+            if isinstance(self.il_rewarder, MBC):
+                demos = get_bc_demos_for(
+                    self.il_rewarder.batch_demonstrator,
+                    batch,
+                    self.pop_agent._policy,
+                    self.device,
+                )
+            else:
+                demos = self.demos
+
+            new_log = self.pop_agent.update_parameters(batch, self.pop_updates, demos)
+            dict_add(log_dict, new_log)
+            logged += 1
+
+            self.pop_updates += 1
+            if update % 1000 == 0:
+                self.logger.info(
+                    {
+                        "Update": update,
+                    },
+                )
+
+        dict_div(log_dict, logged)
+        log_dict["general/episode"] = episode
+        self.logger.info(log_dict, ["console"])
+        self.logger.info(
+            {
+                "Population agent training": None,
+                "Updates": n_updates,
+                "Took": time.time() - took,
+            },
+        )
+
+        # Re-initialize the individual agent from the population agent
+        self.logger.info("Re-initializing individual agent")
+        pop_model = self.pop_agent.get_model_dict()
+        if isinstance(self.ind_agent, DualSAC):
+            self.ind_agent.load(pop_model, load_imit=ind_load_imit)
+        else:
+            self.ind_agent.load(pop_model)
+        self.ind_updates = self.pop_updates
+
+    def _pretrain_morpho(self):
+        """
+        Pre-trains the agent and rewarders for the next morphology.
+        """
+
+        self.logger.info("Pre-training the policy for the next morphology")
+
+        took_pretrain = time.time()
+        self.ind_omega_scheduler.unsafe_set(self.config.method.pretrain_morpho_omega)
+
+        n_updates = self.config.method.pretrain_morpho_updates
+        for update in range(1, n_updates + 1):
+            batch = self.replay_buffer.sample(self.batch_size)
+            with torch.no_grad():
+                if self.config.method.pretrain_morpho_ind_demonstrators:
+                    demonstrators = self.il_rewarder.get_demonstrators_for(
+                        batch,
+                        self.morphos[:-1],
+                        self.pop_agent._critic,
+                        self.pop_agent._policy,
+                        self.pop_agent._gamma,
+                    )
+                else:
+                    demonstrators = self.il_rewarder.batch_demonstrator
+                demos = get_bc_demos_for(
+                    demonstrators, batch, self.pop_agent._policy, self.device
+                )
+
+            new_log = self.ind_agent.update_parameters(
+                batch,
+                self.ind_updates,
+                demos,
+                new_morpho=self.morpho_params_np,
+            )
+            self.ind_updates += 1
+
+            new_log["general/step"] = update
+            if update % 1000 == 0:
+                self.logger.info(f"Pre-training agent update {update}")
+
+        self.logger.info(
+            {
+                "Pre-training": None,
+                "Updates": n_updates,
+                "Omega": self.ind_omega_scheduler.value,
+                "Took": time.time() - took_pretrain,
+            },
+        )
+        self.ind_omega_scheduler.unsafe_reset()
+
+    def _pretrain_il_rewarder(self, n_updates: int = 5000):
+        """
+        Pre-trains the imitation rewarder.
+
+        Parameters
+        ----------
+        `n_updates` -> the number of updates to perform.
+        """
+
+        self.logger.info("Pre-training the imitation rewarder")
+        took_pretrain = time.time()
+
+        for update in range(1, n_updates + 1):
+            batch = self.replay_buffer.sample(self.rewarder_batch_size)
+            self.il_rewarder.train(batch, self.demos)
+            if update % 1000 == 0:
+                self.logger.info(f"Pre-training IL rewarder update {update}")
+
+        self.logger.info(
+            {
+                "Pre-training IL rewarder": None,
+                "Updates": n_updates,
+                "Took": time.time() - took_pretrain,
+            },
+        )
+
+    def pretrain(self):
+        """
+        Pre-trains the population and individual agents, the rewarders and the reward normalizers.
+
+        Returns
+        -------
+        A tuple containing the individual agent and the morphology parameters.
+        """
+
+        # Pretrain the imitation rewarder
+        self._pretrain_il_rewarder()
+
+        # Pretrain the reward normalizers
+        self.logger.info("Pre-training the reward normalizers")
+        all_batch = self.replay_buffer.all()
+        state_batch = torch.FloatTensor(all_batch[0]).to(self.device)
+        action_batch = torch.FloatTensor(all_batch[1]).to(self.device)
+        reward_batch = torch.FloatTensor(all_batch[2]).to(self.device).unsqueeze(1)
+        next_state_batch = torch.FloatTensor(all_batch[3]).to(self.device)
+        terminated_batch = torch.FloatTensor(all_batch[4]).to(self.device).unsqueeze(1)
+        truncated_batch = torch.FloatTensor(all_batch[5]).to(self.device).unsqueeze(1)
+        marker_batch = torch.FloatTensor(all_batch[6]).to(self.device)
+        next_marker_batch = torch.FloatTensor(all_batch[7]).to(self.device)
+        morpho_batch = torch.FloatTensor(all_batch[8]).to(self.device)
+        all_batch = (
+            state_batch,
+            action_batch,
+            reward_batch,
+            next_state_batch,
+            terminated_batch,
+            truncated_batch,
+            marker_batch,
+            next_marker_batch,
+            morpho_batch,
+        )
+        self.il_rewarder.update_normalizer_stats(all_batch, self.demos)
+        self.rl_rewarder.update_normalizer_stats(all_batch, self.demos)
+
+        # Pretrain the population and individual agents
+        self._train_pop_agent(
+            1, 1000, self.config.method.num_episodes, train_rewarder=True
+        )
+
+        # Save the models
+        if self.config.method.save_final:
+            self._save("final")
+
+        return self.ind_agent, self.env.morpho_params
 
     def train(self):
         self.adapt_morphos = []
@@ -488,12 +613,16 @@ class CoSIL2(object):
                                 [self.replay_buffer, self.current_buffer],
                                 [replay_ratio, 1 - replay_ratio],
                             )
+
                             # Obtain the MBC demos by running the policy on the batch and the demonstrator
                             if self.config.method.transfer and isinstance(
                                 self.il_rewarder, MBC
                             ):
-                                demos = self._get_demos_for(
-                                    self.il_rewarder.batch_demonstrator, batch
+                                demos = self.get_bc_demos_for(
+                                    self.il_rewarder.batch_demonstrator,
+                                    batch,
+                                    self.pop_agent,
+                                    self.device,
                                 )
                             else:
                                 demos = self.demos
@@ -626,120 +755,25 @@ class CoSIL2(object):
                 self.logger.info("Adapting morphology")
                 optimized_morpho_params = self._adapt_morphology(es, es_buffer)
 
-                # Train the population agent
-                self.logger.info("Training population agent")
-                took_pop = time.time()
-                pop_log_dict, pop_logged = {}, 0
-                n_updates = episode_updates * morpho_episode
-                for update in range(1, n_updates + 1):
-                    batch = self.replay_buffer.sample(self.batch_size)
-                    if isinstance(self.il_rewarder, MBC):
-                        demos = self._get_demos_for(
-                            self.il_rewarder.batch_demonstrator, batch
-                        )
-                    else:
-                        demos = self.demos
-                    new_log = self.pop_agent.update_parameters(
-                        batch, self.pop_updates, demos
-                    )
-                    dict_add(pop_log_dict, new_log)
-                    pop_logged += 1
-                    self.pop_updates += 1
-                    if update % 1000 == 0:
-                        self.logger.info(f"Population agent update {update}")
-                dict_div(pop_log_dict, pop_logged)
-                pop_log_dict["general/episode"] = episode
-                self.logger.info(pop_log_dict, ["console"])
-                self.logger.info(
-                    {
-                        "Population agent training": None,
-                        "Updates": n_updates,
-                        "Took": time.time() - took_pop,
-                    },
-                )
-
-                # Re-initialize the individual agent from the population agent
-                self.logger.info("Re-initializing individual agent")
-                pop_model = self.pop_agent.get_model_dict()
-                if isinstance(self.ind_agent, DualSAC):
-                    self.ind_agent.load(pop_model, load_imit=False)
-                else:
-                    self.ind_agent.load(pop_model)
-                self.ind_updates = self.pop_updates
+                # Train the population agent and copy the parameters to the individual agent
+                self._train_pop_agent(episode, episode_updates, morpho_episode)
 
                 # Update the demonstrations
-                current_obs = self.current_buffer.all()
-                mean_reward = np.mean(current_obs[2])
-                if (
-                    self.demos_strategy == "replace"
-                    and mean_reward > self.mean_demos_reward
-                ):
-                    self.logger.info("Replacing the demonstrations")
-                    self.mean_demos_reward = mean_reward
-                    self.demos = get_markers_by_ep(
-                        current_obs, 1000, self.device, self.demos_n_ep
-                    )
-                elif self.demos_strategy == "add":
-                    self.logger.info("Adding new demonstrations")
-                    self.demos.extend(
-                        get_markers_by_ep(
-                            current_obs, 1000, self.device, self.demos_n_ep
-                        )
-                    )
+                self._update_demos(self.current_buffer.all())
 
                 # Clear the current buffer
                 self.current_buffer.clear()
 
-                # Pre-train the policy for this morphology
+                # Pre-train the agent and rewarders for this morphology
                 if (
                     isinstance(self.il_rewarder, MBC)
                     and self.config.method.pretrain_morpho
                 ):
-                    self.logger.info("Pre-training the policy for the next morphology")
-
-                    took_pretrain = time.time()
-                    self.ind_omega_scheduler.unsafe_set(
-                        self.config.method.pretrain_morpho_omega
+                    self._pretrain_morpho()
+                if self.config.method.pretrain_il_rewarder:
+                    self._pretrain_il_rewarder(
+                        self.config.method.rewarder.pretrain_updates
                     )
-
-                    n_updates = self.config.method.pretrain_morpho_updates
-                    for update in range(1, n_updates + 1):
-                        batch = self.replay_buffer.sample(self.batch_size)
-                        with torch.no_grad():
-                            if self.config.method.pretrain_morpho_ind_demonstrators:
-                                demonstrators = self.il_rewarder.get_demonstrators_for(
-                                    batch,
-                                    self.morphos[:-1],
-                                    self.pop_agent._critic,
-                                    self.pop_agent._policy,
-                                    self.pop_agent._gamma,
-                                )
-                            else:
-                                demonstrators = self.il_rewarder.batch_demonstrator
-                            demos = self._get_demos_for(demonstrators, batch)
-
-                        new_log = self.ind_agent.update_parameters(
-                            batch,
-                            self.ind_updates,
-                            demos,
-                            new_morpho=self.morpho_params_np,
-                        )
-                        self.ind_updates += 1
-
-                        new_log["general/step"] = update
-                        # self.logger.info(new_log, ["console"])
-                        if update % 1000 == 0:
-                            self.logger.info(f"Pre-training agent update {update}")
-
-                    self.logger.info(
-                        {
-                            "Pre-training": None,
-                            "Updates": n_updates,
-                            "Omega": self.ind_omega_scheduler.value,
-                            "Took": time.time() - took_pretrain,
-                        },
-                    )
-                    self.ind_omega_scheduler.unsafe_reset()
 
                 # Reset counters and flags
                 new_morpho_episode = 1

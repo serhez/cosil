@@ -31,11 +31,6 @@ class DistOptimizers(StrEnum):
     pso = "pso"
 
 
-class AILRewardStyles(StrEnum):
-    gail = "gail"
-    airl = "airl"
-
-
 class BOGPMeans(StrEnum):
     Zero = "Zero"
     Constant = "Constant"
@@ -153,6 +148,9 @@ class RewarderConfig:
     norm_high_clip: Optional[float] = None
     """Normalization upper bound for the clipping of the rewards."""
 
+    pretrain_updates: int = 10000
+    """Number of updates for the pretraining of the rewarder after a morphology change."""
+
 
 @dataclass(kw_only=True)
 class EnvRewarderConfig(RewarderConfig):
@@ -195,12 +193,24 @@ class GAILConfig(RewarderConfig):
     disc_weight_decay: float = 1
     """Weight decay for the discriminator."""
 
-    reward_style: AILRewardStyles = "airl"
+
+@dataclass(kw_only=True)
+class AIRLConfig(RewarderConfig):
     """
-    The reward formulation to use for GAIL.
-    - GAIL (Ho and Ermon, 2016).
-    - AIRL (Fu et al., 2018).
+    Configuration for the AIRL rewarder.
     """
+
+    name: str = "airl"
+    """Name of the rewarder."""
+
+    lr: float = 1e-4
+    """Learning rate for the rewarder."""
+
+    log_scale_rewards: bool = False
+    """Whether to log scale the rewards."""
+
+    disc_weight_decay: float = 1
+    """Weight decay for the discriminator."""
 
 
 @dataclass(kw_only=True)
@@ -469,7 +479,7 @@ class CoILConfig(MethodConfig):
                 "agent": "sac",
             },
             {
-                "rewarder": "gail",
+                "rewarder": "airl",
             },
         ]
     )
@@ -547,7 +557,7 @@ class CoSILConfig(CoILConfig):
                 "agent": "dual_sac",
             },
             {
-                "rewarder": "gail",
+                "rewarder": "airl",
             },
         ]
     )
@@ -680,6 +690,9 @@ class CoSIL2Config(CoILConfig):
     adapt_morpho_omega: float = 0.0
     """The value of omega to use when adapting the morphology (PSO)."""
 
+    pretrain_il_rewarder: bool = True
+    """Whether to pretrain the IL rewarder after each morphology change using observations from the replay buffer."""
+
 
 @dataclass(kw_only=True)
 class Config:
@@ -742,6 +755,9 @@ class TrainConfig(Config):
 
     num_agents: int = 1
     """Number of agents to train."""
+
+    pretrain: bool = False
+    """Whether to pretrain the agent."""
 
 
 @dataclass(kw_only=True)
@@ -852,4 +868,5 @@ def setup_config() -> None:
     cs.store(group="method/rewarder", name="base_env_rewarder", node=EnvRewarderConfig)
     cs.store(group="method/rewarder", name="base_mbc", node=MBCConfig)
     cs.store(group="method/rewarder", name="base_gail", node=GAILConfig)
+    cs.store(group="method/rewarder", name="base_airl", node=AIRLConfig)
     cs.store(group="method/rewarder", name="base_sail", node=SAILConfig)

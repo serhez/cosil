@@ -22,21 +22,19 @@ class Rewarder(ABC):
 
         self._normalizer = normalizer
 
-    def update_normalizer(self, batch: tuple) -> None:
+    def update_normalizer_stats(self, batch: tuple, demos: list) -> None:
         """
-        Update the normalizer of the rewarder.
+        Update the stats of the rewarder's normalizer.
 
         Parameters
         ----------
         batch -> the batch of data to update the normalizer with.
-
-        Returns
-        -------
-        None
+        demos -> the demonstrator's observations.
         """
 
+        rewards = self._compute_rewards_impl(batch, demos)
         if self._normalizer is not None:
-            self._normalizer.update_stats(batch)
+            self._normalizer.update_stats(rewards)
 
     def _normalize(self, rewards):
         """
@@ -135,7 +133,9 @@ class Rewarder(ABC):
         A dictionary of the rewarder's parameters.
         """
 
-        model = {"normalizer": self._normalizer.get_model_dict()}
+        if self._normalizer is not None:
+            model = {"normalizer": self._normalizer.get_model_dict()}
+
         model.update(self._get_model_dict_impl())
 
         return model
@@ -175,7 +175,8 @@ class Rewarder(ABC):
         """
 
         try:
-            self._normalizer.load(model["normalizer"])
+            if self._normalizer is not None:
+                self._normalizer.load(model["normalizer"])
         except KeyError:
             raise ValueError("Invalid rewarder model")
 

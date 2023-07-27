@@ -593,7 +593,7 @@ class DualSAC(Agent):
 
     # Return a dictionary containing the model state for saving
     def get_model_dict(self) -> Dict[str, Any]:
-        data = {
+        model = {
             "policy_state_dict": self._policy.state_dict(),
             "policy_optimizer_state_dict": self._policy_optim.state_dict(),
             "critic_state_dict": self._rein_critic.state_dict(),
@@ -602,14 +602,18 @@ class DualSAC(Agent):
             "imit_critic_state_dict": self._imit_critic.state_dict(),
             "imit_critic_target_state_dict": self._imit_critic_target.state_dict(),
             "imit_critic_optimizer_state_dict": self._imit_critic_optim.state_dict(),
-            "rein_norm_state_dict": self._rein_norm.get_model_dict(),
-            "imit_norm_state_dict": self._imit_norm.get_model_dict(),
         }
-        if self._automatic_entropy_tuning:
-            data["log_alpha"] = self._log_alpha
-            data["log_alpha_optim_state_dict"] = self._alpha_optim.state_dict()
 
-        return data
+        if self._rein_norm is not None:
+            model["rein_norm_state_dict"] = (self._rein_norm.get_model_dict(),)
+        if self._imit_norm is not None:
+            model["imit_norm_state_dict"] = (self._imit_norm.get_model_dict(),)
+
+        if self._automatic_entropy_tuning:
+            model["log_alpha"] = self._log_alpha
+            model["log_alpha_optim_state_dict"] = self._alpha_optim.state_dict()
+
+        return model
 
     # Load model parameters
     def load(self, model: Dict[str, Any], evaluate=False, load_imit=True):
@@ -618,8 +622,11 @@ class DualSAC(Agent):
         self._rein_critic.load_state_dict(model["critic_state_dict"])
         self._rein_critic_target.load_state_dict(model["critic_target_state_dict"])
         self._rein_critic_optim.load_state_dict(model["critic_optimizer_state_dict"])
-        self._rein_norm.load(model["rein_norm_state_dict"])
-        self._imit_norm.load(model["imit_norm_state_dict"])
+
+        if self._rein_norm is not None:
+            self._rein_norm.load(model["rein_norm_state_dict"])
+        if self._imit_norm is not None:
+            self._imit_norm.load(model["imit_norm_state_dict"])
 
         if load_imit:
             self._imit_critic.load_state_dict(model["imit_critic_state_dict"])

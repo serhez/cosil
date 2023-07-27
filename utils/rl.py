@@ -5,7 +5,6 @@ import gym
 import numpy as np
 import torch
 
-from agents import Agent
 from loggers import Logger
 
 
@@ -78,7 +77,7 @@ def _add_obs(obs_dict, info, done):
 def gen_obs_list(
     num_obs: int,
     env: gym.Env,
-    agent: Agent,
+    agent,
     morpho_in_state: bool,
     absorbing_state: bool,
     logger: Logger,
@@ -168,7 +167,7 @@ def gen_obs_list(
 def gen_obs_dict(
     num_obs: int,
     env: gym.Env,
-    agent: Agent,
+    agent,
     morpho_in_state: bool,
     absorbing_state: bool,
     logger: Logger,

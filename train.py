@@ -9,11 +9,8 @@ from gait_track_envs import register_env
 from omegaconf import DictConfig
 
 from config import setup_config
-from loggers import ConsoleLogger, FileLogger, MultiLogger, WandbLogger
-from methods import CoIL, CoSIL  # , CoSIL2
-
-# from methods.cosil2_single_agent import CoSIL2
-from methods.cosil3 import CoSIL2
+from loggers import create_multilogger
+from methods import create_method
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="train")
@@ -45,52 +42,22 @@ def main(config: DictConfig) -> None:
             torch.cuda.manual_seed_all(config.seed)
 
         # Set up the logger
-        loggers_list = config.logger.loggers.split(",")
-        loggers = {}
-        for logger in loggers_list:
-            if logger == "console":
-                loggers["console"] = ConsoleLogger()
-            elif logger == "file":
-                loggers["file"] = FileLogger(
-                    config.logger.project_name,
-                    config.logger.group_name,
-                    config.logger.experiment_name,
-                    config.logger.run_id,
-                )
-            elif logger == "wandb":
-                loggers["wandb"] = WandbLogger(
-                    config.logger.project_name,
-                    config.logger.group_name,
-                    config.logger.experiment_name,
-                    config.logger.run_id,
-                    config,
-                )
-            elif logger == "":
-                pass
-            else:
-                print(f'[WARNING] Logger "{logger}" is not supported')
-        logger = MultiLogger(loggers, config.logger.default_mask.split(","))
+        logger = create_multilogger(config)
 
         # Train a model using the selected training method
         logger.info(f"Training using method {config.method.name}")
-        if config.method.name == "coil":
-            method = CoIL(config, logger, env)
-        elif config.method.name == "cosil":
-            method = CoSIL(config, logger, env)
-        elif config.method.name == "cosil2":
-            method = CoSIL2(config, logger, env)
-        else:
-            raise ValueError(f"Invalid training method: {config.method.name}")
-
+        method = create_method(config, logger, env)
         try:
-            method.train()
+            if config.pretrain:
+                method.pretrain()
+            else:
+                method.train()
         except Exception as e:
             logger.error({"Exception occurred during training": e})
             raise e
 
+        # Reset everything for the next model
         env.close()
-
-        # Reset the seed for the next model
         config.seed = np.random.randint(low=1, high=np.iinfo(np.int32).max)
 
 

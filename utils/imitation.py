@@ -1,10 +1,86 @@
-from typing import List
+import glob
+import os
+from typing import List, Union
 
 import numpy as np
 import torch
+from omegaconf import DictConfig
 from torch import nn
 
-from common.models import Discriminator
+from common.models import Discriminator, GaussianPolicy
+from utils.co_adaptation import get_marker_info
+
+
+def load_demos(config: DictConfig):
+    demos, to_match, mean_reward = [], None, 0
+
+    if os.path.isdir(config.method.expert_demos):
+        for filepath in glob.iglob(
+            f"{config.method.expert_demos}/expert_cmu_{config.method.subject_id}*.pt"
+        ):
+            episode = torch.load(filepath)
+            episode_obs_np, to_match = get_marker_info(
+                episode,
+                config.method.expert_legs,
+                config.method.expert_markers,
+                pos_type=config.method.pos_type,
+                vel_type=config.method.vel_type,
+                torso_type=config.method.torso_type,
+                head_type=config.method.head_type,
+                head_wrt=config.method.head_wrt,
+            )
+            episode_obs = torch.from_numpy(episode_obs_np).float().to(config.device)
+            demos.append(episode_obs)
+    else:
+        expert_obs = torch.load(config.method.expert_demos)
+        mean_reward = np.mean(expert_obs["reward_run"])
+        expert_obs_np, to_match = get_marker_info(
+            expert_obs,
+            config.method.expert_legs,
+            config.method.expert_markers,
+            pos_type=config.method.pos_type,
+            vel_type=config.method.vel_type,
+            torso_type=config.method.torso_type,
+            head_type=config.method.head_type,
+            head_wrt=config.method.head_wrt,
+        )
+        expert_obs = [
+            torch.from_numpy(x).float().to(config.device) for x in expert_obs_np
+        ]
+        demos.extend(expert_obs)
+
+    return demos, to_match, mean_reward
+
+
+@torch.no_grad()
+def get_bc_demos_for(
+    morphos: torch.Tensor,
+    batch: tuple,
+    policy: GaussianPolicy,
+    device: Union[str, torch.device],
+) -> tuple:
+    """
+    Returns the behavioural cloning demonstrations (i.e., actions) for the given morphologies.
+
+    Parameters
+    ----------
+    `morphos` -> the morphologies for which to get the demonstrations.
+    `batch` -> the batch of observations from which to get the demonstrations.
+
+    Returns
+    -------
+    The demonstrations for the given morphologies.
+    """
+
+    morpho_size = morphos.shape[1]
+    feats_batch = torch.FloatTensor(batch[0]).to(device)
+    states_batch = feats_batch[:, :-morpho_size]
+    demo_feats_batch = torch.cat([states_batch, morphos], dim=1)
+    _, _, demo_actions, _ = policy.sample(demo_feats_batch)
+    return (
+        None,
+        demo_actions,
+    ) + ((None,) * 7)
 
 
 def train_wgan_critic(opt, critic, demos: list, batch, use_transitions=True):

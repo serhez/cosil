@@ -4,9 +4,9 @@ defaults:
   - base_experiment
   - override /method: cosil2
   - override /method/agent: dual_sac
-  - override /method/rewarder: gail  # variable
+  - override /method/rewarder: airl  # variable
 
-# learn_disc_transitions: false
+learn_disc_transitions: false
 
 method:
   replay_buffer_path: null
@@ -32,7 +32,8 @@ method:
 
   # Rewards normalization
   rewarder:
-    norm_type: scale_shift
+    log_scale_rewards: true
+    norm_type: none
     norm_mode: mean
     rl_norm_gamma: 1.0
     rl_norm_beta: 0.0
@@ -57,5 +58,5 @@ method:
 
 logger:
   group_name: "test"
-  experiment_name: "om1-gail-ss-repdemos-disctrans"
+  experiment_name: "my-airl-nn-div-logrew"
   loggers: console,wandb

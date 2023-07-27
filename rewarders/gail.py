@@ -1,6 +1,5 @@
 from typing import Any, Dict, Optional
 
-import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
@@ -18,7 +17,6 @@ class GAIL(Rewarder):
         self.device = torch.device(config.device)
         self.learn_disc_transitions = config.learn_disc_transitions
         self.log_scale_rewards = config.method.rewarder.log_scale_rewards
-        self.reward_style = config.method.rewarder.reward_style
 
         self.disc = Discriminator(demo_dim).to(self.device)
         self.disc_opt = optim.AdamW(
@@ -33,10 +31,11 @@ class GAIL(Rewarder):
         disc_loss = nn.BCEWithLogitsLoss()
 
         # Get the markers from the demonstrations
-        demos = torch.cat(demos, dim=0)
+        demos = [torch.as_tensor(demo).float().to(self.device) for demo in demos]
         if self.learn_disc_transitions:
-            ids = [i for i in range(len(demos) - 1)]
-            demos = torch.cat((demos[ids], demos[ids + 1]), dim=1)
+            for i in range(len(demos)):
+                demos[i] = torch.cat((demos[i][:-1], demos[i][1:]), dim=1)
+        demos = torch.cat(demos, dim=0)
         demos_ids = torch.randint(0, len(demos), (len(batch[0]),))
         demos_batch = demos[demos_ids]
 
@@ -45,7 +44,7 @@ class GAIL(Rewarder):
         markers = torch.as_tensor(markers).float().to(self.device)
         if self.learn_disc_transitions:
             next_markers = torch.as_tensor(next_markers).float().to(self.device)
-            markers = np.concatenate((markers, next_markers), axis=1)
+            markers = torch.cat((markers, next_markers), dim=1)
 
         assert demos_batch.shape == markers.shape
 
@@ -79,6 +78,9 @@ class GAIL(Rewarder):
         self.disc.train(False)
 
         rewards = (self.disc(feats).sigmoid() + 1e-7).detach()
+
+        if self.log_scale_rewards:
+            rewards = rewards.log()
 
         return rewards
 

@@ -8,6 +8,7 @@ from omegaconf import DictConfig
 from loggers import Logger
 from normalizers import Normalizer
 
+from .airl import AIRL
 from .dual_rewarder import DualRewarder
 from .env_reward import EnvReward
 from .gail import GAIL
@@ -48,6 +49,8 @@ def create_rewarder(
         )
     elif name == "gail":
         return GAIL(demo_dim, config, normalizer)
+    elif name == "airl":
+        return AIRL(demo_dim, config, normalizer)
     elif name == "sail":
         return SAIL(logger, env, demo_dim, config, normalizer)
     else:

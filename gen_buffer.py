@@ -36,7 +36,7 @@ def save(buffer: ObservationBuffer, morpho: np.ndarray, path: str, id: str):
 
     data = {
         "buffer": buffer.to_list(),
-        "morpho": morpho,
+        "morphos": morpho,
     }
     torch.save(data, buffer_path)
 

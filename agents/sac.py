@@ -468,19 +468,22 @@ class SAC(Agent):
 
     # Return a dictionary containing the model state for saving
     def get_model_dict(self) -> Dict[str, Any]:
-        data = {
+        model = {
             "policy_state_dict": self._policy.state_dict(),
             "critic_state_dict": self._critic.state_dict(),
             "critic_target_state_dict": self._critic_target.state_dict(),
             "critic_optimizer_state_dict": self._critic_optim.state_dict(),
             "policy_optimizer_state_dict": self._policy_optim.state_dict(),
-            "rl_norm_state_dict": self._rl_norm.get_model_dict(),
         }
-        if self._automatic_entropy_tuning:
-            data["log_alpha"] = self._log_alpha
-            data["log_alpha_optim_state_dict"] = self._alpha_optim.state_dict()
 
-        return data
+        if self._rl_norm is not None:
+            model["rl_norm_state_dict"] = (self._rl_norm.get_model_dict(),)
+
+        if self._automatic_entropy_tuning:
+            model["log_alpha"] = self._log_alpha
+            model["log_alpha_optim_state_dict"] = self._alpha_optim.state_dict()
+
+        return model
 
     # Load model parameters
     def load(self, model: Dict[str, Any], evaluate: bool = False):
@@ -489,7 +492,9 @@ class SAC(Agent):
         self._critic_target.load_state_dict(model["critic_target_state_dict"])
         self._critic_optim.load_state_dict(model["critic_optimizer_state_dict"])
         self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
-        self._rl_norm.load(model["rl_norm_state_dict"])
+
+        if self._rl_norm is not None:
+            self._rl_norm.load(model["rl_norm_state_dict"])
 
         if (
             self._automatic_entropy_tuning is True

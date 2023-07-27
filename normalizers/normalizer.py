@@ -69,6 +69,7 @@ class Normalizer(ABC):
     def normalize(self, tensor: torch.Tensor) -> torch.Tensor:
         """
         Normalizes a tensor and updates the internal running statistics.
+        `Beta` is applied before `gamma`, i.e.: `gamma * (tensor + beta)`.
 
         Parameters
         ----------
@@ -86,8 +87,8 @@ class Normalizer(ABC):
         norm_t = self._normalize_impl(tensor)
 
         # Apply the gamma and beta parameters
-        norm_scaled_t = norm_t * self._gamma
-        norm_scaled_t += self._beta
+        norm_scaled_t = norm_t + self._beta
+        norm_scaled_t *= self._gamma
 
         # Clip the normalized tensor if necessary
         if self._low_clip is not None or self._high_clip is not None:

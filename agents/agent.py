@@ -11,22 +11,6 @@ class Agent(ABC):
     This class describes an interface for agent objects.
     """
 
-    # @abstractmethod
-    # def update_normalizers(self, batch: tuple) -> None:
-    #     """
-    #     Update the normalizers of the agent.
-    #
-    #     Parameters
-    #     ----------
-    #     batch -> the batch of data to update the normalizers with.
-    #
-    #     Returns
-    #     -------
-    #     None
-    #     """
-    #
-    #     raise NotImplementedError
-
     @abstractmethod
     def select_action(self, state: torch.Tensor, evaluate: bool = False):
         """
