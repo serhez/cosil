@@ -397,7 +397,7 @@ class CoSIL2(object):
         )
         self.ind_omega_scheduler.unsafe_reset()
 
-    def _pretrain_il_rewarder(self, n_updates: int = 5000):
+    def _pretrain_il_rewarder(self, n_updates: int = 20000):
         """
         Pre-trains the imitation rewarder.
 

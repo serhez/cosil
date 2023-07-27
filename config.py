@@ -124,6 +124,9 @@ class RewarderConfig:
     batch_size: int = 64
     """Batch size for training."""
 
+    log_scale_rewards: bool = False
+    """Whether to log scale the rewards."""
+
     norm_type: NormTypes = "z_score"
     """Normalization type for the rewards."""
 
@@ -187,9 +190,6 @@ class GAILConfig(RewarderConfig):
     lr: float = 1e-4
     """Learning rate for the rewarder."""
 
-    log_scale_rewards: bool = False
-    """Whether to log scale the rewards."""
-
     disc_weight_decay: float = 1
     """Weight decay for the discriminator."""
 
@@ -205,9 +205,6 @@ class AIRLConfig(RewarderConfig):
 
     lr: float = 1e-4
     """Learning rate for the rewarder."""
-
-    log_scale_rewards: bool = False
-    """Whether to log scale the rewards."""
 
     disc_weight_decay: float = 1
     """Weight decay for the discriminator."""
