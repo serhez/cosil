@@ -317,12 +317,11 @@ class CoSIL2(object):
 
             self.pop_updates += 1
             if update % 1000 == 0:
-                dict_div(log_dict, logged)
-                log_dict["general/update"] = update
-                self.logger.info(log_dict, ["console"])
                 self.logger.info(f"Update: {update}")
-                log_dict, logged = {}, 0
 
+        dict_div(log_dict, logged)
+        log_dict["general/episode"] = episode
+        self.logger.info(log_dict, ["console"])
         self.logger.info(
             {
                 "Population agent training": None,
