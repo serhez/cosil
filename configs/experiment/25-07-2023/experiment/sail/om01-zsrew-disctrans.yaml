@@ -33,6 +33,7 @@ method:
   # General
   transfer: true
   omega_init: 0.1
+  pop_omega_init: 0.1
   demos_strategy: replace
 
   # Rewards normalization

@@ -4,7 +4,7 @@ defaults:
   - /base_train
   - override /method: cosil2  # variable
   - override /method/agent: dual_sac  # variable
-  - override /method/rewarder: gail  # variable
+  - override /method/rewarder: airl  # variable
 
 seed: 123456
 device: cuda
@@ -81,8 +81,8 @@ method:
     acq_weight: 2.0
 
 logger:
-  project_name: "CoSIL"
-  group_name: "11-05-2023_GROUP"
+  project_name: "cosil-experiments"
+  group_name: "GROUP"
   experiment_name: "NAME"
   run_id: ""
-  loggers: console,file
+  loggers: console,wandb

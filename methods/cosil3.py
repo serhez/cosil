@@ -123,9 +123,13 @@ class CoSIL2(object):
         self.demo_dim = self.demos[0].shape[-1]
 
         self.logger.info({"Keys to match": self.to_match})
-        self.logger.info(
-            {"Expert observation shapes": [x.shape for x in self.demos]},
-        )
+        if len(self.demos) > 0:
+            self.logger.info(
+                {
+                    f"Loaded {len(self.demos)} episodes of expert demonstrations": None,
+                    "Episodes' shape": self.demos[0].shape,
+                },
+            )
 
         # Create the RL and IL rewarders
         self.logger.info("Using RL rewarder env")

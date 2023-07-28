@@ -12,7 +12,7 @@ learn_disc_transitions: false
 method:
   replay_buffer_path: null
   pretrain: false
-  pretrain_path: PENDING
+  pretrain_path: models/final/CoSIL/pretrain/GaitTrackHalfCheetah-v0/seed-123456/baseline_1690479178.pt
   dual_mode: q
   omega_scheduler: constant
   num_episodes: 2000
@@ -33,6 +33,7 @@ method:
   # General
   transfer: false
   omega_init: 0.0
+  pop_omega_init: 0.0
   demos_strategy: replace
 
   # Rewards normalization

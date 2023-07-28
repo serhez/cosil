@@ -34,6 +34,7 @@ method:
   # General
   transfer: true
   omega_init: 0.4
+  pop_omega_init: 0.4
   adapt_morpho_omega: 0.4
   demos_strategy: replace
 
