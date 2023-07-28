@@ -320,11 +320,7 @@ class CoSIL2(object):
                 dict_div(log_dict, logged)
                 log_dict["general/update"] = update
                 self.logger.info(log_dict, ["console"])
-                self.logger.info(
-                    {
-                        "Update": update,
-                    },
-                )
+                self.logger.info(f"Update: {update}")
                 log_dict, logged = {}, 0
 
         self.logger.info(
@@ -410,7 +406,7 @@ class CoSIL2(object):
             batch = self.replay_buffer.sample(self.rewarder_batch_size)
             self.il_rewarder.train(batch, self.demos)
             if update % 1000 == 0:
-                self.logger.info(f"Pre-training IL rewarder update {update}")
+                self.logger.info(f"Update: {update}")
 
         self.logger.info(
             {
