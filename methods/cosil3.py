@@ -1256,12 +1256,10 @@ class CoSIL2(object):
 
     def _load(self, path_name):
         self.logger.info(f"Loading model from {path_name}")
-        success = True
         if path_name is not None:
             model = torch.load(path_name, map_location=self.device)
 
             self.replay_buffer.replace(model["replay_buffer"])
-            # self.current_buffer.replace(model["current_buffer"])
             self.demos = model["demos"]
             self.morphos.extend(model["morphos"])
             self.replay_buffer._position = (
@@ -1271,13 +1269,10 @@ class CoSIL2(object):
                 len(self.current_buffer._buffer) % self.current_buffer.capacity
             )
 
-            success &= self.rl_rewarder.load(model["rl_rewarder"])
-            success &= self.il_rewarder.load(model["il_rewarder"])
-            success &= self.ind_agent.load(model["ind_agent"])
-            success &= self.pop_agent.load(model["pop_agent"])
+            self.rl_rewarder.load(model["rl_rewarder"])
+            self.il_rewarder.load(model["il_rewarder"])
+            self.ind_agent.load(model["ind_agent"])
+            self.pop_agent.load(model["pop_agent"])
 
-            # self.env.set_task(*model["morpho_dict"])
-            # self.morphos.append(model["morpho_dict"])
         else:
-            success = False
-        return success
+            raise ValueError("Invalid path name")
