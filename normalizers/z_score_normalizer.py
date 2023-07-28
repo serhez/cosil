@@ -97,7 +97,7 @@ class ZScoreNormalizer(Normalizer):
             "squared_sum": self._sqrd_sum,
             "fixed_min": self._fixed_min,
             "fixed_mean": self._fixed_mean,
-            "fixed_max": self._fixed_max,
+            "fixed_std": self._fixed_std,
             # For reporting only
             "mean": self._mean,
             "std": self._std,
@@ -112,7 +112,7 @@ class ZScoreNormalizer(Normalizer):
             self._sqrd_sum = model["squared_sum"]
             self._fixed_min = model["fixed_min"]
             self._fixed_mean = model["fixed_mean"]
-            self._fixed_max = model["fixed_max"]
+            self._fixed_std = model["fixed_std"]
             # For reporting only
             self._mean = model["mean"]
             self._std = model["std"]
