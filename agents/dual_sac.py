@@ -545,7 +545,6 @@ class DualSAC(Agent):
             soft_update(self._imit_critic_target, self._imit_critic, self._tau)
             soft_update(self._rein_critic_target, self._rein_critic, self._tau)
 
-        # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
         return {
             "reward/imitation_mean" + self.logs_suffix: il_rewards.mean().item(),
             "reward/reinforcement_mean" + self.logs_suffix: rl_rewards.mean().item(),
@@ -564,7 +563,7 @@ class DualSAC(Agent):
             "loss/imitation_critic" + self.logs_suffix: imit_qf_loss.item(),
             "loss/reinforcement_critic" + self.logs_suffix: rein_qf_loss.item(),
             "loss/policy_mean" + self.logs_suffix: policy_loss.item(),
-            # "loss/vae" + self.logs_suffix: vae_loss.item(),
+            "loss/vae" + self.logs_suffix: vae_loss.item(),
             "loss/alpha" + self.logs_suffix: alpha_loss.item(),
             "entropy/alpha" + self.logs_suffix: alpha_tlogs.item(),
             "entropy/entropy" + self.logs_suffix: entropy,
