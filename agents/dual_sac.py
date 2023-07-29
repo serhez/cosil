@@ -47,8 +47,8 @@ class DualSAC(Agent):
         `state_dim` -> the number of state features, which may include the morphology features.
         `markers_dim` -> the number of markers features.
         `morpho_dim` -> the number of morphology features.
-        `imitation_rewarder` -> the imitation rewarder.
         `reinforcement_rewarder` -> the reinforcement rewarder.
+        `imitation_rewarder` -> the imitation rewarder.
         `omega_scheduler` -> the scheduler for the omega parameter.
         `logs_suffix` -> the suffix to append to the logs.
         """
@@ -64,8 +64,8 @@ class DualSAC(Agent):
         self._target_update_interval = config.method.agent.target_update_interval
         self._automatic_entropy_tuning = config.method.agent.automatic_entropy_tuning
 
-        self._imit_rewarder = imitation_rewarder
         self._rein_rewarder = reinforcement_rewarder
+        self._imit_rewarder = imitation_rewarder
 
         self.logs_suffix = logs_suffix
         if self.logs_suffix != "":
