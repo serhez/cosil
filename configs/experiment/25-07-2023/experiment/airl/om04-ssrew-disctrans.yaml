@@ -12,7 +12,7 @@ learn_disc_transitions: true
 method:
   replay_buffer_path: null
   pretrain: false
-  pretrain_path: PENDING
+  pretrain_path: /scratch/work/hernans2/cosil/models/final/pretrain-airl/GaitTrackHalfCheetah-v0/seed-123456/om04-ssrew-disctrans_1690533822.pt
   dual_mode: q
   omega_scheduler: constant
   num_episodes: 2000
