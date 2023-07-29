@@ -85,7 +85,7 @@ class AIRL(Rewarder):
         if self.log_scale_rewards:
             rewards = (rewards).log() - (1 - rewards).log()
         else:
-            rewards = rewards / (1 - rewards)
+            rewards = rewards / (1 - rewards + 1e-7)
 
         return rewards
 

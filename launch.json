@@ -61,6 +61,15 @@
             "args": ["+experiment=test/om1-gail-ss-repdemos"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Experiment: fixing",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": ["+experiment=25-07-2023/experiment/baseline/baseline"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }
