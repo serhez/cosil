@@ -26,7 +26,7 @@ method:
   save_optimal: false
   save_final: false
   co_adaptation:
-    morphos_path: data/morphos/pretrain_morphos_bo.pt
+    morphos_path: data/morphos/experiment_morphos_bo.pt
 
   #### Variables
 
