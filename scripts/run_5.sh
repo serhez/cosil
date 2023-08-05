@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=25-07-2023/experiment/baseline/baseline-pso-zs ++seed=5
+srun python train.py +experiment=25-07-2023/experiment/baseline/baseline-zs ++seed=5
