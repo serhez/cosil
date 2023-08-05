@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --time=50:00:00
+#SBATCH --time=70:00:00
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=16G
 #SBATCH --gres=gpu:1
@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=25-07-2023/experiment/airl/om01-zsrew-disctrans-pso ++seed=12417
+srun python train.py +experiment=25-07-2023/experiment/baseline/baseline-pso-zs ++seed=12417
