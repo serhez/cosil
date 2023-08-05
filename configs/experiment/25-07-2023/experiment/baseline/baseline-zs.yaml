@@ -65,4 +65,4 @@ method:
 logger:
   group_name: "baseline-zs"
   experiment_name: "baseline-zs"
-  loggers: console
+  loggers: console,wandb
