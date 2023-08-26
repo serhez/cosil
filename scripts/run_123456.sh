@@ -9,4 +9,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=final/experiment/sail/om00-oma05-zsrew-disctrans-pso ++seed=123456
+srun python train.py +experiment=final/experiment/sail/om03-zsrew-disctrans-pso ++seed=123456
