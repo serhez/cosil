@@ -7,7 +7,7 @@ defaults:
   - override /method/rewarder: env
 
 seed: 123456
-device: cpu
+device: cuda
 env_name: GaitTrackHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
