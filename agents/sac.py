@@ -34,7 +34,7 @@ class SAC(Agent):
         morpho_dim: int,
         rl_rewarder: Rewarder,
         il_rewarder: Optional[MBC],
-        omega_scheduler: Scheduler,
+        omega_scheduler: Optional[Scheduler],
         logs_suffix: str = "",
     ):
         """
@@ -272,8 +272,8 @@ class SAC(Agent):
         demos: List[torch.Tensor],
         update_value_only: bool = False,
         update_imit_critic: bool = True,
-        new_morpho: np.ndarray = None,
-        prev_morpho: np.ndarray = None,
+        new_morpho: Optional[np.ndarray] = None,
+        prev_morpho: Optional[np.ndarray] = None,
     ) -> Dict[str, Any]:
         """
         Update the parameters of the agent.
@@ -390,7 +390,7 @@ class SAC(Agent):
         q_value = self.get_value(state_batch, pi)
 
         # Compute the loss
-        omega = self._omega_scheduler.value
+        omega = 0.0 if self._omega_scheduler is None else self._omega_scheduler.value
         rl_loss, rl_loss_norm = self._get_rl_loss(log_pi, q_value, omega)
         if new_morpho is not None:
             new_feats = get_feats_for(new_morpho, state_batch)

@@ -37,5 +37,6 @@ def load_model(file_path, env, agent, co_adapt=True, evaluate=False, logger=None
 
     if co_adapt:
         env.set_task(*model["morpho_dict"])
+        env.reset()
 
     agent.load(model["ind_agent"], evaluate=evaluate)

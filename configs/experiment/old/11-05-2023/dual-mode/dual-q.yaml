@@ -1,8 +1,8 @@
 # @package _global_
-# TODO: Use best-performing config of prev. experiments in base_experiment
+# TODO: Use best-performing config of prev. experiments in base_halfcheetah_experiment
 ---
 defaults:
-  - base_experiment
+  - base_halfcheetah_experiment
   - override /method/agent: dual_sac
 
 method:

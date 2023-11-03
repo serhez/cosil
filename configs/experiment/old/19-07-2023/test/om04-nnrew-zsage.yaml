@@ -1,8 +1,8 @@
 # @package _global_
 ---
 defaults:
-  - base_experiment
-  - override /method: cosil2
+  - base_halfcheetah_experiment
+  - override /method: cosil
   - override /method/agent: dual_sac
   - override /method/rewarder: gail  # variable
 

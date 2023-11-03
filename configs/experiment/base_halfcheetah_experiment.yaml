@@ -2,7 +2,7 @@
 ---
 defaults:
   - /base_train
-  - override /method: cosil2  # variable
+  - override /method: cosil  # variable
   - override /method/agent: dual_sac  # variable
   - override /method/rewarder: airl  # variable
 
@@ -32,6 +32,7 @@ method:
   save_optimal: false
   save_final: false
   sparse_mask: null
+  rm_action_penalty: true
 
   # CoIL
   expert_demos: data/demos/demos_1687522046.pt

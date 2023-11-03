@@ -9,10 +9,6 @@ env_name: GaitTrackHalfCheetah-v0
 method:
   # reset_omega: true
   num_episodes: 2
-  morpho_warmup: 0
-
-  # CoIL
-  episodes_per_morpho: 5
 
 logger:
   project_name: "CoSIL-test"

@@ -1,9 +1,9 @@
 # @package _global_
-# TODO: Use best-performing config of prev. experiments in base_experiment
+# TODO: Use best-performing config of prev. experiments in base_halfcheetah_experiment
 ---
 defaults:
-  - base_experiment
-  - override /method: cosil2
+  - base_halfcheetah_experiment
+  - override /method: cosil
   - override /method/agent: sac
   - override /method/rewarder: mbc
 
@@ -17,5 +17,5 @@ method:
 
 logger:
   group_name: "test"
-  experiment_name: "cosil3"
+  experiment_name: "cosil"
   loggers: console,file,wandb

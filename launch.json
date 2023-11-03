@@ -9,65 +9,11 @@
             "justMyCode": true
         },
         {
-            "name": "Test: pretrain sac",
+            "name": "Test",
             "type": "python",
             "request": "launch",
             "program": "train.py",
-            "args": ["+experiment=pretrain/sac-mbc"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Test: load sac",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=test/sac-load"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: MBC with morpho pretraining",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=raw-om001pt/mbc-ss"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: gail rewards",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=raw-om04alt/gailrew-ss-repdemos"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: MBC pt-opt",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=pt-om001/mbc-ss-prev-pt"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: fixing GAIL",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=test/om1-gail-ss-repdemos"],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "Experiment: fixing",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "args": ["+experiment=25-07-2023/experiment/baseline/baseline"],
+            "args": ["+experiment=train_humanoid_expert"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

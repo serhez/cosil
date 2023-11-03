@@ -7,4 +7,4 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=11-05-2023/methods/cosil2-no-transfer-bo
+srun python train.py +experiment=11-05-2023/methods/cosil-no-transfer-bo

@@ -1,8 +1,8 @@
 # @package _global_
-# TODO: Use best-performing config of prev. experiments in base_experiment
+# TODO: Use best-performing config of prev. experiments in base_halfcheetah_experiment
 ---
 defaults:
-  - base_experiment
+  - base_halfcheetah_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
   - override /method/rewarder: gail  # not used, as omega is permanently 0.0

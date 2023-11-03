@@ -402,7 +402,7 @@ class MethodConfig:
     rewarder: RewarderConfig = MISSING
     """Configuration for the rewarder."""
 
-    eval: bool = True
+    eval: bool = False
     """Whether to evaluate the agent."""
 
     eval_episodes: int = 10
@@ -410,6 +410,9 @@ class MethodConfig:
 
     eval_per_episodes: int = 20
     """Number of episodes between evaluations."""
+
+    eval_final: bool = True
+    """Whether to evaluate the agent at the end of training."""
 
     batch_size: int = 256
     """Batch size for training."""
@@ -444,8 +447,14 @@ class MethodConfig:
     replay_dim_ratio: float = 1.0
     """The diminishing ratio for the replay buffer."""
 
-    record_test: bool = False
-    """Whether to record the test episodes."""
+    record_test: bool = True
+    """
+    Whether to record the test episodes.
+    Note that this is only possible if the `eval` or `eval_final` flags are set to True.
+    """
+
+    record_path: str = "videos"
+    """Path to the directory where to save the videos."""
 
     save_checkpoints: bool = False
     """Whether to save the checkpoints."""
@@ -462,6 +471,60 @@ class MethodConfig:
     For example, a mask of 90.0 means that all environment rewards below 90.0 are made 0.0.
     If None, no mask is applied.
     """
+
+    rm_action_penalty: bool = False
+    """Whether to remove the action penalty given as part of the reward by the environment."""
+
+
+@dataclass(kw_only=True)
+class RLConfig(MethodConfig):
+    """
+    Configuration for the RL method.
+    """
+
+    defaults: List[Any] = field(
+        default_factory=lambda: [
+            {
+                "agent": "sac",
+            },
+            {
+                "rewarder": "env",
+            },
+        ]
+    )
+
+    name: str = "rl"
+    """Name of the method."""
+
+    pos_type: Optional[PosVelTypes] = "norm"
+    """Which position marker coordinate to use."""
+
+    vel_type: Optional[PosVelTypes] = "rel"
+    """Which velocity marker coordinate to use."""
+
+    expert_legs: List[int] = field(default_factory=lambda: [0, 1])
+    """Which legs to use for marker matching on the demonstrator side."""
+
+    policy_legs: List[int] = field(default_factory=lambda: [0, 1])
+    """Which legs to use for marker matching on the imitator side."""
+
+    expert_markers: List[int] = field(default_factory=lambda: [1, 2, 3])
+    """Which markers to use for matching on the demonstrator side."""
+
+    policy_markers: List[int] = field(default_factory=lambda: [1, 2, 3])
+    """Which markers to use for matching on the imitator side."""
+
+    torso_type: Optional[TorsoHeadTypes] = None
+    """Use torso velocity, position or None."""
+
+    head_type: Optional[TorsoHeadTypes] = None
+    """Use head velocity, position or None."""
+
+    head_wrt: Optional[HeadWrtTypes] = None
+    """Use head with respect to body part."""
+
+    omit_done: bool = False
+    """Whether to omit the done signal."""
 
 
 @dataclass(kw_only=True)
@@ -487,7 +550,7 @@ class CoILConfig(MethodConfig):
     co_adaptation: CoAdaptationConfig = field(default_factory=CoAdaptationConfig)
     """Configuration for co-adaptation."""
 
-    expert_demos: str = MISSING
+    expert_demos: Optional[str] = None
     """Path to the expert demonstrations."""
 
     morpho_warmup: int = 50000
@@ -551,77 +614,6 @@ class CoSILConfig(CoILConfig):
     defaults: List[Any] = field(
         default_factory=lambda: [
             {
-                "agent": "dual_sac",
-            },
-            {
-                "rewarder": "airl",
-            },
-        ]
-    )
-
-    name: str = "cosil"
-    """Name of the method."""
-
-    pop_omega_init: float = 0.0
-    """Initial value for omega (population agent)."""
-
-    omega_init: float = 1.0
-    """Initial value for omega."""
-
-    omega_scheduler: Schedulers = "exponential"
-
-    omega_init_ep: int = 5
-    """Number of episodes before starting to change omega."""
-
-    reset_omega: bool = True
-    """Whether to reset omega before each morphology change."""
-
-    imitation_capacity: int = 100000
-    """Capacity of the imitation buffer."""
-
-    imitation_dim_ratio: float = 0.8
-    """The diminishing ratio for the imitation buffer."""
-
-    imitate_morphos: bool = True
-    """Whether to imitate the previous morphology by adding observations from its policy to the imitation buffer."""
-
-    clear_imitation: bool = True
-    """
-    Whether to clear the imitation buffer before adding the observations of a new morphology.
-    As a side effect, if this variable is True, all observations in the imitation buffer are used for training.
-    Otherwise (if False), an `obs_per_morpho` number of demonstrations are sampled from the imitation buffer.
-    """
-
-    obs_per_morpho: int = 10000
-    """
-    Number of observations per morphology to generate and add to the imitation buffer.
-    This variable is also used as the number of demonstrations to sample from the imitation buffer during training when `clear_imitation` is False.
-    """
-
-    morpho_policy_warmup: int = 0
-    """
-    Number of episodes during which we do not train the policy after a morphology change.
-    By doing this, we prevent the policy from being updated with an out-of-sync `imitation_critic` which is itself being updated with an out-of-sync `discriminator`.
-    This is due to the contents of the `imitation_buffer` being updated with the prev. morphology's demonstrations.
-    The warmup is used even when `clear_imitation` is False, since newer demonstrations may still have a higher weight when sampling from the imitation buffer.
-    """
-
-    dual_mode: DualModes = "q"
-    """The dual mode, either a duality of Q-values or of reward signals."""
-
-    demos_strategy: DemosStrategies = "add"
-    """The strategy to use when adding new demonstrations."""
-
-
-@dataclass(kw_only=True)
-class CoSIL2Config(CoILConfig):
-    """
-    Configuration for the CoSIL2 method.
-    """
-
-    defaults: List[Any] = field(
-        default_factory=lambda: [
-            {
                 "agent": "sac",
             },
             {
@@ -630,7 +622,7 @@ class CoSIL2Config(CoILConfig):
         ]
     )
 
-    name: str = "cosil2"
+    name: str = "cosil"
     """Name of the method."""
 
     transfer: bool = True
@@ -740,7 +732,9 @@ class TrainConfig(Config):
     defaults: List[Any] = field(
         default_factory=lambda: [
             "_self_",
-            {"method": "cosil2"},
+            {"method": "cosil"},
+            {"method/agent": "dual_sac"},
+            {"method/rewarder": "sail"},
         ]
     )
 
@@ -857,9 +851,9 @@ def setup_config() -> None:
     cs.store(name="base_pretrain", node=PretrainConfig)
     cs.store(name="base_logger", node=LoggerConfig)
     cs.store(name="base_co_adaptation", node=CoAdaptationConfig)
+    cs.store(group="method", name="base_rl", node=RLConfig)
     cs.store(group="method", name="base_coil", node=CoILConfig)
     cs.store(group="method", name="base_cosil", node=CoSILConfig)
-    cs.store(group="method", name="base_cosil2", node=CoSIL2Config)
     cs.store(group="method/agent", name="base_sac", node=SACConfig)
     cs.store(group="method/agent", name="base_dual_sac", node=DualSACConfig)
     cs.store(group="method/rewarder", name="base_env_rewarder", node=EnvRewarderConfig)

@@ -2,57 +2,49 @@
 ---
 defaults:
   - /base_train
-  - override /method: cosil2  # variable
-  - override /method/agent: dual_sac  # variable
-  - override /method/rewarder: airl  # variable
+  - override /method: rl
+  - override /method/agent: sac
+  - override /method/rewarder: env
 
 seed: 123456
-device: cuda
+device: cpu
 env_name: GaitTrackHalfCheetah-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
 learn_disc_transitions: false
-morpho_in_state: true  # could be tested
-absorbing_state: false  # could be tested
+morpho_in_state: true
+absorbing_state: false
 resume: null
 num_agents: 1
-pretrain: true
 
 method:
   eval: false
   eval_episodes: 10
   eval_per_episodes: 20
   batch_size: 256
-  num_episodes: 300
+  num_episodes: 3000
   updates_per_step: 1
-  start_steps: 10000
+  start_steps: 0
   replay_capacity: 2000000
-  replay_dim_ratio: 0.9999  # could be tested
+  replay_dim_ratio: 0.9999
   record_test: false
   save_checkpoints: false
   save_optimal: false
-  save_final: false
+  save_final: true
   sparse_mask: null
+  rm_action_penalty: true
 
-  # CoIL
-  expert_demos: data/demos/demos_1687522046.pt
-  morpho_warmup: 50000
-  episodes_per_morpho: 50  # could be tested
-  disc_warmup: 20000
   pos_type: norm
   vel_type: rel
   expert_legs: [0, 1]
   policy_legs: [0, 1]
   expert_markers: [1, 2, 3]
   policy_markers: [1, 2, 3]
-  train_distance_value: false
-  co_adapt: true
-  subject_id: 8
   torso_type: null
   head_type: null
   head_wrt: null
+
   omit_done: false
-  fixed_morpho: null
 
   agent:
     gamma: 0.99
@@ -72,18 +64,9 @@ method:
   rewarder:
     batch_size: 64
 
-    # GAIL
-    # log_scale_rewards: false
-    # disc_weight_decay: 1
-
-  co_adaptation:
-    dist_optimizer: bo
-    bo_gp_mean: Zero
-    acq_weight: 2.0
-
 logger:
-  project_name: "CoSIL"
-  group_name: "11-05-2023_GROUP"
-  experiment_name: "NAME"
+  project_name: "cosil-expert"
+  group_name: "half-cheetah"
+  experiment_name: "expert"
   run_id: ""
-  loggers: console,file
+  loggers: console
