@@ -28,7 +28,7 @@ method:
   start_steps: 0
   replay_capacity: 2000000
   replay_dim_ratio: 0.9999
-  record_test: true
+  record_test: false
   record_path: /scratch/work/hernans2/cosil/videos
   save_checkpoints: false
   save_optimal: false

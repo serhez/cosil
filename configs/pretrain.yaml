@@ -1,6 +1,6 @@
 ---
 defaults:
-  - base_pretrain
+  - base_halfcheetah_pretrain
   - _self_
 
 env_name: GaitTrackHalfCheetah-v0

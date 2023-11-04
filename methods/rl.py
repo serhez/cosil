@@ -291,7 +291,7 @@ class RL(object):
             self._save("final")
 
         if self.config.method.eval_final:
-            self._evaluate(episode, log_dict)
+            self._evaluate(episode, log_dict, final=True)
 
         return self.agent, self.env.morpho_params
 
@@ -316,6 +316,8 @@ class RL(object):
             else:
                 file_name = f"ep_{i_episode}_" + file_name
             vid_path = os.path.join(dir_path, file_name)
+
+            self.logger.info(f"Recording video to {vid_path}")
 
             recorder = VideoRecorder(self.env, vid_path)
 

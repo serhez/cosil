@@ -837,7 +837,7 @@ class CoSIL(object):
             self._save("final")
 
         if self.config.method.eval_final:
-            self._evaluate(episode, log_dict)
+            self._evaluate(episode, log_dict, final=True)
 
         return self.ind_agent, self.env.morpho_params
 
@@ -1140,7 +1140,7 @@ class CoSIL(object):
         return optimized_morpho_params
 
     def _evaluate(
-        self, i_episode: int, optimized_morpho_params, log_dict: dict[str, Any]
+        self, i_episode: int, optimized_morpho_params, log_dict: dict[str, Any], final: bool = False
     ):
         start = time.time()
         test_marker_obs_history = []
@@ -1163,6 +1163,8 @@ class CoSIL(object):
             else:
                 file_name = f"ep_{i_episode}_" + file_name
             vid_path = os.path.join(dir_path, file_name)
+
+            self.logger.info(f"Recording video to {vid_path}")
 
             recorder = VideoRecorder(self.env, vid_path)
 
