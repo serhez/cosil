@@ -340,7 +340,7 @@ class RL(object):
 
                 action = self.agent.select_action(feats, evaluate=True)
 
-                next_state, _, terminated, truncated, info = self.env.step(action)
+                next_state, reward, terminated, truncated, info = self.env.step(action)
                 done = terminated or truncated
 
                 if recorder is not None and test_ep == 0:
