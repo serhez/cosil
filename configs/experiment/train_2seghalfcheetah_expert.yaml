@@ -7,7 +7,7 @@ defaults:
   - override /method/rewarder: env
 
 seed: 123456
-device: cpu
+device: cuda
 env_name: GaitTrack2segHalfCheetah-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
@@ -21,6 +21,7 @@ method:
   eval: false
   eval_episodes: 10
   eval_per_episodes: 20
+  eval_final: true
   batch_size: 256
   num_episodes: 3000
   updates_per_step: 1
@@ -28,6 +29,7 @@ method:
   replay_capacity: 2000000
   replay_dim_ratio: 0.9999
   record_test: false
+  record_path: /scratch/work/hernans2/cosil/videos
   save_checkpoints: false
   save_optimal: false
   save_final: true
@@ -69,4 +71,4 @@ logger:
   group_name: "half-cheetah-2seg"
   experiment_name: "expert"
   run_id: ""
-  loggers: console
+  loggers: console, wandb
