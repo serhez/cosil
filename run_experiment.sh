@@ -4,7 +4,7 @@
 #SBATCH --mem=16G
 #SBATCH --gres=gpu:1
 
-module restore cosil
+module restore cosil-new
 source activate cosil
 
 srun python train.py +experiment=11-05-2023/methods/cosil-no-transfer-bo

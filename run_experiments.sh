@@ -4,7 +4,7 @@
 #SBATCH --mem=16G
 #SBATCH --gres=gpu:1
 
-module restore cosil
+module restore cosil-new
 source activate cosil
 
 for experiment in range-mean-1 range-mean-100 range-min-1 range-min-100 zscore-mean-1 zscore-mean-100 zscore-min-1 zscore-min-100
