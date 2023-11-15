@@ -67,8 +67,8 @@ method:
     batch_size: 64
 
 logger:
-  project_name: "cosil-expert"
+  project_name: "cosil-demonstrator"
   group_name: "half-cheetah-2seg"
-  experiment_name: "expert"
+  experiment_name: "demonstrator"
   run_id: ""
   loggers: console, wandb

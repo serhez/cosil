@@ -19,8 +19,7 @@ from loggers import Logger
 from normalizers import create_normalizer
 from rewarders import MBC, SAIL, create_rewarder
 from utils import dict_add, dict_div
-from utils.co_adaptation import (bo_step, get_marker_info, handle_absorbing,
-                                 rs_step)
+from utils.co_adaptation import bo_step, get_marker_info, handle_absorbing, rs_step
 from utils.imitation import get_bc_demos_for, load_demos
 from utils.rl import get_markers_by_ep
 
@@ -1140,7 +1139,11 @@ class CoSIL(object):
         return optimized_morpho_params
 
     def _evaluate(
-        self, i_episode: int, optimized_morpho_params, log_dict: dict[str, Any], final: bool = False
+        self,
+        i_episode: int,
+        optimized_morpho_params,
+        log_dict: dict[str, Any],
+        final: bool = False,
     ):
         start = time.time()
         test_marker_obs_history = []
