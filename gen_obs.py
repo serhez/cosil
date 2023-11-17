@@ -60,7 +60,15 @@ def gen_model_obs(
         ConstantScheduler(0.0),
     )
 
-    load_model(config.resume, env, agent, co_adapt=True, evaluate=True)
+    load_model(
+        config.resume,
+        env,
+        agent,
+        agent_name=config.saved_agent_name,
+        morpho_name=config.saved_morpho_name,
+        co_adapt=True,
+        evaluate=True,
+    )
 
     return gen_obs_dict(
         config.num_obs,

@@ -8,6 +8,8 @@ env_name: GaitTrack2segHalfCheetah-v0
 resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
 #resume: /scratch/work/hernans2/cosil/models/final/humanoid/GaitTrackHumanoid-v0/seed-123456/demonstrator_1700092365.pt
 save_path: /scratch/work/hernans2/cosil/data/demos/
+saved_agent_name: agent
+saved_morpho_name: morpho_dict
 
 logger:
   project_name: "cosil-demos"

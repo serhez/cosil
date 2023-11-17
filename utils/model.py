@@ -27,7 +27,16 @@ def save_model(data, file_path, file_name, type, logger=None):
     return model_path
 
 
-def load_model(file_path, env, agent, co_adapt=True, evaluate=False, logger=None):
+def load_model(
+    file_path,
+    env,
+    agent,
+    agent_name="agent",
+    morpho_name="morpho_dict",
+    co_adapt=True,
+    evaluate=False,
+    logger=None,
+):
     if logger is not None:
         logger.info("Loading model from {}".format(file_path))
     else:
@@ -36,7 +45,7 @@ def load_model(file_path, env, agent, co_adapt=True, evaluate=False, logger=None
     model = torch.load(file_path)
 
     if co_adapt:
-        env.set_task(*model["morpho_dict"])
+        env.set_task(*model[morpho_name])
         env.reset()
 
-    agent.load(model["ind_agent"], evaluate=evaluate)
+    agent.load(model[agent_name], evaluate=evaluate)
