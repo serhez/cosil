@@ -767,8 +767,6 @@ class GenTrajectoriesConfig(Config):
     task: str = "gen_obs"
     """Name of the task."""
 
-    # FIX: This should not be here, we are not using any method nor their config
-    #      The only reason we need this is to have the agent's config
     method: MethodConfig = MISSING
     """Configuration for the method."""
 
