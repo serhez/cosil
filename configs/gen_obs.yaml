@@ -4,10 +4,10 @@ defaults:
   - _self_
 
 num_obs: 10000
-# env_name: GaitTrackHumanoid-v0
-env_name: GaitTrack2segHalfCheetah-v0
-resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
-# resume: /scratch/work/hernans2/cosil/models/final/humanoid/GaitTrackHumanoid-v0/seed-123456/demonstrator_1700092365.pt
+env_name: GaitTrackHumanoid-v0
+# env_name: GaitTrack2segHalfCheetah-v0
+# resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
+resume: /scratch/work/hernans2/cosil/models/final/humanoid/GaitTrackHumanoid-v0/seed-123456/demonstrator_1700092365.pt
 save_path: /scratch/work/hernans2/cosil/data/demos/
 saved_agent_name: agent
 saved_morpho_name: morpho_dict
@@ -28,28 +28,28 @@ method:
   save_optimal: false
   save_final: false
   sparse_mask: null
-  # rm_action_penalty: false
-  rm_action_penalty: true
-
-  # pos_type: norm
-  # vel_type: rel
-  # expert_legs: [0, 1, 2, 3]
-  # policy_legs: [0, 1, 2, 3]
-  # expert_markers: [0, 1, 2]
-  # policy_markers: [0, 1, 2]
-  # torso_type: null
-  # head_type: null
-  # head_wrt: null
+  rm_action_penalty: false
+  # rm_action_penalty: true
 
   pos_type: norm
   vel_type: rel
-  expert_legs: [0, 1]
-  policy_legs: [0, 1]
-  expert_markers: [1, 2]
-  policy_markers: [1, 2]
+  expert_legs: [0, 1, 2, 3]
+  policy_legs: [0, 1, 2, 3]
+  expert_markers: [0, 1, 2]
+  policy_markers: [0, 1, 2]
   torso_type: null
   head_type: null
   head_wrt: null
+
+  # pos_type: norm
+  # vel_type: rel
+  # expert_legs: [0, 1]
+  # policy_legs: [0, 1]
+  # expert_markers: [1, 2]
+  # policy_markers: [1, 2]
+  # torso_type: null
+  # head_type: null
+  # head_wrt: null
 
   omit_done: false
 

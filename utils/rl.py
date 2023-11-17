@@ -63,10 +63,12 @@ def _add_obs(obs_dict, info, done):
         done,
     )
 
-    print(info)
     for key, val in info.items():
         if key not in obs_dict:
-            obs_dict[key] = np.empty((0, *val.shape))
+            if isinstance(val, np.ndarray):
+                obs_dict[key] = np.empty((0, *val.shape))
+            else:
+                obs_dict[key] = np.empty((0,))
 
         assert (
             len(obs_dict[key]) == len(obs_dict["dones"]) - 1
