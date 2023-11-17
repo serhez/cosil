@@ -17,7 +17,7 @@ __all__ = [
 
 
 def create_multilogger(config: DictConfig) -> MultiLogger:
-    loggers_list = config.logger.loggers.split(",")
+    loggers_list = config.logger.loggers.replace(" ", "").split(",")
     loggers = {}
     for logger in loggers_list:
         if logger == "console":

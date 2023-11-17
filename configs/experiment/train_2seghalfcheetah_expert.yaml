@@ -71,4 +71,4 @@ logger:
   group_name: "half-cheetah-2seg"
   experiment_name: "demonstrator"
   run_id: ""
-  loggers: console, wandb
+  loggers: console,wandb

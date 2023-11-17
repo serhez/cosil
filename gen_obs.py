@@ -73,7 +73,7 @@ def gen_model_obs(
     )
 
 
-def save(obs: dict, path: str, id: str, logger: Logger):
+def save(obs: dict, path: str, env_name: str, id: str, logger: Logger):
     """
     Saves the observations to a file.
 
@@ -95,7 +95,7 @@ def save(obs: dict, path: str, id: str, logger: Logger):
     if path[-1] != "/":
         path += "/"
 
-    file_name = f"{path}demos_{id}.pt"
+    file_name = f"{path}{env_name}_demos_{id}.pt"
 
     logger.info(f"Saving demonstrations to {file_name}")
     torch.save(obs, file_name)
@@ -156,7 +156,7 @@ def main(config: DictConfig):
     obs = gen_model_obs(config, env, logger)
     env.close()
 
-    save(obs, config.save_path, config.logger.run_id, logger)
+    save(obs, config.save_path, config.env_name, config.logger.run_id, logger)
 
 
 if __name__ == "__main__":

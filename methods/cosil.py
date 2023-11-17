@@ -19,7 +19,8 @@ from loggers import Logger
 from normalizers import create_normalizer
 from rewarders import MBC, SAIL, create_rewarder
 from utils import dict_add, dict_div
-from utils.co_adaptation import bo_step, get_marker_info, handle_absorbing, rs_step
+from utils.co_adaptation import (bo_step, get_marker_info, handle_absorbing,
+                                 rs_step)
 from utils.imitation import get_bc_demos_for, load_demos
 from utils.rl import get_markers_by_ep
 
@@ -837,6 +838,9 @@ class CoSIL(object):
 
         if self.config.method.eval_final:
             self._evaluate(episode, log_dict, final=True)
+
+        # TODO: TMP - remove
+        torch.save(self.morphos, "humanoid_experiment_morphos.pt")
 
         return self.ind_agent, self.env.morpho_params
 
