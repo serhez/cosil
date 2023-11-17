@@ -13,7 +13,8 @@ saved_agent_name: agent
 saved_morpho_name: morpho_dict
 learn_disc_transitions: false
 morpho_in_state: true
-absorbing_state: false
+absorbing_state: true
+# absorbing_state: false
 
 method:
   eval: false
