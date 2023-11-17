@@ -457,7 +457,7 @@ class SAC(Agent):
         }
 
         if self._rl_norm is not None:
-            model["rl_norm_state_dict"] = (self._rl_norm.get_model_dict(),)
+            model["rl_norm_state_dict"] = self._rl_norm.get_model_dict()
 
         if self._automatic_entropy_tuning:
             model["log_alpha"] = self._log_alpha
@@ -474,7 +474,8 @@ class SAC(Agent):
         self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if self._rl_norm is not None:
-            self._rl_norm.load(model["rl_norm_state_dict"])
+            # FIX: There was a bug making this a tuple; remove once we stop using old bugged models
+            self._rl_norm.load(model["rl_norm_state_dict"][0])
 
         if (
             self._automatic_entropy_tuning is True
