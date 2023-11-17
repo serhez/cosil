@@ -4,16 +4,16 @@ defaults:
   - _self_
 
 num_obs: 10000
-env_name: GaitTrack2segHalfCheetah-v0
-resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
-#resume: /scratch/work/hernans2/cosil/models/final/humanoid/GaitTrackHumanoid-v0/seed-123456/demonstrator_1700092365.pt
+env_name: GaitTrackHumanoid-v0
+# resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
+resume: /scratch/work/hernans2/cosil/models/final/humanoid/GaitTrackHumanoid-v0/seed-123456/demonstrator_1700092365.pt
 save_path: /scratch/work/hernans2/cosil/data/demos/
 saved_agent_name: agent
 saved_morpho_name: morpho_dict
 
 logger:
-  project_name: "cosil-demos"
-  group_name: "2segHalfCheetah"
-  experiment_name: "gen_demos"
-  run_id: ""
+  project_name: 'cosil-demos'
+  group_name: 'humanoid'
+  experiment_name: 'gen_demos'
+  run_id: ''
   loggers: console,wandb

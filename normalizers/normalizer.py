@@ -184,7 +184,6 @@ class Normalizer(ABC):
         """
 
         try:
-            print(model)  # TODO: remove
             self._gamma = model["gamma"]
             self._beta = model["beta"]
             self._low_clip = model["low_clip"]
