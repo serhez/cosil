@@ -418,7 +418,13 @@ def handle_absorbing(
 
 
 def create_replay_data(
-    env, marker_info_fn, agent, absorbing_state=True, steps=5000, morpho_in_state=True
+    env,
+    marker_info_fn,
+    agent,
+    rm_action_penalty: bool,
+    absorbing_state=True,
+    steps=5000,
+    morpho_in_state=True,
 ):
     to_push = []
     start_time = time.time()
@@ -441,7 +447,11 @@ def create_replay_data(
             next_state, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
-            rsum += info["reward_run"]
+            # This is environment-dependent
+            if rm_action_penalty:
+                rsum += info["reward_run"]
+            else:
+                rsum += reward
 
             next_marker_obs, _ = marker_info_fn(info)
 

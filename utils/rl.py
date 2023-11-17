@@ -63,6 +63,7 @@ def _add_obs(obs_dict, info, done):
         done,
     )
 
+    print(info)
     for key, val in info.items():
         if key not in obs_dict:
             obs_dict[key] = np.empty((0, *val.shape))
