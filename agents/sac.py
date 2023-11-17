@@ -474,7 +474,6 @@ class SAC(Agent):
         self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if self._rl_norm is not None:
-            self._logger.info(model)
             self._rl_norm.load(model["rl_norm_state_dict"])
 
         if (
