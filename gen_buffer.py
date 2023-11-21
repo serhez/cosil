@@ -1,3 +1,5 @@
+# NOTE: Deprecated
+
 import os
 import random
 import time

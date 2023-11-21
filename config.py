@@ -465,6 +465,21 @@ class MethodConfig:
     save_final: bool = True
     """Whether to save the final policy."""
 
+    save_buffers: bool = True
+    """Whether to save the replay buffers."""
+
+    save_agents: bool = True
+    """Whether to save the agents' parameters."""
+
+    save_rewarders: bool = True
+    """Whether to save the rewarders' parameters."""
+
+    save_morphos: bool = True
+    """Whether to save the morphologies."""
+
+    save_demos: bool = True
+    """Whether to save the demonstrations."""
+
     sparse_mask: Optional[float] = None
     """
     The sparsity mask for the envrionment.
@@ -627,6 +642,9 @@ class CoSILConfig(CoILConfig):
 
     transfer: bool = True
     """Whether to perform transfer learning."""
+
+    random_morphos: bool = False
+    """Whether to sample random morphologies when adapting."""
 
     replay_weight: float = 0.0
     """

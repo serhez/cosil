@@ -6,9 +6,9 @@ defaults:
   - override /method/agent: sac
   - _self_
 
-env_name: GaitTrackHalfCheetah-v0
-save_path: data/replay_buffers/individual/
-device: cpu
+env_name: GaitTrack2segHalfCheetah-v0
+save_path: /scratch/work/hernans2/cosil/data/replay_buffers/individual/
+device: cuda
 
 method:
   eval: false

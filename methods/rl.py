@@ -382,14 +382,17 @@ class RL(object):
             recorder.close()
 
     def _save(self, type="final"):
-        save_path = os.path.join(self.storage_path, "models")
         if type == "final":
-            dir_path = os.path.join(save_path, "final", self.config.models_dir_path)
+            dir_path = os.path.join(
+                self.storage_path, "final", self.config.models_dir_path
+            )
         elif type == "optimal":
-            dir_path = os.path.join(save_path, "optimal", self.config.models_dir_path)
+            dir_path = os.path.join(
+                self.storage_path, "optimal", self.config.models_dir_path
+            )
         elif type == "checkpoint":
             dir_path = os.path.join(
-                save_path, "checkpoints", self.config.models_dir_path
+                self.storage_path, "checkpoints", self.config.models_dir_path
             )
         else:
             raise ValueError("Invalid save type")
@@ -403,11 +406,13 @@ class RL(object):
         model_path = os.path.join(dir_path, file_name)
         self.logger.info(f"Saving model to {model_path}")
 
-        data = {
-            "replay_buffer": self.replay_buffer.to_list(),
-            "morpho_dict": self.env.morpho_params,
-            "agent": self.agent.get_model_dict(),
-        }
+        data = {}
+        if self.config.save_buffers:
+            data["replay_buffer"] = self.replay_buffer.to_list()
+        if self.config.save_agents:
+            data["agent"] = self.agent.get_model_dict()
+        if self.config.save_morphos:
+            data["morphos"] = self.morphos
 
         torch.save(data, model_path)
 

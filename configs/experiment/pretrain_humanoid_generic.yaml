@@ -1,19 +1,18 @@
 # @package _global_
-# TODO: Copy config from expert config
 ---
 defaults:
   - /base_train
-  - override /method: cosil  # variable
-  - override /method/agent: dual_sac  # variable
-  - override /method/rewarder: sail # variable
+  - override /method: cosil
+  - override /method/agent: dual_sac
+  - override /method/rewarder: env
 
 seed: 123456
 device: cuda
 env_name: GaitTrackHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
-models_dir_path: models
+models_dir_path: data/replay_buffers/individual/
 learn_disc_transitions: false
-morpho_in_state: true  # could be tested
+morpho_in_state: true
 absorbing_state: true
 resume: null
 num_agents: 1
@@ -22,38 +21,44 @@ method:
   eval: false
   eval_episodes: 10
   eval_per_episodes: 20
+  eval_final: false
   batch_size: 256
-  num_episodes: 300
+  num_episodes: 2000
+  episodes_per_morpho: 200
   updates_per_step: 1
-  start_steps: 10000
+  start_steps: 0
+  morpho_warmup: 0
   replay_capacity: 2000000
-  replay_dim_ratio: 0.9999  # could be tested
+  replay_dim_ratio: 0.9999
   record_test: false
+  record_path: /scratch/work/hernans2/cosil/videos
   save_checkpoints: false
   save_optimal: false
-  save_final: false
+  save_final: true
+  save_buffers: true
+  save_agents: false
+  save_rewarders: false
+  save_morphos: true
+  save_demos: false
   sparse_mask: null
-  rm_action_penalty: true
+  rm_action_penalty: false
 
-  # CoIL
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1700239235.pt
-  morpho_warmup: 50000
-  episodes_per_morpho: 50  # could be tested
-  disc_warmup: 20000
   pos_type: norm
   vel_type: rel
   expert_legs: [0, 1, 2, 3]
   policy_legs: [0, 1, 2, 3]
   expert_markers: [0, 1, 2]
   policy_markers: [0, 1, 2]
-  train_distance_value: false
-  co_adapt: true
-  subject_id: 8
   torso_type: null
   head_type: null
   head_wrt: null
+
   omit_done: false
-  fixed_morpho: null
+
+  co_adapt: true
+  random_morphos: true
+
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1700239235.pt
 
   agent:
     gamma: 0.99
@@ -73,18 +78,9 @@ method:
   rewarder:
     batch_size: 64
 
-    # GAIL
-    # log_scale_rewards: false
-    # disc_weight_decay: 1
-
-  co_adaptation:
-    dist_optimizer: bo
-    bo_gp_mean: Zero
-    acq_weight: 2.0
-
 logger:
-  project_name: "cosil-experiments"
-  group_name: "GROUP"
-  experiment_name: "NAME"
-  run_id: ""
+  project_name: 'cosil-pretrain-generic'
+  group_name: 'humanoid'
+  experiment_name: 'pretrain-humanoid'
+  run_id: ''
   loggers: console,wandb

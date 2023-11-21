@@ -840,7 +840,7 @@ class CoSIL(object):
             self._evaluate(episode, log_dict, final=True)
 
         # TODO: TMP - remove
-        torch.save(self.morphos, "humanoid_experiment_morphos.pt")
+        # torch.save(self.morphos, "humanoid_experiment_morphos.pt")
 
         return self.ind_agent, self.env.morpho_params
 
@@ -975,7 +975,10 @@ class CoSIL(object):
             self.optimized_morpho = False
 
         # Random sampling
-        elif self.total_numsteps < self.config.method.morpho_warmup:
+        elif (
+            self.config.method.random_morphos
+            or self.total_numsteps < self.config.method.morpho_warmup
+        ):
             self.logger.info("Sampling morphology")
             morpho_params = self.morpho_dist.sample()
             self.morpho_params_np = morpho_params.cpu().numpy()
@@ -1253,14 +1256,13 @@ class CoSIL(object):
             recorder.close()
 
     def _save(self, type="final"):
-        save_path = os.path.join(self.storage_path, "models")
         if type == "final":
-            dir_path = os.path.join(save_path, "final", self.config.models_dir_path)
+            dir_path = os.path.join(self.storage_path, "final", self.config.models_dir_path)
         elif type == "optimal":
-            dir_path = os.path.join(save_path, "optimal", self.config.models_dir_path)
+            dir_path = os.path.join(self.storage_path, "optimal", self.config.models_dir_path)
         elif type == "checkpoint":
             dir_path = os.path.join(
-                save_path, "checkpoints", self.config.models_dir_path
+                self.storage_path, "checkpoints", self.config.models_dir_path
             )
         else:
             raise ValueError("Invalid save type")
@@ -1274,17 +1276,19 @@ class CoSIL(object):
         model_path = os.path.join(dir_path, file_name)
         self.logger.info(f"Saving model to {model_path}")
 
-        data = {
-            "replay_buffer": self.replay_buffer.to_list(),
-            # "current_buffer": self.current_buffer.to_list(),
-            "morphos": self.morphos,
-            "demos": self.demos,
-            "morpho_dict": self.env.morpho_params,
-            "rl_rewarder": self.rl_rewarder.get_model_dict(),
-            "il_rewarder": self.il_rewarder.get_model_dict(),
-            "ind_agent": self.ind_agent.get_model_dict(),
-            "pop_agent": self.pop_agent.get_model_dict(),
-        }
+        data = {}
+        if self.config.save_buffers:
+            data["replay_buffer"] = self.replay_buffer.to_list()
+        if self.config.save_agents:
+            data["ind_agent"] = self.ind_agent.get_model_dict()
+            data["pop_agent"] = self.pop_agent.get_model_dict()
+        if self.config.save_morphos:
+            data["morphos"] = self.morphos
+        if self.config.save_demos:
+            data["demos"] = self.demos
+        if self.config.save_rewarders:
+            data["rl_rewarder"] = self.rl_rewarder.get_model_dict()
+            data["il_rewarder"] = self.il_rewarder.get_model_dict()
 
         torch.save(data, model_path)
 
