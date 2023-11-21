@@ -584,9 +584,9 @@ class DualSAC(Agent):
         }
 
         if self._rein_norm is not None:
-            model["rein_norm_state_dict"] = (self._rein_norm.get_model_dict(),)
+            model["rein_norm_state_dict"] = self._rein_norm.get_model_dict()
         if self._imit_norm is not None:
-            model["imit_norm_state_dict"] = (self._imit_norm.get_model_dict(),)
+            model["imit_norm_state_dict"] = self._imit_norm.get_model_dict()
 
         if self._automatic_entropy_tuning:
             model["log_alpha"] = self._log_alpha
