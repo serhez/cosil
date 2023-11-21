@@ -6,7 +6,7 @@
 #SBATCH --mail-user=sergio.hernandezgutierrez@aalto.fi
 #SBATCH --mail-type=ALL
 
-module restore cosil-new
+module restore cosil
 source activate cosil
 
 srun python train.py +experiment=final/experiment/sail/om02-zsrew-disctrans-irpre20-pso ++seed=9137

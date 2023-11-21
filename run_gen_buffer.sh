@@ -4,7 +4,7 @@
 #SBATCH --mem=16G
 #SBATCH --gres=gpu:1
 
-module restore cosil-new
+module restore cosil
 source activate cosil
 
 srun python gen_buffer.py ++seed=3
