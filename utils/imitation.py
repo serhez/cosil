@@ -36,6 +36,8 @@ def load_demos(config: DictConfig):
         # TODO: Consider using the mean reward without subtracting the penalty
         # if config.method.rm_action_penalty:
         mean_reward = np.mean(expert_obs["reward_run"])
+        print(expert_obs.keys()) # TODO: Remove
+        exit() # TODO: Remove
         expert_obs_np, to_match = get_marker_info(
             expert_obs,
             config.method.expert_legs,
