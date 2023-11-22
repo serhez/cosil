@@ -33,11 +33,12 @@ def load_demos(config: DictConfig):
             demos.append(episode_obs)
     else:
         expert_obs = torch.load(config.method.expert_demos)
-        # TODO: Consider using the mean reward without subtracting the penalty
-        # if config.method.rm_action_penalty:
-        mean_reward = np.mean(expert_obs["reward_run"])
-        print(expert_obs.keys()) # TODO: Remove
-        exit() # TODO: Remove
+        if config.method.rm_action_penalty:
+            mean_reward = np.mean(expert_obs["reward_run"])
+        else:
+            # Humanoid env (bad practice: hard-coded)
+            mean_reward = np.mean(expert_obs["reward_run"] - expert_obs["reward_quadctrl"] - expert_obs["reward_impact"] + expert_obs["reward_alive"])
+
         expert_obs_np, to_match = get_marker_info(
             expert_obs,
             config.method.expert_legs,
