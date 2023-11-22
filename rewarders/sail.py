@@ -85,7 +85,7 @@ class SAIL(Rewarder):
         return disc_loss, expert_probs, policy_probs
 
     def _compute_rewards_impl(self, batch, demos):
-        _, _, _, _, _, _, marker_batch, next_marker_batch, _ = batch
+        _, _, _, _, _, _, marker_batch, next_marker_batch, _, _ = batch
         marker_feats = next_marker_batch
         if self.learn_disc_transitions:
             marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
@@ -189,6 +189,7 @@ class SAIL(Rewarder):
             marker_batch,
             next_marker_batch,
             morpho_params,
+            _,
         ) = batch
         action_batch = torch.FloatTensor(action_batch).to(self.device)
         marker_batch = torch.FloatTensor(marker_batch).to(self.device)

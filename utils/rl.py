@@ -33,7 +33,6 @@ def get_feats_for(morpho: torch.Tensor, original_feats: torch.Tensor) -> torch.T
 
 def get_markers_by_ep(
     obs: tuple,
-    ep_len: int,
     device: Union[torch.device, str],
     n_ep: int = 1,
 ) -> List[torch.Tensor]:
@@ -48,12 +47,15 @@ def get_markers_by_ep(
     n_ep -> the number of episodes to return, starting from the last episode.
     """
 
-    all_markers_np = np.split(obs[6], obs[6].shape[0] / ep_len)
+    all_markers_np = []
+    for ep in np.unique(obs[9]):
+        ep_obs = obs[6][obs[9] == ep]
+        all_markers_np.append(ep_obs)
     start_i = int(max(len(all_markers_np) - n_ep, 0))
     return [torch.from_numpy(x).float().to(device) for x in all_markers_np[start_i:]]
 
 
-def _add_obs(obs_dict, info, done):
+def _add_obs(obs_dict, info, done, trajectory):
     """
     Adds an observation to the observations dictionary.
     """
@@ -61,6 +63,10 @@ def _add_obs(obs_dict, info, done):
     obs_dict["dones"] = np.append(
         obs_dict["dones"],
         done,
+    )
+    obs_dict["episodes"] = np.append(
+        obs_dict["episodes"],
+        trajectory,
     )
 
     for key, val in info.items():
@@ -145,6 +151,7 @@ def gen_obs_list(
                     None,
                     None,
                     env.morpho_params,
+                    traj,
                 )
             )
 
@@ -201,6 +208,7 @@ def gen_obs_dict(
 
     obs_dict = {
         "dones": np.array([]),
+        "episodes": np.array([]),
     }
 
     logger.info(f"Generating {num_obs} observations", logger_mask)
@@ -234,7 +242,7 @@ def gen_obs_dict(
                 next_feat = np.concatenate([next_feat, np.zeros(1)])
 
             done = terminated or truncated
-            _add_obs(obs_dict, info, done)
+            _add_obs(obs_dict, info, done, trajectory)
             traj_num_obs += 1
 
             feat = next_feat

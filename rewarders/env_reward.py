@@ -35,7 +35,7 @@ class EnvReward(Rewarder):
         return 0.0, 0.0, 0.0
 
     def _compute_rewards_impl(self, batch, _):
-        _, _, reward_batch, _, _, _, _, _, _ = batch
+        _, _, reward_batch, _, _, _, _, _, _, _ = batch
         if self._sparse_mask is not None:
             reward_batch[reward_batch < self._sparse_mask] = 0.0
         return reward_batch

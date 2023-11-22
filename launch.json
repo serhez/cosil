@@ -13,7 +13,7 @@
             "type": "python",
             "request": "launch",
             "program": "train.py",
-            "args": ["+experiment=train_humanoid_expert"],
+            "args": ["+experiment=final/experiment/sail/om00-oma02-zsrew-disctrans-pso"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

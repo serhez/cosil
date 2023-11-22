@@ -9,3 +9,4 @@ imitator.pt
 metrics.pt
 slurm*
 .mypy_cache/
+test.qmd

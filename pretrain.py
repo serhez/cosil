@@ -43,7 +43,7 @@ def train(
     start = time.time()
     log_dict, logged = {}, 0
 
-    demos = get_markers_by_ep(replay_buffer.all(), 1000, config.device, n_ep=50)
+    demos = get_markers_by_ep(replay_buffer.all(), config.device, n_ep=50)
 
     for step in range(config.updates):
         # Train the rewarders

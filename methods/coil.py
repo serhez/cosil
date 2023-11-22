@@ -171,16 +171,6 @@ class CoIL(object):
                 None,
                 omega_scheduler,
             )
-            # self.agent = SACOld(
-            #     self.config,
-            #     self.logger,
-            #     self.env.action_space,
-            #     self.obs_size + self.num_morpho
-            #     if config.morpho_in_state
-            #     else self.obs_size,
-            #     self.num_morpho,
-            #     self.rewarder,
-            # )
         else:
             raise ValueError("Invalid agent")
 
@@ -421,7 +411,7 @@ class CoIL(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        self.replay_buffer.push(obs + (self.env.morpho_params,))
+                        self.replay_buffer.push(obs + (self.env.morpho_params, episode))
                 else:
                     obs = (
                         feats,
@@ -433,6 +423,7 @@ class CoIL(object):
                         marker_obs,
                         next_marker_obs,
                         self.env.morpho_params,
+                        episode,
                     )
                     self.replay_buffer.push(obs)
 
@@ -556,6 +547,7 @@ class CoIL(object):
 
         memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
         start_t = time.time()
+        episode = 1
         step = 0
         while step < steps:
             if co_adapt:
@@ -592,7 +584,7 @@ class CoIL(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        memory.push(obs + (self.env.morpho_params,))
+                        memory.push(obs + (self.env.morpho_params, episode))
                 else:
                     memory.push(
                         (
@@ -605,6 +597,7 @@ class CoIL(object):
                             marker_obs,
                             next_marker_obs,
                             self.env.morpho_params,
+                            episode,
                         )
                     )
 
@@ -612,6 +605,8 @@ class CoIL(object):
                 marker_obs = next_marker_obs
 
                 step += 1
+
+            episode += 1
 
             self.logger.info(
                 {

@@ -262,15 +262,15 @@ class CoSIL(object):
         """
 
         mean_reward = np.mean(obs[2])
-        if self.demos_strategy == "replace" and mean_reward > self.mean_demos_reward:
+        if (
+            self.demos_strategy == "replace"
+        ):  # and mean_reward > self.mean_demos_reward:
             self.logger.info("Replacing the demonstrations")
             self.mean_demos_reward = mean_reward
-            self.demos = get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
+            self.demos = get_markers_by_ep(obs, self.device, self.demos_n_ep)
         elif self.demos_strategy == "add":
             self.logger.info("Adding new demonstrations")
-            self.demos.extend(
-                get_markers_by_ep(obs, 1000, self.device, self.demos_n_ep)
-            )
+            self.demos.extend(get_markers_by_ep(obs, self.device, self.demos_n_ep))
 
     def _train_pop_agent(
         self,
@@ -304,11 +304,7 @@ class CoSIL(object):
             # Rewarder (i.e., discriminator) update
             if train_rewarder:
                 batch = self.replay_buffer.sample(self.rewarder_batch_size)
-                (
-                    disc_loss,
-                    expert_probs,
-                    policy_probs,
-                ) = self.il_rewarder.train(batch, self.demos)
+                self.il_rewarder.train(batch, self.demos)
 
             # Update the population agent
             batch = self.replay_buffer.sample(self.batch_size)
@@ -450,6 +446,7 @@ class CoSIL(object):
         marker_batch = torch.FloatTensor(all_batch[6]).to(self.device)
         next_marker_batch = torch.FloatTensor(all_batch[7]).to(self.device)
         morpho_batch = torch.FloatTensor(all_batch[8]).to(self.device)
+        episode_batch = torch.IntTensor(all_batch[9]).to(self.device)
         all_batch = (
             state_batch,
             action_batch,
@@ -460,6 +457,7 @@ class CoSIL(object):
             marker_batch,
             next_marker_batch,
             morpho_batch,
+            episode_batch,
         )
         self.il_rewarder.update_normalizer_stats(all_batch, self.demos)
         self.rl_rewarder.update_normalizer_stats(all_batch, self.demos)
@@ -710,7 +708,7 @@ class CoSIL(object):
                     )
                     for current_obs in obs_list:
                         self.current_buffer.push(
-                            current_obs + (self.env.morpho_params,)
+                            current_obs + (self.env.morpho_params, episode)
                         )
                 else:
                     current_obs = (
@@ -723,6 +721,7 @@ class CoSIL(object):
                         marker_obs,
                         next_marker_obs,
                         self.env.morpho_params,
+                        episode,
                     )
                     self.current_buffer.push(current_obs)
 
@@ -874,6 +873,7 @@ class CoSIL(object):
 
         memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
         start_t = time.time()
+        episode = 1
         step = 0
         while step < steps:
             if co_adapt:
@@ -911,7 +911,7 @@ class CoSIL(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        memory.push(obs + (self.env.morpho_params,))
+                        memory.push(obs + (self.env.morpho_params, episode))
                 else:
                     memory.push(
                         (
@@ -924,6 +924,7 @@ class CoSIL(object):
                             marker_obs,
                             next_marker_obs,
                             self.env.morpho_params,
+                            episode,
                         )
                     )
 
@@ -931,6 +932,8 @@ class CoSIL(object):
                 marker_obs = next_marker_obs
 
                 step += 1
+
+            episode += 1
 
             self.logger.info(
                 {
@@ -1257,9 +1260,13 @@ class CoSIL(object):
 
     def _save(self, type="final"):
         if type == "final":
-            dir_path = os.path.join(self.storage_path, "final", self.config.models_dir_path)
+            dir_path = os.path.join(
+                self.storage_path, "final", self.config.models_dir_path
+            )
         elif type == "optimal":
-            dir_path = os.path.join(self.storage_path, "optimal", self.config.models_dir_path)
+            dir_path = os.path.join(
+                self.storage_path, "optimal", self.config.models_dir_path
+            )
         elif type == "checkpoint":
             dir_path = os.path.join(
                 self.storage_path, "checkpoints", self.config.models_dir_path

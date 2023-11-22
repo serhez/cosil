@@ -220,7 +220,9 @@ class RL(object):
                         self.obs_size,
                     )
                     for current_obs in obs_list:
-                        self.replay_buffer.push(current_obs + (self.env.morpho_params,))
+                        self.replay_buffer.push(
+                            current_obs + (self.env.morpho_params, episode)
+                        )
                 else:
                     current_obs = (
                         feats,
@@ -232,6 +234,7 @@ class RL(object):
                         marker_obs,
                         next_marker_obs,
                         self.env.morpho_params,
+                        episode,
                     )
                     self.replay_buffer.push(current_obs)
 

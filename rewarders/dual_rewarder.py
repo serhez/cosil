@@ -47,6 +47,8 @@ class DualRewarder(Rewarder):
             torch.FloatTensor,
             torch.FloatTensor,
             torch.FloatTensor,
+            torch.FloatTensor,
+            torch.FloatTensor,
         ],
         demos: List[torch.Tensor],
     ) -> Tuple[float, float, float]:
@@ -74,6 +76,8 @@ class DualRewarder(Rewarder):
     def _compute_rewards_impl(
         self,
         batch: Tuple[
+            torch.FloatTensor,
+            torch.FloatTensor,
             torch.FloatTensor,
             torch.FloatTensor,
             torch.FloatTensor,

@@ -1,5 +1,5 @@
 # Based on https://github.com/pranz24/pytorch-soft-actor-critic (MIT Licensed)
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
@@ -169,6 +169,8 @@ class DualRewardSAC(Agent):
                     _,
                     marker_batch,
                     _,
+                    _,
+                    _,
                 ) = memory.sample(batch_size)
 
                 state_batch = torch.FloatTensor(state_batch).to(self._device)
@@ -259,6 +261,7 @@ class DualRewardSAC(Agent):
             marker_batch,
             next_marker_batch,
             morpho_batch,
+            episode_batch,
         ) = batch
         state_batch = torch.FloatTensor(state_batch).to(self._device)
         next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
@@ -274,6 +277,7 @@ class DualRewardSAC(Agent):
             marker_batch = torch.FloatTensor(marker_batch).to(self._device)
             next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
         morpho_batch = torch.FloatTensor(morpho_batch).to(self._device)
+        episode_batch = torch.IntTensor(episode_batch).to(self._device)
         batch = (
             state_batch,
             action_batch,
@@ -284,6 +288,7 @@ class DualRewardSAC(Agent):
             marker_batch,
             next_marker_batch,
             morpho_batch,
+            episode_batch,
         )
 
         rl_rewards, rl_norm_rewards = self._rl_rewarder.compute_rewards(batch, demos)
