@@ -83,4 +83,4 @@ logger:
   group_name: 'humanoid'
   experiment_name: 'pretrain-humanoid'
   run_id: ''
-  loggers: console,wandb
+  loggers: console
