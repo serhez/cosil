@@ -410,11 +410,11 @@ class RL(object):
         self.logger.info(f"Saving model to {model_path}")
 
         data = {}
-        if self.config.save_buffers:
+        if self.config.method.save_buffers:
             data["replay_buffer"] = self.replay_buffer.to_list()
-        if self.config.save_agents:
+        if self.config.method.save_agents:
             data["agent"] = self.agent.get_model_dict()
-        if self.config.save_morphos:
+        if self.config.method.save_morphos:
             data["morphos"] = self.morphos
 
         torch.save(data, model_path)

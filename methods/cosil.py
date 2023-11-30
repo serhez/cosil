@@ -1284,16 +1284,16 @@ class CoSIL(object):
         self.logger.info(f"Saving model to {model_path}")
 
         data = {}
-        if self.config.save_buffers:
+        if self.config.method.save_buffers:
             data["replay_buffer"] = self.replay_buffer.to_list()
-        if self.config.save_agents:
+        if self.config.method.save_agents:
             data["ind_agent"] = self.ind_agent.get_model_dict()
             data["pop_agent"] = self.pop_agent.get_model_dict()
-        if self.config.save_morphos:
+        if self.config.method.save_morphos:
             data["morphos"] = self.morphos
-        if self.config.save_demos:
+        if self.config.method.save_demos:
             data["demos"] = self.demos
-        if self.config.save_rewarders:
+        if self.config.method.save_rewarders:
             data["rl_rewarder"] = self.rl_rewarder.get_model_dict()
             data["il_rewarder"] = self.il_rewarder.get_model_dict()
 

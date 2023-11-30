@@ -8,12 +8,12 @@ defaults:
 
 seed: 123456
 device: cuda
-env_name: GaitTrackHumanoid-v0
+env_name: GaitTrack2segHalfCheetah-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: data/replay_buffers/individual/
 learn_disc_transitions: false
 morpho_in_state: true
-absorbing_state: true
+absorbing_state: false
 resume: null
 num_agents: 1
 
@@ -23,8 +23,8 @@ method:
   eval_per_episodes: 20
   eval_final: false
   batch_size: 256
-  num_episodes: 5000
-  episodes_per_morpho: 500
+  num_episodes: 1000
+  episodes_per_morpho: 100
   updates_per_step: 1
   start_steps: 0
   morpho_warmup: 0
@@ -41,14 +41,14 @@ method:
   save_morphos: true
   save_demos: false
   sparse_mask: null
-  rm_action_penalty: false
+  rm_action_penalty: true
 
   pos_type: norm
   vel_type: rel
-  expert_legs: [0, 1, 2, 3]
-  policy_legs: [0, 1, 2, 3]
-  expert_markers: [0, 1, 2]
-  policy_markers: [0, 1, 2]
+  expert_legs: [0, 1]
+  policy_legs: [0, 1]
+  expert_markers: [1, 2]
+  policy_markers: [1, 2]
   torso_type: null
   head_type: null
   head_wrt: null
@@ -58,7 +58,7 @@ method:
   co_adapt: true
   random_morphos: true
 
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1700239235.pt
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrack2segHalfCheetah-v0_demos_1700233403.pt
 
   agent:
     gamma: 0.99
@@ -80,7 +80,7 @@ method:
 
 logger:
   project_name: 'cosil-pretrain-generic'
-  group_name: 'humanoid'
-  experiment_name: 'pretrain-humanoid'
+  group_name: '2segHalfCheetah'
+  experiment_name: 'pretrain-2seghalfcheetah'
   run_id: ''
   loggers: console,wandb
