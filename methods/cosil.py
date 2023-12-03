@@ -240,7 +240,7 @@ class CoSIL(object):
         """
 
         data = torch.load(path)
-        obs_list = data["buffer"]
+        obs_list = data["replay_buffer"]
         self.logger.info(
             {
                 "Loading pre-filled replay buffer": None,
