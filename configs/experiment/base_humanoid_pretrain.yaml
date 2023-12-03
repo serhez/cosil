@@ -4,48 +4,53 @@ defaults:
   - /base_train
   - override /method: cosil  # variable
   - override /method/agent: dual_sac  # variable
-  - override /method/rewarder: airl  # variable
+  - override /method/rewarder: sail  # variable
 
 seed: 123456
 device: cuda
-env_name: GaitTrackHalfCheetah-v0
+env_name: GaitTrackHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
 learn_disc_transitions: false
 morpho_in_state: true  # could be tested
-absorbing_state: false  # could be tested
+absorbing_state: true  # could be tested
 resume: null
 num_agents: 1
-pretrain: true
 
 method:
+  replay_buffer_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-123456/pretrain-humanoid_1701306185.pt
+  pretrain_path: null
   eval: false
   eval_episodes: 10
   eval_per_episodes: 20
   batch_size: 256
-  num_episodes: 300
+  num_episodes: 500
+  episodes_per_morpho: 500
   updates_per_step: 1
-  start_steps: 10000
+  start_steps: 0
   replay_capacity: 2000000
-  replay_dim_ratio: 0.9999  # could be tested
+  replay_dim_ratio: 0.9999
   record_test: false
   save_checkpoints: false
   save_optimal: false
   save_final: true
+  save_buffers: true
+  save_agents: true
+  save_rewarders: true
+  save_morphos: true
+  save_demos: true
   sparse_mask: null
-  rm_action_penalty: true
+  rm_action_penalty: false
 
-  # CoIL
-  expert_demos: data/demos/demos_1687522046.pt
-  morpho_warmup: 50000
-  episodes_per_morpho: 50  # could be tested
-  disc_warmup: 20000
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1700239235.pt
+  morpho_warmup: 0
+  disc_warmup: 0
   pos_type: norm
   vel_type: rel
-  expert_legs: [0, 1]
-  policy_legs: [0, 1]
-  expert_markers: [1, 2, 3]
-  policy_markers: [1, 2, 3]
+  expert_legs: [0, 1, 2, 3]
+  policy_legs: [0, 1, 2, 3]
+  expert_markers: [0, 1, 2]
+  policy_markers: [0, 1, 2]
   train_distance_value: false
   co_adapt: true
   subject_id: 8
@@ -69,6 +74,12 @@ method:
     hidden_size: 256
     target_update_interval: 1
     bc_regularization: false
+    rl_norm_gamma: 1.0
+    rl_norm_beta: 0.0
+    il_norm_gamma: 1.0
+    il_norm_beta: 0.0
+    norm_low_clip: null
+    norm_high_clip: null
 
   rewarder:
     batch_size: 64
@@ -78,12 +89,11 @@ method:
     # disc_weight_decay: 1
 
   co_adaptation:
-    dist_optimizer: bo
-    bo_gp_mean: Zero
-    acq_weight: 2.0
+    morphos_path: null
+    dist_optimizer: pso
 
 logger:
-  project_name: "cosil-halfcheetah-pretraining"
+  project_name: "cosil-humanoid-pretraining"
   group_name: "GROUP"
   experiment_name: "EXPERIMENT"
   run_id: ""

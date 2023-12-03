@@ -1,0 +1,42 @@
+# @package _global_
+---
+defaults:
+  - base_humanoid_pretrain
+  - override /method: cosil
+  - override /method/agent: dual_sac
+  - override /method/rewarder: gail  # variable
+
+method:
+  omega_scheduler: constant
+  co_adaptation:
+    morphos_path: null
+    dist_optimizer: pso
+
+  #### Variables
+
+  # General
+  transfer: false
+  omega_init: 0.0
+  adapt_morpho_omega: 0.0
+  demos_strategy: replace
+
+  # Rewards normalization
+  rewarder:
+    log_scale_rewards: false
+    norm_type: z_score
+    norm_mode: mean
+    rl_norm_gamma: 10.0
+    rl_norm_beta: 1.0
+    il_norm_gamma: 10.0
+    il_norm_beta: 1.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+  # Agent normalization
+  agent:
+    norm_type: none
+
+logger:
+  group_name: "baseline"
+  experiment_name: "baseline-pso-zs"
+  loggers: console,wandb

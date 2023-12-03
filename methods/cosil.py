@@ -422,56 +422,6 @@ class CoSIL(object):
             },
         )
 
-    def pretrain(self):
-        """
-        Pre-trains the population and individual agents, the rewarders and the reward normalizers.
-
-        Returns
-        -------
-        A tuple containing the individual agent and the morphology parameters.
-        """
-
-        # Pretrain the imitation rewarder
-        self._pretrain_il_rewarder()
-
-        # Pretrain the reward normalizers
-        self.logger.info("Pre-training the reward normalizers")
-        all_batch = self.replay_buffer.all()
-        state_batch = torch.FloatTensor(all_batch[0]).to(self.device)
-        action_batch = torch.FloatTensor(all_batch[1]).to(self.device)
-        reward_batch = torch.FloatTensor(all_batch[2]).to(self.device).unsqueeze(1)
-        next_state_batch = torch.FloatTensor(all_batch[3]).to(self.device)
-        terminated_batch = torch.FloatTensor(all_batch[4]).to(self.device).unsqueeze(1)
-        truncated_batch = torch.FloatTensor(all_batch[5]).to(self.device).unsqueeze(1)
-        marker_batch = torch.FloatTensor(all_batch[6]).to(self.device)
-        next_marker_batch = torch.FloatTensor(all_batch[7]).to(self.device)
-        morpho_batch = torch.FloatTensor(all_batch[8]).to(self.device)
-        episode_batch = torch.IntTensor(all_batch[9]).to(self.device)
-        all_batch = (
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
-            terminated_batch,
-            truncated_batch,
-            marker_batch,
-            next_marker_batch,
-            morpho_batch,
-            episode_batch,
-        )
-        self.il_rewarder.update_normalizer_stats(all_batch, self.demos)
-        self.rl_rewarder.update_normalizer_stats(all_batch, self.demos)
-
-        # Pretrain the population and individual agents
-        self._train_pop_agent(
-            1, 1000, self.config.method.num_episodes, train_rewarder=True
-        )
-
-        if self.config.method.save_final:
-            self._save("final")
-
-        return self.ind_agent, self.env.morpho_params
-
     def train(self):
         self.adapt_morphos = []
         self.pos_train_distances = []  # TODO: delete (still used by BO)

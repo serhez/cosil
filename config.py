@@ -423,12 +423,6 @@ class MethodConfig:
     updates_per_step: int = 1
     """Number of updates per environment step."""
 
-    pretrain: bool = False
-    """
-    Whether to pre-train using a pre-filled replay buffer.
-    If no replay buffer is provided, no pre-training will be performed.
-    """
-
     pretrain_updates: int = 50000
     """Number of updates per environment step."""
 
@@ -764,9 +758,6 @@ class TrainConfig(Config):
 
     num_agents: int = 1
     """Number of agents to train."""
-
-    pretrain: bool = False
-    """Whether to pretrain the agent."""
 
 
 @dataclass(kw_only=True)
