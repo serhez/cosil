@@ -16,7 +16,6 @@ morpho_in_state: true  # could be tested
 absorbing_state: false  # could be tested
 resume: null
 num_agents: 1
-pretrain: true
 
 method:
   eval: false
