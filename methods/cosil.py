@@ -428,6 +428,7 @@ class CoSIL(object):
         self.optimized_or_not = [False]
 
         did_adapt_mbc = False
+        optimized_morpho_params = None
 
         if self.config.method.pretrain_path is not None:
             self._load(self.config.method.pretrain_path)
@@ -698,7 +699,6 @@ class CoSIL(object):
 
             # Morphology evolution
             new_morpho_episode = morpho_episode + 1
-            optimized_morpho_params = None
             if self.config.method.co_adapt and (
                 episode % self.config.method.episodes_per_morpho == 0
             ):
@@ -786,7 +786,7 @@ class CoSIL(object):
             self._save("final")
 
         if self.config.method.eval_final:
-            self._evaluate(episode, log_dict, final=True)
+            self._evaluate(episode, optimized_morpho_params, log_dict, final=True)
 
         # TODO: TMP - remove
         # torch.save(self.morphos, "humanoid_experiment_morphos.pt")

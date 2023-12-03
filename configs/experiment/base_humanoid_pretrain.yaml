@@ -21,6 +21,7 @@ method:
   replay_buffer_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-123456/pretrain-humanoid_1701306185.pt
   pretrain_path: null
   eval: false
+  eval_final: false
   eval_episodes: 10
   eval_per_episodes: 20
   batch_size: 256
