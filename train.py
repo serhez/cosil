@@ -44,10 +44,7 @@ def main(config: DictConfig) -> None:
         logger.info(f"Training using method {config.method.name}")
         method = create_method(config, logger, env)
         try:
-            if config.pretrain:
-                method.pretrain()
-            else:
-                method.train()
+            method.train()
         except Exception as e:
             logger.error({"Exception occurred during training": e})
             raise e
