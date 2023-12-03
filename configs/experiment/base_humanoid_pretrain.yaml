@@ -98,4 +98,4 @@ logger:
   group_name: "GROUP"
   experiment_name: "EXPERIMENT"
   run_id: ""
-  loggers: console,file
+  loggers: console
