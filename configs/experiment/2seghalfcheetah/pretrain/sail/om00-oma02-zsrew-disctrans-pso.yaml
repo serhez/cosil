@@ -1,7 +1,7 @@
 # @package _global_
 ---
 defaults:
-  - base_humanoid_pretrain
+  - base_2seghalfcheetah_pretrain
   - override /method: cosil
   - override /method/agent: dual_sac
   - override /method/rewarder: sail  # variable
@@ -21,7 +21,7 @@ method:
   omega_scheduler: constant
   omega_init: 0.0
   pop_omega_init: 0.0
-  adapt_morpho_omega: 0.5
+  adapt_morpho_omega: 0.2
   demos_strategy: replace
 
   # Rewards normalization
@@ -42,5 +42,5 @@ method:
 
 logger:
   group_name: "sail-pso"
-  experiment_name: "om00-oma05-zsrew-disctrans-pso"
+  experiment_name: "om00-oma02-zsrew-disctrans-pso"
   loggers: console,wandb
