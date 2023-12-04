@@ -42,10 +42,6 @@ class CoSIL(object):
         # Bounds for morphology optimization
         highs = torch.tensor(self.env.max_task, device=self.device)
         lows = torch.tensor(self.env.min_task, device=self.device)
-        print("highs:")
-        print(highs)
-        print("lows:")
-        print(lows)
         self.bounds = torch.stack([lows, highs], dim=1)
 
         # The distribution used for morphology exploration
@@ -70,8 +66,6 @@ class CoSIL(object):
             morpho_params = self.loaded_morphos.pop(0)
         else:
             morpho_params = self.morpho_dist.sample().cpu().numpy()
-            print("morpho_params=")
-            print(morpho_params)
         self.env.set_task(*morpho_params)
         self.env.reset()
         self.morphos.append(morpho_params)
