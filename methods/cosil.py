@@ -62,15 +62,14 @@ class CoSIL(object):
                     "Number of morphologies": len(self.loaded_morphos),
                 }
             )
-        if config.method.co_adapt:
-            if self.loaded_morphos:
-                morpho_params = self.loaded_morphos.pop(0)
-            else:
-                morpho_params = self.morpho_dist.sample().cpu().numpy()
-            self.env.set_task(*morpho_params)
-            self.env.reset()
-            self.morphos.append(morpho_params)
-            self.optimized_morpho = False
+        if self.loaded_morphos:
+            morpho_params = self.loaded_morphos.pop(0)
+        else:
+            morpho_params = self.morpho_dist.sample().cpu().numpy()
+        self.env.set_task(*morpho_params)
+        self.env.reset()
+        self.morphos.append(morpho_params)
+        self.optimized_morpho = False
 
         self.morpho_params_np = np.array(self.env.morpho_params)
         self.logger.info(f"Initial morphology is {self.morpho_params_np}")
