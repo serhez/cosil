@@ -71,9 +71,9 @@ class CoSIL(object):
         self.morphos.append(morpho_params)
         self.optimized_morpho = False
 
-        self.morpho_params_np = np.array(self.env.morpho_params)
+        self.morpho_params_np = morpho_params
         self.logger.info(f"Initial morphology is {self.morpho_params_np}")
-        self.num_morpho = self.env.morpho_params.shape[0]
+        self.num_morpho = morpho_params.shape[0]
 
         self.demos = []
         self.demos_n_ep = config.method.demos_n_ep
@@ -443,7 +443,7 @@ class CoSIL(object):
             cma_options["popsize"] = 5
             cma_options["bounds"] = [0, 1]
             es = cma.CMAEvolutionStrategy(
-                [0.5] * len(self.env.morpho_params), 0.5, inopts=cma_options
+                [0.5] * len(self.morpho_params_np), 0.5, inopts=cma_options
             )
             es_buffer = deque()
         else:
@@ -481,7 +481,7 @@ class CoSIL(object):
 
             if self.config.morpho_in_state:
                 # Morphology parameters xi are included in the state
-                feats = np.concatenate([state, self.env.morpho_params])
+                feats = np.concatenate([state, self.morpho_params_np])
             else:
                 feats = state
 
@@ -507,7 +507,7 @@ class CoSIL(object):
                 # Sample action from policy
                 else:
                     if self.config.morpho_in_state:
-                        feats = np.concatenate([state, self.env.morpho_params])
+                        feats = np.concatenate([state, self.morpho_params_np])
                     else:
                         feats = state
 
@@ -639,8 +639,8 @@ class CoSIL(object):
                     mask = 1.0
 
                 if self.config.morpho_in_state:
-                    feats = np.concatenate([state, self.env.morpho_params])
-                    next_feats = np.concatenate([next_state, self.env.morpho_params])
+                    feats = np.concatenate([state, self.morpho_params_np])
+                    next_feats = np.concatenate([next_state, self.morpho_params_np])
                 else:
                     feats = state
                     next_feats = next_state
@@ -658,7 +658,7 @@ class CoSIL(object):
                     )
                     for current_obs in obs_list:
                         self.current_buffer.push(
-                            current_obs + (self.env.morpho_params, episode)
+                            current_obs + (self.morpho_params_np, episode)
                         )
                 else:
                     current_obs = (
@@ -670,7 +670,7 @@ class CoSIL(object):
                         mask,
                         marker_obs,
                         next_marker_obs,
-                        self.env.morpho_params,
+                        self.morpho_params_np,
                         episode,
                     )
                     self.current_buffer.push(current_obs)
@@ -680,7 +680,7 @@ class CoSIL(object):
 
                 epsilon -= 1.0 / 1e6
 
-            self.adapt_morphos.append(self.env.morpho_params.flatten())
+            self.adapt_morphos.append(self.morpho_params_np.flatten())
 
             # Logging
             dict_div(log_dict, logged)
@@ -790,7 +790,7 @@ class CoSIL(object):
         # TODO: TMP - remove
         # torch.save(self.morphos, "humanoid_experiment_morphos.pt")
 
-        return self.ind_agent, self.env.morpho_params
+        return self.ind_agent, self.morpho_params_np
 
     def _pretrain_sail(
         self, sail: SAIL, co_adapt=True, steps=50000, save=False, load=False
@@ -832,7 +832,7 @@ class CoSIL(object):
 
             state, _ = self.env.reset()
             if self.config.morpho_in_state:
-                state = np.concatenate([state, self.env.morpho_params])
+                state = np.concatenate([state, self.morpho_params_np])
 
             marker_obs, _ = marker_info_fn(self.env.get_track_dict())
             done = False
@@ -844,7 +844,7 @@ class CoSIL(object):
                 next_marker_obs, _ = marker_info_fn(info)
 
                 if self.config.morpho_in_state:
-                    next_state = np.concatenate([next_state, self.env.morpho_params])
+                    next_state = np.concatenate([next_state, self.morpho_params_np])
 
                 mask = 1.0
 
@@ -860,7 +860,7 @@ class CoSIL(object):
                         self.obs_size,
                     )
                     for obs in obs_list:
-                        memory.push(obs + (self.env.morpho_params, episode))
+                        memory.push(obs + (self.morpho_params_np, episode))
                 else:
                     memory.push(
                         (
@@ -872,7 +872,7 @@ class CoSIL(object):
                             mask,
                             marker_obs,
                             next_marker_obs,
-                            self.env.morpho_params,
+                            self.morpho_params_np,
                             episode,
                         )
                     )
@@ -1093,7 +1093,7 @@ class CoSIL(object):
         self.env.reset()
         self.morphos.append(self.morpho_params_np)
 
-        self.logger.info({"Current morphology": self.env.morpho_params})
+        self.logger.info({"Current morphology": self.morpho_params_np})
 
         return optimized_morpho_params
 
@@ -1144,7 +1144,7 @@ class CoSIL(object):
 
             while not done:
                 if self.config.morpho_in_state:
-                    feats = np.concatenate([state, self.env.morpho_params])
+                    feats = np.concatenate([state, self.morpho_params_np])
                 else:
                     feats = state
 
