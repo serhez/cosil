@@ -1057,6 +1057,10 @@ class CoSIL(object):
                 return cost
 
             options = {"c1": 0.5, "c2": 0.3, "w": 0.9}
+            # TODO: remove - testing
+            print("morpho_size=", morpho_size)
+            print("bounds:")
+            print(self.bounds)
             optimizer = ps.single.GlobalBestPSO(
                 n_particles=700,
                 dimensions=morpho_size,
