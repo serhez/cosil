@@ -88,6 +88,9 @@ class CoSIL(object):
         self.policy_legs = config.method.policy_legs
         self.policy_limb_indices = config.method.policy_markers
 
+        img = self.env.render(mode="rgb_array")
+        print(img)
+
         # Load CMU or mujoco-generated demos
         if config.method.expert_demos is not None:
             expert_demos, self.to_match, self.mean_demos_reward = load_demos(config)
