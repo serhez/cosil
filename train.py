@@ -25,7 +25,8 @@ def main(config: DictConfig) -> None:
 
         # Set up environment
         register_env(config.env_name)
-        env = gym.make(config.env_name, render_mode="rgb_array")
+        env = gym.make(config.env_name)
+        env.mode = "rbg_array"
 
         # Seeding
         env.seed(config.seed)
