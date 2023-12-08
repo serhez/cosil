@@ -10,6 +10,7 @@ defaults:
 learn_disc_transitions: true
 
 method:
+  pretrain_path: /scratch/work/hernans2/cosil/final/sail-pso/GaitTrack2segHalfCheetah-v0/seed-123456/om00-oma02-zsrew-disctrans-pso_1701636945.pt
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso

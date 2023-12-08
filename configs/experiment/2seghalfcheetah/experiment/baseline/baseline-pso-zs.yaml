@@ -7,6 +7,7 @@ defaults:
   - override /method/rewarder: gail  # variable
 
 method:
+  pretrain_path: /scratch/work/hernans2/cosil/final/baseline/GaitTrack2segHalfCheetah-v0/seed-123456/baseline-pso-zs_1701695073.pt
   omega_scheduler: constant
   co_adaptation:
     morphos_path: null

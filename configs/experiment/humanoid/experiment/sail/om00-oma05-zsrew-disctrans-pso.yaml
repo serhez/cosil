@@ -10,6 +10,7 @@ defaults:
 learn_disc_transitions: true
 
 method:
+  pretrain_path: MISSING
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
