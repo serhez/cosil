@@ -42,5 +42,5 @@ method:
     norm_type: none
 
 logger:
-  group_name: "sail-pso"
+  group_name: "om03-zsrew-disctrans-pso"
   experiment_name: "om03-zsrew-disctrans-pso"

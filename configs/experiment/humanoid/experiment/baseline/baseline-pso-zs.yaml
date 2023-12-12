@@ -38,5 +38,5 @@ method:
     norm_type: none
 
 logger:
-  group_name: "baseline"
+  group_name: "baseline-pso-zs"
   experiment_name: "baseline-pso-zs"
