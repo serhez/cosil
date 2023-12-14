@@ -9,4 +9,6 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=2seghalfcheetah/experiment/sail/om03-zsrew-disctrans-pso ++seed=5
+export MUJOCO_GL="egl"
+
+xvfb-run python train.py +experiment=2seghalfcheetah/experiment/sail/om03-zsrew-disctrans-pso ++seed=5

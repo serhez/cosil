@@ -7,4 +7,6 @@
 module restore cosil
 source activate cosil
 
-srun python gen_buffer.py ++seed=3
+export MUJOCO_GL="egl"
+
+xvfb-run python gen_buffer.py ++seed=3

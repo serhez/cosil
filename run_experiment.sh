@@ -7,4 +7,6 @@
 module restore cosil
 source activate cosil
 
-srun python train.py +experiment=11-05-2023/methods/cosil-no-transfer-bo
+export MUJOCO_GL="egl"
+
+xvfb-run python train.py +experiment=11-05-2023/methods/cosil-no-transfer-bo
