@@ -1113,7 +1113,9 @@ class CoSIL(object):
         recorder = None
         vid_path = None
         if self.config.method.record_test:
-            dir_path = self.config.method.record_path
+            dir_path = os.path.join(
+                self.storage_path, self.config.method.record_path
+            )
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
 
@@ -1185,6 +1187,9 @@ class CoSIL(object):
         avg_reward /= episodes
         avg_steps /= episodes
 
+        if recorder is not None:
+            recorder.close()
+
         took = time.time() - start
         log_dict["test/avg_reward"] = avg_reward
         log_dict["test/avg_steps"] = avg_steps
@@ -1203,9 +1208,6 @@ class CoSIL(object):
 
         if self.config.method.save_checkpoints:
             self._save("checkpoint")
-
-        if recorder is not None:
-            recorder.close()
 
     def _save(self, type="final"):
         if type == "final":
