@@ -23,7 +23,7 @@ method:
   eval_per_episodes: 20
   eval_final: true
   batch_size: 256
-  num_episodes: 10000
+  num_episodes: 6000
   updates_per_step: 1
   start_steps: 0
   replay_capacity: 350000
