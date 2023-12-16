@@ -43,9 +43,9 @@ class RL(object):
         self.env.set_task(*morpho_params)
         self.env.reset()
 
-        self.morpho_params_np = np.array(self.env.morpho_params)
+        self.morpho_params_np = np.array(morpho_params)
         self.logger.info(f"Initial morphology is {self.morpho_params_np}")
-        self.num_morpho = self.env.morpho_params.shape[0]
+        self.num_morpho = self.morpho_params_np.shape[0]
         self.obs_size = self.env.observation_space.shape[0]
         if self.absorbing_state:
             self.obs_size += 1
@@ -123,7 +123,7 @@ class RL(object):
 
             if self.config.morpho_in_state:
                 # Morphology parameters xi are included in the state
-                feats = np.concatenate([state, self.env.morpho_params])
+                feats = np.concatenate([state, self.morpho_params_np])
             else:
                 feats = state
 
@@ -140,7 +140,7 @@ class RL(object):
                 # Sample action from policy
                 else:
                     if self.config.morpho_in_state:
-                        feats = np.concatenate([state, self.env.morpho_params])
+                        feats = np.concatenate([state, self.morpho_params_np])
                     else:
                         feats = state
 
@@ -202,8 +202,8 @@ class RL(object):
                     mask = 1.0
 
                 if self.config.morpho_in_state:
-                    feats = np.concatenate([state, self.env.morpho_params])
-                    next_feats = np.concatenate([next_state, self.env.morpho_params])
+                    feats = np.concatenate([state, self.morpho_params_np])
+                    next_feats = np.concatenate([next_state, self.morpho_params_np])
                 else:
                     feats = state
                     next_feats = next_state
@@ -221,7 +221,7 @@ class RL(object):
                     )
                     for current_obs in obs_list:
                         self.replay_buffer.push(
-                            current_obs + (self.env.morpho_params, episode)
+                            current_obs + (self.morpho_params_np, episode)
                         )
                 else:
                     current_obs = (
@@ -233,7 +233,7 @@ class RL(object):
                         mask,
                         marker_obs,
                         next_marker_obs,
-                        self.env.morpho_params,
+                        self.morpho_params_np,
                         episode,
                     )
                     self.replay_buffer.push(current_obs)
@@ -296,7 +296,7 @@ class RL(object):
         if self.config.method.eval_final:
             self._evaluate(episode, log_dict, final=True)
 
-        return self.agent, self.env.morpho_params
+        return self.agent, self.morpho_params_np
 
     def _evaluate(self, i_episode: int, log_dict: dict[str, Any], final: bool = False):
         start = time.time()
@@ -334,7 +334,7 @@ class RL(object):
 
             while not done:
                 if self.config.morpho_in_state:
-                    feats = np.concatenate([state, self.env.morpho_params])
+                    feats = np.concatenate([state, self.morpho_params_np])
                 else:
                     feats = state
 
@@ -415,7 +415,7 @@ class RL(object):
         if self.config.method.save_agents:
             data["agent"] = self.agent.get_model_dict()
         if self.config.method.save_morphos:
-            data["morphos"] = self.morphos
+            data["morphos"] = [self.morpho_params_np]
 
         torch.save(data, model_path)
 
