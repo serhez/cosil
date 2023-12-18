@@ -8,7 +8,7 @@ defaults:
 
 seed: 123456
 device: cuda
-env_name: GaitTrackHumanoid-v0
+env_name: GaitTrackScaledHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: data/replay_buffers/individual/
 learn_disc_transitions: false
@@ -58,7 +58,7 @@ method:
   co_adapt: true
   random_morphos: true
 
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1700239235.pt
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackScaledHumanoid-v0_demos_1700239235.pt
 
   agent:
     gamma: 0.99

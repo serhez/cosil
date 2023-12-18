@@ -8,7 +8,7 @@ defaults:
 
 seed: 123456
 device: cuda
-env_name: GaitTrackHumanoid-v0
+env_name: GaitTrackScaledHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
 learn_disc_transitions: false
@@ -18,7 +18,7 @@ resume: null
 num_agents: 1
 
 method:
-  replay_buffer_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-123456/pretrain-humanoid_1701306185.pt
+  replay_buffer_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-123456/pretrain-humanoid_1701306185.pt
   pretrain_path: null
   eval: false
   eval_final: false
@@ -43,7 +43,7 @@ method:
   sparse_mask: null
   rm_action_penalty: false
 
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1700239235.pt
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackScaledHumanoid-v0_demos_1700239235.pt
   morpho_warmup: 0
   disc_warmup: 0
   pos_type: norm
