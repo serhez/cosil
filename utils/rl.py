@@ -218,7 +218,7 @@ def gen_obs_dict(
     logger.info(f"Generating {num_trajectories} trajectories", logger_mask)
 
     # Generate trajectories
-    for trajectory in range(1, num_trajectories + 1)):
+    for trajectory in range(1, num_trajectories + 1):
         state, _ = env.reset()
 
         feat = state
