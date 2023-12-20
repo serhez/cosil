@@ -53,7 +53,6 @@ def gen_model_obs(
     env.set_task(*morpho)
     env.reset()
     morpho = np.array(morpho)
-    agent.load(model[config.saved_agent_name], evaluate=True)
 
     rewarder = EnvReward(config.device)
     agent = SAC(
@@ -66,6 +65,7 @@ def gen_model_obs(
         None,
         ConstantScheduler(0.0),
     )
+    agent.load(model[config.saved_agent_name], evaluate=True)
 
     return gen_obs_dict(
         config.num_obs,
