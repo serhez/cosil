@@ -15,7 +15,6 @@ from common.schedulers import ConstantScheduler
 from config import setup_config
 from loggers import ConsoleLogger, FileLogger, Logger, MultiLogger, WandbLogger
 from rewarders import EnvReward
-from utils.model import load_model
 from utils.rl import gen_obs_dict
 
 
