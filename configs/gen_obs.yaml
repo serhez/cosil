@@ -5,15 +5,15 @@ defaults:
 
 num_obs: 10000
 env_name: GaitTrackScaledHumanoid-v0
+resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-111/demonstrator_1702930503.pt
 # env_name: GaitTrack2segHalfCheetah-v0
 # resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
-resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-111/demonstrator_1702930503.pt
 save_path: /scratch/work/hernans2/cosil/data/demos/
 saved_agent_name: agent
 saved_morpho_name: morphos
 learn_disc_transitions: false
 morpho_in_state: true
-absorbing_state: true
+absorbing_state: true # humanoid
 # absorbing_state: false
 
 method:
@@ -29,9 +29,10 @@ method:
   save_optimal: false
   save_final: false
   sparse_mask: null
-  rm_action_penalty: false
+  rm_action_penalty: false # humanoid
   # rm_action_penalty: true
 
+  # Humanoid
   pos_type: norm
   vel_type: rel
   expert_legs: [0, 1, 2, 3]
@@ -59,4 +60,4 @@ logger:
   group_name: 'humanoid'
   experiment_name: 'gen_demos'
   run_id: ''
-  loggers: console,wandb
+  loggers: console
