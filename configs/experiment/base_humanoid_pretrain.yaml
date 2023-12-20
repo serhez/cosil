@@ -43,7 +43,7 @@ method:
   sparse_mask: null
   rm_action_penalty: false
 
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackScaledHumanoid-v0_demos_1700239235.pt
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1703035428.pt
   morpho_warmup: 0
   disc_warmup: 0
   pos_type: norm

@@ -5,10 +5,10 @@ defaults:
 
 # num_trajectories: 10 # cheetah
 num_trajectories: 40 # humanoid
-env_name: GaitTrackHumanoid-v0
-resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-111/demonstrator_1702874491.pt
-# env_name: GaitTrackScaledHumanoid-v0
-# resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-111/demonstrator_1702930503.pt
+# env_name: GaitTrackHumanoid-v0
+# resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-111/demonstrator_1702874491.pt
+env_name: GaitTrackScaledHumanoid-v0
+resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-111/demonstrator_1702930503.pt
 # env_name: GaitTrack2segHalfCheetah-v0
 # resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
 save_path: /scratch/work/hernans2/cosil/data/demos/
