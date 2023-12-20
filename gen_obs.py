@@ -48,31 +48,30 @@ def gen_model_obs(
     if config.absorbing_state:
         obs_size += 1
 
+    logger.info("Loading model from {}".format(config.resume))
+    model = torch.load(config.resume)
+    morpho = model[config.saved_morpho_name][-1]
+    env.set_task(*morpho)
+    env.reset()
+    morpho = np.array(morpho)
+    agent.load(model[config.saved_agent_name], evaluate=True)
+
     rewarder = EnvReward(config.device)
     agent = SAC(
         config,
         logger,
         env.action_space,
-        obs_size + env.morpho_params.shape[0] if config.morpho_in_state else obs_size,
-        env.morpho_params.shape[0],
+        obs_size + morpho.shape[0] if config.morpho_in_state else obs_size,
+        morpho.shape[0],
         rewarder,
         None,
         ConstantScheduler(0.0),
     )
 
-    load_model(
-        config.resume,
-        env,
-        agent,
-        agent_name=config.saved_agent_name,
-        morpho_name=config.saved_morpho_name,
-        co_adapt=True,
-        evaluate=True,
-    )
-
     return gen_obs_dict(
         config.num_obs,
         env,
+        morpho,
         agent,
         config.morpho_in_state,
         config.absorbing_state,

@@ -785,7 +785,7 @@ class GenTrajectoriesConfig(Config):
     saved_agent_name: str = "agent"
     """Name of the agent to load in the saved dictionary model."""
 
-    saved_morpho_name: str = "morpho_dict"
+    saved_morpho_name: str = "morphos"
     """Name of the morpho to load in the saved dictionary model."""
 
     num_obs: int = 10000

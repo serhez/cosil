@@ -8,7 +8,7 @@ defaults:
 
 seed: 123456
 device: cuda
-env_name: GaitTrackScaledHumanoid-v0
+env_name: GaitTrackHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: data/replay_buffers/individual/
 learn_disc_transitions: false

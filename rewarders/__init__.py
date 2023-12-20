@@ -21,7 +21,9 @@ def create_rewarder(
     name: str,
     config: DictConfig,
     logger: Logger,
-    env: gym.Env,
+    obs_size: int,
+    num_morpho: int,
+    action_space: np.ndarray,
     demo_dim: np.ndarray,
     bounds: torch.Tensor,
     normalizer: Optional[Normalizer] = None,
@@ -35,7 +37,9 @@ def create_rewarder(
     `name` -> the name of the rewarder to create.
     `config` -> the configuration object.
     `logger` -> the logger.
-    `env` -> the environment.
+    `obs_size` -> the size of the observations.
+    `num_morpho` -> the dimensionality of morphologies.
+    `action_space` -> the action space of the environment.
     `demo_dim` -> the dimension of the demonstrator's observations.
     `bounds` -> the bounds of the morphology parameters.
     `normalizer` -> the normalizer to use for the rewarder.
@@ -52,6 +56,8 @@ def create_rewarder(
     elif name == "airl":
         return AIRL(demo_dim, config, normalizer)
     elif name == "sail":
-        return SAIL(logger, env, demo_dim, config, normalizer)
+        return SAIL(
+            logger, obs_size, num_morpho, action_space, demo_dim, config, normalizer
+        )
     else:
         raise ValueError("Unknown rewarder: {}".format(name))

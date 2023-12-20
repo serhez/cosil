@@ -16,26 +16,33 @@ from .rewarder import Rewarder
 
 class SAIL(Rewarder):
     def __init__(
-        self, logger, env, demo_dim, config, normalizer: Optional[Normalizer] = None
+        self,
+        logger,
+        obs_size,
+        num_morpho,
+        action_space,
+        demo_dim,
+        config,
+        normalizer: Optional[Normalizer] = None,
     ) -> None:
         super().__init__(normalizer)
 
         self.logger = logger
         self.device = torch.device(config.device)
-        self.num_inputs = env.observation_space.shape[0]
+        self.num_inputs = obs_size
         self.learn_disc_transitions = config.learn_disc_transitions
         self.vae_scaler = config.method.rewarder.vae_scaler
         self.absorbing_state = config.absorbing_state
 
-        num_morpho_obs = env.morpho_params.shape[0]
+        num_morpho_obs = num_morpho
         self.morpho_slice = slice(-num_morpho_obs, None)
         if self.absorbing_state:
             self.morpho_slice = slice(-num_morpho_obs - 1, -1)
 
         self.g_inv = InverseDynamics(
             demo_dim * 2 + num_morpho_obs,
-            env.action_space.shape[0],
-            action_space=env.action_space,
+            action_space.shape[0],
+            action_space=action_space,
         ).to(self.device)
         self.g_inv_optim = Adam(
             self.g_inv.parameters(),

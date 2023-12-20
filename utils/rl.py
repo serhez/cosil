@@ -86,6 +86,7 @@ def _add_obs(obs_dict, info, done, trajectory):
 def gen_obs_list(
     num_obs: int,
     env: gym.Env,
+    morpho: np.ndarray,
     agent,
     morpho_in_state: bool,
     absorbing_state: bool,
@@ -99,6 +100,7 @@ def gen_obs_list(
     ----------
     num_obs -> the number of observations to generate.
     env -> the environment.
+    morpho -> the morphological parameters.
     agent -> the agent.
     morpho_in_state -> whether to add the morphology parameters to the state.
     absorbing_state -> whether to add an absorbing state to the observations.
@@ -128,7 +130,7 @@ def gen_obs_list(
         while not done and len(obs_list) < num_obs:
             feats = state
             if morpho_in_state:
-                feats = np.concatenate([feats, env.morpho_params])
+                feats = np.concatenate([feats, morpho])
             if absorbing_state:
                 feats = np.concatenate([feats, np.zeros(1)])
 
@@ -136,7 +138,7 @@ def gen_obs_list(
             next_state, reward, terminated, truncated, _ = env.step(action)
             next_feats = next_state
             if morpho_in_state:
-                next_feats = np.concatenate([next_feats, env.morpho_params])
+                next_feats = np.concatenate([next_feats, morpho])
             if absorbing_state:
                 next_feats = np.concatenate([next_feats, np.zeros(1)])
 
@@ -150,7 +152,7 @@ def gen_obs_list(
                     truncated,
                     None,
                     None,
-                    env.morpho_params,
+                    morpho,
                     traj,
                 )
             )
@@ -177,6 +179,7 @@ def gen_obs_list(
 def gen_obs_dict(
     num_obs: int,
     env: gym.Env,
+    morpho: np.ndarray,
     agent,
     morpho_in_state: bool,
     absorbing_state: bool,
@@ -195,6 +198,7 @@ def gen_obs_dict(
     ----------
     num_obs -> the number of observations to generate.
     env -> the environment.
+    morpho -> the morphological parameters.
     agent -> the agent.
     morpho_in_state -> whether to add the morphological parameters to the state.
     absorbing_state -> whether to add an absorbing state to the observations.
@@ -223,7 +227,7 @@ def gen_obs_dict(
 
         feat = state
         if morpho_in_state:
-            feat = np.concatenate([feat, env.morpho_params])
+            feat = np.concatenate([feat, morpho])
         if absorbing_state:
             feat = np.concatenate([feat, np.zeros(1)])
 
@@ -237,7 +241,7 @@ def gen_obs_dict(
 
             next_feat = next_state
             if morpho_in_state:
-                next_feat = np.concatenate([next_state, env.morpho_params])
+                next_feat = np.concatenate([next_state, morpho])
             if absorbing_state:
                 next_feat = np.concatenate([next_feat, np.zeros(1)])
 
