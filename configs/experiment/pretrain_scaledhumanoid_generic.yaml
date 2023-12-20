@@ -58,7 +58,7 @@ method:
   co_adapt: true
   random_morphos: true
 
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackScaledHumanoid-v0_demos_1700239235.pt
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackScaledHumanoid-v0_demos_1703035676.pt
 
   agent:
     gamma: 0.99
