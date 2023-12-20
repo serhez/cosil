@@ -68,7 +68,7 @@ def gen_model_obs(
     agent.load(model[config.saved_agent_name], evaluate=True)
 
     return gen_obs_dict(
-        config.num_obs,
+        config.num_trajectories,
         env,
         morpho,
         agent,

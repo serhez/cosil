@@ -3,7 +3,8 @@ defaults:
   - base_gen_obs
   - _self_
 
-num_obs: 10000
+# num_trajectories: 10 # cheetah
+num_trajectories: 30 # humanoid
 env_name: GaitTrackHumanoid-v0
 resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-111/demonstrator_1702874491.pt
 # env_name: GaitTrackScaledHumanoid-v0

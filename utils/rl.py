@@ -177,7 +177,7 @@ def gen_obs_list(
 
 
 def gen_obs_dict(
-    num_obs: int,
+    num_trajectories: int,
     env: gym.Env,
     morpho: np.ndarray,
     agent,
@@ -196,7 +196,7 @@ def gen_obs_dict(
 
     Parameters
     ----------
-    num_obs -> the number of observations to generate.
+    num_trajectories -> the number of trajectories to generate.
     env -> the environment.
     morpho -> the morphological parameters.
     agent -> the agent.
@@ -215,14 +215,10 @@ def gen_obs_dict(
         "episodes": np.array([]),
     }
 
-    logger.info(f"Generating {num_obs} observations", logger_mask)
+    logger.info(f"Generating {num_trajectories} trajectories", logger_mask)
 
     # Generate trajectories
-    for trajectory in itertools.count(1):
-        total_num_obs = obs_dict["dones"].shape[0]
-        if total_num_obs >= num_obs:
-            break
-
+    for trajectory in range(1, num_trajectories + 1)):
         state, _ = env.reset()
 
         feat = state
@@ -235,7 +231,7 @@ def gen_obs_dict(
         traj_num_obs = 0
         done = False
 
-        while not done and total_num_obs + traj_num_obs < num_obs:
+        while not done:
             action = agent.select_action(feat, evaluate=True)
             next_state, reward, terminated, truncated, info = env.step(action)
 

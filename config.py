@@ -788,7 +788,7 @@ class GenTrajectoriesConfig(Config):
     saved_morpho_name: str = "morphos"
     """Name of the morpho to load in the saved dictionary model."""
 
-    num_obs: int = 10000
+    num_trajectories: int = 10
     """Number of trajectories to generate."""
 
 
