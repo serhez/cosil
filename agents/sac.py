@@ -480,8 +480,7 @@ class SAC(Agent):
         self._policy_optim.load_state_dict(model["policy_optimizer_state_dict"])
 
         if self._rl_norm is not None:
-            # FIX: There was a bug making this a tuple; remove once we stop using old bugged models
-            self._rl_norm.load(model["rl_norm_state_dict"][0])
+            self._rl_norm.load(model["rl_norm_state_dict"])
 
         if (
             self._automatic_entropy_tuning is True
