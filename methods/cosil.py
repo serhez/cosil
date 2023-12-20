@@ -19,8 +19,7 @@ from loggers import Logger
 from normalizers import create_normalizer
 from rewarders import MBC, SAIL, create_rewarder
 from utils import dict_add, dict_div
-from utils.co_adaptation import (bo_step, get_marker_info, handle_absorbing,
-                                 rs_step)
+from utils.co_adaptation import bo_step, get_marker_info, handle_absorbing, rs_step
 from utils.imitation import get_bc_demos_for, load_demos
 from utils.rl import get_markers_by_ep
 
@@ -112,11 +111,13 @@ class CoSIL(object):
             config.method.replay_capacity,
             config.method.replay_dim_ratio,
             config.seed,
+            logger=logger,
         )
         self.current_buffer = ObservationBuffer(
             config.method.replay_capacity,
             config.method.replay_dim_ratio,
             config.seed,
+            logger=logger,
         )
         if config.method.replay_buffer_path is not None:
             self._load_replay_buffer(config.method.replay_buffer_path)
@@ -824,7 +825,9 @@ class CoSIL(object):
             head_wrt=self.config.method.head_wrt,
         )
 
-        memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
+        memory = ObservationBuffer(
+            steps + 1000, seed=self.config.seed, logger=self.logger
+        )
         start_t = time.time()
         episode = 1
         step = 0
@@ -1117,9 +1120,7 @@ class CoSIL(object):
         recorder = None
         vid_path = None
         if self.config.method.record_test:
-            dir_path = os.path.join(
-                self.storage_path, self.config.method.record_path
-            )
+            dir_path = os.path.join(self.storage_path, self.config.method.record_path)
             if not os.path.exists(dir_path):
                 os.makedirs(dir_path)
 

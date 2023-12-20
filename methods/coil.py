@@ -70,6 +70,7 @@ class CoIL(object):
             self.config.method.replay_capacity,
             self.config.method.replay_dim_ratio,
             self.config.seed,
+            logger=logger,
         )
         self.initial_states_memory = []
 
@@ -545,7 +546,9 @@ class CoIL(object):
             head_wrt=self.config.method.head_wrt,
         )
 
-        memory = ObservationBuffer(steps + 1000, seed=self.config.seed)
+        memory = ObservationBuffer(
+            steps + 1000, seed=self.config.seed, logger=self.logger
+        )
         start_t = time.time()
         episode = 1
         step = 0

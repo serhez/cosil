@@ -17,7 +17,11 @@ class ObservationBuffer:
     """
 
     def __init__(
-        self, capacity: int, diminishing_ratio: float = 1.0, seed: Optional[int] = None
+        self,
+        capacity: int,
+        diminishing_ratio: float = 1.0,
+        seed: Optional[int] = None,
+        logger=None,
     ):
         """
         Initializes a replay buffer.
@@ -32,6 +36,7 @@ class ObservationBuffer:
         - Observations are assigned weights in the order they are pushed into the buffer
         - If a list of observations is pushed into the buffer by the same `push()` operation, all such observations are assigned the same weight, regardless of their position in the list.
         `seed` -> the seed for the random number generator used to sample observations from the buffer.
+        `logger` -> the logger to use. If None, prints to stdout.
         """
 
         assert (
@@ -49,6 +54,7 @@ class ObservationBuffer:
         self._position = 0
         self._age = np.array([], dtype=np.int64)
         self._diminishing_ratio = diminishing_ratio
+        self._logger = logger
 
     def __len__(self) -> int:
         return len(self._buffer)
@@ -145,18 +151,17 @@ class ObservationBuffer:
         Parameters
         ----------
         observations -> the observation/s to push into the buffer.
-
-        Raises
-        ----------
-        AssertionError -> if the number of observations to push into the buffer is greater than the buffer's capacity.
         """
 
         if isinstance(observations, list):
             if len(observations) == 0:
                 return
-            assert (
-                len(observations) <= self._capacity
-            ), "The number of observations to push into the buffer must be less than or equal to the buffer's capacity."
+            if len(observations) <= self._capacity:
+                msg = "The number of observations to push into the buffer must be less than or equal to the buffer's capacity."
+                if self._logger is not None:
+                    self._logger.warning(msg)
+                else:
+                    print(msg)
 
         # Update the age of old observations
         self._age += 1

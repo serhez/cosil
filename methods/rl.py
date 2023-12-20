@@ -60,6 +60,7 @@ class RL(object):
             config.method.replay_capacity,
             config.method.replay_dim_ratio,
             config.seed,
+            logger=logger,
         )
 
         # Create the RL rewarder

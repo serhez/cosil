@@ -223,6 +223,7 @@ def main(config: DictConfig) -> None:
         config.method.replay_capacity,
         config.method.replay_dim_ratio,
         config.seed,
+        logger=logger,
     )
     obs_list = torch.load(config.method.replay_buffer_path)["buffer"]
     logger.info(
