@@ -1,0 +1,100 @@
+# @package _global_
+---
+defaults:
+  - /base_train
+  - override /method: cosil  # variable
+  - override /method/agent: dual_sac  # variable
+  - override /method/rewarder: sail  # variable
+
+seed: 123456
+device: cuda
+env_name: GaitTrackScaledHumanoid-v0
+storage_path: /scratch/work/hernans2/cosil
+models_dir_path: models
+learn_disc_transitions: false
+morpho_in_state: true  # could be tested
+absorbing_state: true  # could be tested
+resume: null
+num_agents: 1
+
+method:
+  replay_buffer_path: null
+  eval: false
+  eval_final: true
+  eval_episodes: 10
+  eval_per_episodes: 20
+  batch_size: 256
+  num_episodes: 15000
+  episodes_per_morpho: 1000
+  updates_per_step: 1
+  start_steps: 0
+  replay_capacity: 2000000
+  replay_dim_ratio: 0.9999
+  record_test: true
+  save_checkpoints: false
+  save_optimal: false
+  save_final: true
+  save_buffers: false
+  save_agents: true
+  save_rewarders: true
+  save_morphos: true
+  save_demos: false
+  sparse_mask: null
+  rm_action_penalty: false
+
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackScaledHumanoid-v0_demos_1700239235.pt
+  morpho_warmup: 0
+  disc_warmup: 0
+  pos_type: norm
+  vel_type: rel
+  expert_legs: [0, 1, 2, 3]
+  policy_legs: [0, 1, 2, 3]
+  expert_markers: [0, 1, 2]
+  policy_markers: [0, 1, 2]
+  train_distance_value: false
+  co_adapt: true
+  subject_id: 8
+  torso_type: null
+  head_type: null
+  head_wrt: null
+  omit_done: false
+  fixed_morpho: null
+
+  agent:
+    gamma: 0.99
+    tau: 0.005
+    lr: 0.0003
+    q_weight_decay: 1e-5
+
+    # SAC
+    policy_type: gaussian
+    target_entropy: auto
+    alpha: 0.05
+    automatic_entropy_tuning: false
+    hidden_size: 256
+    target_update_interval: 1
+    bc_regularization: false
+    rl_norm_gamma: 1.0
+    rl_norm_beta: 0.0
+    il_norm_gamma: 1.0
+    il_norm_beta: 0.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+  rewarder:
+    batch_size: 64
+
+    # GAIL
+    # log_scale_rewards: false
+    # disc_weight_decay: 1
+
+  co_adaptation:
+    morphos_path: null
+    dist_optimizer: pso
+
+logger:
+  project_name: "cosil-humanoid-experiments"
+  group_name: "GROUP"
+  experiment_name: "EXPERIMENT"
+  run_id: ""
+  loggers: console,wandb

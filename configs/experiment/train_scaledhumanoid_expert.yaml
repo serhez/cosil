@@ -1,0 +1,74 @@
+# @package _global_
+---
+defaults:
+  - /base_train
+  - override /method: rl
+  - override /method/agent: sac
+  - override /method/rewarder: env
+
+seed: 123456
+device: cuda
+env_name: GaitTrackScaledHumanoid-v0
+storage_path: /scratch/work/hernans2/cosil
+models_dir_path: models
+learn_disc_transitions: false
+morpho_in_state: true
+absorbing_state: true
+resume: null
+num_agents: 1
+
+method:
+  eval: false
+  eval_episodes: 10
+  eval_per_episodes: 20
+  eval_final: true
+  batch_size: 256
+  num_episodes: 7000
+  updates_per_step: 1
+  start_steps: 0
+  replay_capacity: 350000
+  replay_dim_ratio: 0.9999
+  record_test: false
+  record_path: /scratch/work/hernans2/cosil/videos
+  save_checkpoints: false
+  save_optimal: false
+  save_final: true
+  sparse_mask: null
+  rm_action_penalty: false
+
+  pos_type: norm
+  vel_type: rel
+  expert_legs: [0, 1, 2, 3]
+  policy_legs: [0, 1, 2, 3]
+  expert_markers: [0, 1, 2]
+  policy_markers: [0, 1, 2]
+  torso_type: null
+  head_type: null
+  head_wrt: null
+
+  omit_done: false
+
+  agent:
+    gamma: 0.99
+    tau: 0.005
+    lr: 0.0003
+    q_weight_decay: 1e-5
+
+    # SAC
+    policy_type: gaussian
+    target_entropy: auto
+    alpha: 0.05
+    automatic_entropy_tuning: false
+    hidden_size: 256
+    target_update_interval: 1
+    bc_regularization: false
+
+  rewarder:
+    batch_size: 64
+
+logger:
+  project_name: "cosil-demonstrator"
+  group_name: "humanoid"
+  experiment_name: "demonstrator"
+  run_id: ""
+  loggers: console,wandb

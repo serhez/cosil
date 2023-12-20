@@ -1,0 +1,46 @@
+# @package _global_
+---
+defaults:
+  - base_scaledhumanoid_experiment
+  - override /method: cosil
+  - override /method/agent: dual_sac
+  - override /method/rewarder: sail  # variable
+
+#### Variables
+learn_disc_transitions: true
+
+method:
+  pretrain_path: MISSING
+  co_adaptation:
+    morphos_path: null
+    dist_optimizer: pso
+
+  #### Variables
+
+  # General
+  transfer: true
+  omega_scheduler: constant
+  omega_init: 0.0
+  pop_omega_init: 0.0
+  adapt_morpho_omega: 0.2
+  demos_strategy: replace
+
+  # Rewards normalization
+  rewarder:
+    log_scale_rewards: false
+    norm_type: z_score
+    norm_mode: mean
+    rl_norm_gamma: 10.0
+    rl_norm_beta: 1.0
+    il_norm_gamma: 10.0
+    il_norm_beta: 1.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+  # Agent normalization
+  agent:
+    norm_type: none
+
+logger:
+  group_name: "om00-oma02-zsrew-disctrans-pso"
+  experiment_name: "om00-oma02-zsrew-disctrans-pso"
