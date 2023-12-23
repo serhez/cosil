@@ -1,7 +1,7 @@
 #!/bin/bash -l
-#SBATCH --time=80:00:00
+#SBATCH --time=01:30:00
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
+#SBATCH --mem=16G
 #SBATCH --gres=gpu:1
 
 module restore cosil
