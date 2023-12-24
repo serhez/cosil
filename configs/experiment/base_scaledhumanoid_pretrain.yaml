@@ -94,7 +94,7 @@ method:
     dist_optimizer: pso
 
 logger:
-  project_name: "cosil-humanoid-pretraining"
+  project_name: "cosil-scaledhumanoid-pretraining"
   group_name: "GROUP"
   experiment_name: "EXPERIMENT"
   run_id: ""
