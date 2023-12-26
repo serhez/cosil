@@ -11,4 +11,4 @@ source activate cosil
 
 export MUJOCO_GL="egl"
 
-xvfb-run python train.py +experiment=scaledhumanoid/experiment/baseline/baseline-pso-zs ++seed=12417
+xvfb-run python train.py +experiment=humanoid/experiment/baseline/baseline-pso-zs ++seed=12417
