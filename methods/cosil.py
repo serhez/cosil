@@ -1146,7 +1146,8 @@ class CoSIL(object):
             episode_reward = 0
             done = False
             episode_steps = 0
-            if recorder is not None and test_ep == 0:
+            if recorder is not None:
+                self.logger.info("Capturing initial frame")
                 recorder.capture_frame()
 
             while not done:
@@ -1163,7 +1164,7 @@ class CoSIL(object):
                 next_state, _, terminated, truncated, info = self.env.step(action)
                 done = terminated or truncated
 
-                if recorder is not None and test_ep == 0:
+                if recorder is not None:
                     recorder.capture_frame()
 
                 marker_obs, _ = get_marker_info(
@@ -1193,6 +1194,7 @@ class CoSIL(object):
         avg_steps /= episodes
 
         if recorder is not None:
+            self.logger.info("Saving video")
             recorder.close()
 
         took = time.time() - start
