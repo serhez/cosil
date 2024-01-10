@@ -214,13 +214,13 @@ class CoSIL(object):
         # SAIL includes a pretraining step for the VAE and inverse dynamics
         if (
             isinstance(self.il_rewarder, SAIL)
-            and self.config.method.pretrain_path is None
+            and config.method.pretrain_path is None
+            and config.method.resume is None
         ):
             self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, 10000)
-            if not config.resume:
-                self.il_rewarder.g_inv_loss = self._pretrain_sail(
-                    self.il_rewarder, co_adapt=config.method.co_adapt
-                )
+            self.il_rewarder.g_inv_loss = self._pretrain_sail(
+                self.il_rewarder, co_adapt=config.method.co_adapt
+            )
 
         if config.resume is not None:
             if self._load(config.resume):
