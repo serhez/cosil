@@ -1143,6 +1143,7 @@ class CoSIL(object):
             self.env.reset()
 
         for test_ep in range(episodes):
+            self.logger.info(f"Evaluating episode {test_ep+1}")
             state, _ = self.env.reset()
             episode_reward = 0
             done = False
