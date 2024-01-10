@@ -8,6 +8,7 @@ import gym
 import numpy as np
 import pyswarms as ps
 import torch
+from gait_track_envs import register_env
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from omegaconf import DictConfig
 
@@ -1116,6 +1117,9 @@ class CoSIL(object):
         avg_steps = 0
         episodes = self.config.method.eval_episodes
 
+        register_env(self.config.env_name)
+        eval_env = gym.make(self.config.env_name)
+
         recorder = None
         vid_path = None
         if self.config.method.record_test:
@@ -1134,15 +1138,15 @@ class CoSIL(object):
 
             self.logger.info(f"Recording video to {vid_path}")
 
-            recorder = VideoRecorder(self.env, vid_path)
+            recorder = VideoRecorder(eval_env, vid_path)
 
         if self.config.method.co_adapt and optimized_morpho_params is not None:
-            self.env.set_task(*optimized_morpho_params)
-            self.env.reset()
+            eval_env.set_task(*optimized_morpho_params)
+            eval_env.reset()
 
         for test_ep in range(episodes):
             self.logger.info(f"Evaluating episode {test_ep+1}")
-            state, _ = self.env.reset()
+            state, _ = eval_env.reset()
             episode_reward = 0
             done = False
             episode_steps = 0
@@ -1161,7 +1165,7 @@ class CoSIL(object):
 
                 action = self.ind_agent.select_action(feats, evaluate=True)
 
-                next_state, _, terminated, truncated, info = self.env.step(action)
+                next_state, _, terminated, truncated, info = eval_env.step(action)
                 done = terminated or truncated
 
                 if recorder is not None:
@@ -1195,6 +1199,16 @@ class CoSIL(object):
 
         if recorder is not None:
             self.logger.info("Saving video")
+            self.logger.info(
+                {
+                    "DEBUG RECORDER": None,
+                    "path": recorder.path,
+                    "enabled": recorder.enabled,
+                    "closed": recorder._closed,
+                    "recorded_frames": recorder.recorded_frames,
+                    "frames_per_sec": recorder.frames_per_sec,
+                }
+            )
             recorder.close()
 
         took = time.time() - start
@@ -1208,7 +1222,7 @@ class CoSIL(object):
             {
                 "Test episodes": episodes,
                 "Avg. reward": avg_reward,
-                "Steps": avg_steps,
+                "Avg. steps": avg_steps,
                 "Took": took,
             },
         )
