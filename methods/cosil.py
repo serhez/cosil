@@ -1201,8 +1201,8 @@ class CoSIL(object):
         log_dict["test/avg_reward"] = avg_reward
         log_dict["test/avg_steps"] = avg_steps
         log_dict["test/time"] = took
-        if vid_path is not None:
-            log_dict["test_video"] = wandb.Video(vid_path, fps=20, format="gif")
+        # if vid_path is not None:
+        #     log_dict["test_video"] = wandb.Video(vid_path, fps=20, format="gif")
 
         self.logger.info(
             {
