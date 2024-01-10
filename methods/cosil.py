@@ -223,19 +223,17 @@ class CoSIL(object):
             )
 
         if config.resume is not None:
-            if self._load(config.resume):
-                self.morpho_params_np = self.morphos[-1]
-                self.env.set_task(*self.morpho_params_np)
-                self.env.reset()
-                self.logger.info(
-                    {
-                        "Resumming CoSIL": None,
-                        "File": config.resume,
-                        "Num transitions": len(self.replay_buffer),
-                    },
-                )
-            else:
-                raise ValueError(f"Failed to load {config.resume}")
+            self._load(config.resume)
+            self.morpho_params_np = self.morphos[-1]
+            self.env.set_task(*self.morpho_params_np)
+            self.env.reset()
+            self.logger.info(
+                {
+                    "Resumming CoSIL": None,
+                    "File": config.resume,
+                    "Num transitions": len(self.replay_buffer),
+                },
+            )
 
     def _load_replay_buffer(self, path: str) -> None:
         """
