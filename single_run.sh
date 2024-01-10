@@ -1,7 +1,7 @@
 #!/bin/bash -l
-#SBATCH --time=06:00:00
+#SBATCH --time=01:00:00
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=16G
+#SBATCH --mem=32G
 #SBATCH --gres=gpu:1
 #SBATCH --mail-user=sergio.hernandezgutierrez@aalto.fi
 #SBATCH --mail-type=ALL
