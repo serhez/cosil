@@ -215,7 +215,7 @@ class CoSIL(object):
         if (
             isinstance(self.il_rewarder, SAIL)
             and config.method.pretrain_path is None
-            and config.method.resume is None
+            and config.resume is None
         ):
             self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, 10000)
             self.il_rewarder.g_inv_loss = self._pretrain_sail(
