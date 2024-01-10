@@ -224,9 +224,12 @@ class CoSIL(object):
 
         if config.resume is not None:
             if self._load(config.resume):
+                self.morpho_params_np = self.morphos[-1]
+                self.env.set_task(*self.morpho_params_np)
+                self.env.reset()
                 self.logger.info(
                     {
-                        "Resumming CoIL": None,
+                        "Resumming CoSIL": None,
                         "File": config.resume,
                         "Num transitions": len(self.replay_buffer),
                     },
@@ -792,9 +795,6 @@ class CoSIL(object):
         if self.config.method.eval_final:
             self._evaluate(episode, optimized_morpho_params, log_dict, final=True)
 
-        # TODO: TMP - remove
-        # torch.save(self.morphos, "humanoid_experiment_morphos.pt")
-
         return self.ind_agent, self.morpho_params_np
 
     def _pretrain_sail(
@@ -814,16 +814,17 @@ class CoSIL(object):
             sail.load_g_inv(g_inv_file_name)
             return
 
-        marker_info_fn = lambda x: get_marker_info(
-            x,
-            self.policy_legs,
-            self.policy_limb_indices,
-            pos_type=self.config.method.pos_type,
-            vel_type=self.config.method.vel_type,
-            torso_type=self.config.method.torso_type,
-            head_type=self.config.method.head_type,
-            head_wrt=self.config.method.head_wrt,
-        )
+        def marker_info_fn(x):
+            return get_marker_info(
+                x,
+                self.policy_legs,
+                self.policy_limb_indices,
+                pos_type=self.config.method.pos_type,
+                vel_type=self.config.method.vel_type,
+                torso_type=self.config.method.torso_type,
+                head_type=self.config.method.head_type,
+                head_wrt=self.config.method.head_wrt,
+            )
 
         memory = ObservationBuffer(
             steps + 1000, seed=self.config.seed, logger=self.logger
@@ -1032,7 +1033,7 @@ class CoSIL(object):
             batch = self.replay_buffer.sample(self.batch_size)
             morpho_size = len(self.morpho_params_np)
 
-            def f_qval(x_input, **kwargs):
+            def f_qval(x_input, _):
                 shape = x_input.shape
                 cost = np.zeros((shape[0],))
                 with torch.no_grad():
@@ -1262,20 +1263,23 @@ class CoSIL(object):
         if path_name is not None:
             model = torch.load(path_name, map_location=self.device)
 
-            self.replay_buffer.replace(model["replay_buffer"])
-            self.demos = model["demos"]
-            self.morphos.extend(model["morphos"])
-            self.replay_buffer._position = (
-                len(self.replay_buffer._buffer) % self.replay_buffer.capacity
-            )
-            self.current_buffer._position = (
-                len(self.current_buffer._buffer) % self.current_buffer.capacity
-            )
+            if "replay_buffer" in model:
+                self.replay_buffer.replace(model["replay_buffer"])
+                self.replay_buffer._position = (
+                    len(self.replay_buffer._buffer) % self.replay_buffer.capacity
+                )
+            if "demos" in model:
+                self.demos = model["demos"]
+            if "morphos" in model:
+                self.morphos.extend(model["morphos"])
 
-            self.rl_rewarder.load(model["rl_rewarder"])
-            self.il_rewarder.load(model["il_rewarder"])
-            self.ind_agent.load(model["ind_agent"])
-            self.pop_agent.load(model["pop_agent"])
+            if "ind_agent" in model and "pop_agent" in model:
+                self.ind_agent.load(model["ind_agent"])
+                self.pop_agent.load(model["pop_agent"])
+
+            if "rl_rewarder" in model and "il_rewarder" in model:
+                self.rl_rewarder.load(model["rl_rewarder"])
+                self.il_rewarder.load(model["il_rewarder"])
 
         else:
             raise ValueError("Invalid path name")

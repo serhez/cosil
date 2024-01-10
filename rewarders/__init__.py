@@ -1,6 +1,5 @@
 from typing import Optional
 
-import gym
 import numpy as np
 import torch
 from omegaconf import DictConfig
@@ -9,7 +8,6 @@ from loggers import Logger
 from normalizers import Normalizer
 
 from .airl import AIRL
-from .dual_rewarder import DualRewarder
 from .env_reward import EnvReward
 from .gail import GAIL
 from .mbc import MBC

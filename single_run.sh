@@ -11,4 +11,4 @@ source activate cosil
 
 export MUJOCO_GL="egl"
 
-xvfb-run python train.py +experiment=2seghalfcheetah/pretrain/sail/om00-oma01-zsrew-disctrans-pso ++seed=111
+xvfb-run python record_video.py +experiment=2seghalfcheetah/experiment/record_video ++seed=111
