@@ -1200,16 +1200,12 @@ class CoSIL(object):
         if recorder is not None:
             self.logger.info("Saving video")
             self.logger.info(f"Recorder class {type(recorder)}")
-            self.logger.info(
-                {
-                    "DEBUG RECORDER": None,
-                    "enabled": recorder.enabled,
-                    "closed": recorder._closed,
-                    "recorded_frames": recorder.recorded_frames,
-                    "frames_per_sec": recorder.frames_per_sec,
-                }
-            )
-            self.logger.info(f"Recorder path {recorder.path}")
+            self.logger.info(f"enabled: {recorder.enabled}")
+            self.logger.info(f"render_mode: { recorder.render_mode }")
+            self.logger.info(f"closed: { recorder._closed }")
+            self.logger.info(f"recorded_frames: { recorder.recorded_frames }")
+            self.logger.info(f"frames_per_sec: { recorder.frames_per_sec }")
+            self.logger.info(f"path: {recorder.path}")
             recorder.close()
 
         took = time.time() - start
