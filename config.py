@@ -424,7 +424,7 @@ class MethodConfig:
     """Number of updates per environment step."""
 
     pretrain_updates: int = 50000
-    """Number of updates per environment step."""
+    """Number of updates before training after every morphology change."""
 
     pretrain_path: Optional[str] = None
     """Path to pre-trained models"""

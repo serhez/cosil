@@ -50,3 +50,4 @@ logger:
   project_name: "cosil-2seghalfcheetah-videos"
   group_name: "record-video"
   experiment_name: "om01-zsrew-disctrans-pso"
+  loggers: console
