@@ -1119,8 +1119,6 @@ class CoSIL(object):
 
         register_env(self.config.env_name)
         eval_env = gym.make(self.config.env_name)
-        # FIX: unlike gym envs, these custom envs have no render_mode
-        eval_env.render_mode = "rgb_array"
 
         recorder = None
         vid_path = None
