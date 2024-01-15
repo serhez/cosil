@@ -1166,7 +1166,7 @@ class CoSIL(object):
 
                 action = self.ind_agent.select_action(feats, evaluate=True)
 
-                next_state, _, terminated, truncated, info = eval_env.step(action)
+                next_state, reward, terminated, truncated, info = eval_env.step(action)
                 done = terminated or truncated
 
                 if recorder is not None:
