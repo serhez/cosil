@@ -1,5 +1,5 @@
 #!/bin/bash -l
-#SBATCH --time=01:00:00
+#SBATCH --time=00:20:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
 #SBATCH --gres=gpu:1
@@ -11,4 +11,4 @@ source activate cosil
 
 export MUJOCO_GL="egl"
 
-xvfb-run python record_video.py +experiment=2seghalfcheetah/experiment/record_video ++seed=111
+xvfb-run python record_video.py +experiment=humanoid/experiment/record_video ++seed=111

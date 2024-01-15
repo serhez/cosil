@@ -778,6 +778,8 @@ class CoSIL(object):
                 and episode % self.config.method.eval_per_episodes == 0
             ):
                 self._evaluate(episode, optimized_morpho_params, log_dict)
+                if self.config.method.save_checkpoints:
+                    self._save("checkpoint")
 
             log_dict["general/total_steps"] = self.total_numsteps
             log_dict["general/episode"] = episode
@@ -1151,7 +1153,6 @@ class CoSIL(object):
             done = False
             episode_steps = 0
             if recorder is not None:
-                self.logger.info("Capturing initial frame")
                 recorder.capture_frame()
 
             while not done:
@@ -1199,13 +1200,6 @@ class CoSIL(object):
 
         if recorder is not None:
             self.logger.info("Saving video")
-            self.logger.info(f"Recorder class {type(recorder)}")
-            self.logger.info(f"enabled: {recorder.enabled}")
-            self.logger.info(f"render_mode: { recorder.render_mode }")
-            self.logger.info(f"closed: { recorder._closed }")
-            self.logger.info(f"recorded_frames: { recorder.recorded_frames }")
-            self.logger.info(f"frames_per_sec: { recorder.frames_per_sec }")
-            self.logger.info(f"path: {recorder.path}")
             recorder.close()
 
         took = time.time() - start
@@ -1223,9 +1217,6 @@ class CoSIL(object):
                 "Took": took,
             },
         )
-
-        if self.config.method.save_checkpoints:
-            self._save("checkpoint")
 
     def _save(self, type="final"):
         if type == "final":

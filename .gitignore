@@ -10,3 +10,4 @@ metrics.pt
 slurm*
 .mypy_cache/
 test.qmd
+*.mp4
