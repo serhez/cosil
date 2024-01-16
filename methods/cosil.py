@@ -1076,7 +1076,7 @@ class CoSIL(object):
                 options=options,
             )
             cost, optimized_morpho_params = optimizer.optimize(
-                f_qval, print_step=100, iters=250, verbose=3
+                f_qval, iters=250, verbose=False
             )
             self.morpho_params_np = optimized_morpho_params
 
