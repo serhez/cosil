@@ -1034,7 +1034,7 @@ class CoSIL(object):
             batch = self.replay_buffer.sample(self.batch_size)
             morpho_size = len(self.morpho_params_np)
 
-            def f_qval(x_input, _):
+            def f_qval(x_input):
                 shape = x_input.shape
                 cost = np.zeros((shape[0],))
                 with torch.no_grad():
