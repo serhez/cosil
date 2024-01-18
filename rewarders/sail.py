@@ -187,22 +187,10 @@ class SAIL(Rewarder):
         loss_fn = torch.nn.MSELoss()
         self.g_inv_optim.zero_grad()
 
-        (
-            _,
-            action_batch,
-            _,
-            _,
-            _,
-            _,
-            marker_batch,
-            next_marker_batch,
-            morpho_params,
-            _,
-        ) = batch
-        action_batch = torch.FloatTensor(action_batch).to(self.device)
-        marker_batch = torch.FloatTensor(marker_batch).to(self.device)
-        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self.device)
-        morpho_params = torch.FloatTensor(morpho_params).to(self.device)
+        action_batch = torch.FloatTensor(batch[1]).to(self.device)
+        marker_batch = torch.FloatTensor(batch[6]).to(self.device)
+        next_marker_batch = torch.FloatTensor(batch[7]).to(self.device)
+        morpho_params = torch.FloatTensor(batch[8]).to(self.device)
 
         pred = self.g_inv(marker_batch, next_marker_batch, morpho_params)
 

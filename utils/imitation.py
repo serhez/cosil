@@ -37,7 +37,12 @@ def load_demos(config: DictConfig):
             mean_reward = np.mean(expert_obs["reward_run"])
         else:
             # Humanoid env (bad practice: hard-coded)
-            mean_reward = np.mean(expert_obs["reward_run"] - expert_obs["reward_quadctrl"] - expert_obs["reward_impact"] + expert_obs["reward_alive"])
+            mean_reward = np.mean(
+                expert_obs["reward_run"]
+                - expert_obs["reward_quadctrl"]
+                - expert_obs["reward_impact"]
+                + expert_obs["reward_alive"]
+            )
 
         expert_obs_np, to_match = get_marker_info(
             expert_obs,
@@ -108,7 +113,8 @@ def train_wgan_critic(opt, critic, demos: list, batch, use_transitions=True):
     if use_transitions:
         expert_feats = torch.cat((expert_feats, demos[expert_inds + 1]), dim=1)
 
-    _, _, _, _, _, _, marker_samples, next_marker_samples, _, _ = batch
+    marker_samples = batch[6]
+    next_marker_samples = batch[7]
     marker_feats = marker_samples
 
     if use_transitions:
@@ -183,7 +189,8 @@ def train_disc(
     if use_transitions:
         expert_feats = torch.cat((expert_feats, demos[expert_inds + 1]), dim=1)
 
-    _, _, _, _, _, _, marker_samples, next_marker_samples, _, _ = batch
+    marker_samples = batch[6]
+    next_marker_samples = batch[7]
     marker_feats = marker_samples
 
     if use_transitions:
