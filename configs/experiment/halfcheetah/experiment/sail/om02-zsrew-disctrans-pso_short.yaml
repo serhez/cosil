@@ -11,7 +11,6 @@ learn_disc_transitions: true
 
 method:
   replay_buffer_path: null
-  pretrain: false
   pretrain_path: /scratch/work/hernans2/cosil/models/final/pretrain-sail/GaitTrackHalfCheetah-v0/seed-123456/om02-zsrew-disctrans-pso_1690727321.pt
   dual_mode: q
   omega_scheduler: constant
