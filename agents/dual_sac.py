@@ -387,32 +387,15 @@ class DualSAC(Agent):
         - "entropy_temperature/entropy"
         """
 
-        (
-            state_batch,
-            action_batch,
-            reward_batch,
-            next_state_batch,
-            terminated_batch,
-            truncated_batch,
-            marker_batch,
-            next_marker_batch,
-            morpho_batch,
-            episode_batch,
-        ) = batch
-        state_batch = torch.FloatTensor(state_batch).to(self._device)
-        next_state_batch = torch.FloatTensor(next_state_batch).to(self._device)
-        action_batch = torch.FloatTensor(action_batch).to(self._device)
-        reward_batch = torch.FloatTensor(reward_batch).to(self._device).unsqueeze(1)
-        terminated_batch = (
-            torch.FloatTensor(terminated_batch).to(self._device).unsqueeze(1)
-        )
-        truncated_batch = (
-            torch.FloatTensor(truncated_batch).to(self._device).unsqueeze(1)
-        )
-        marker_batch = torch.FloatTensor(marker_batch).to(self._device)
-        next_marker_batch = torch.FloatTensor(next_marker_batch).to(self._device)
-        morpho_batch = torch.FloatTensor(morpho_batch).to(self._device)
-        episode_batch = torch.IntTensor(episode_batch).to(self._device)
+        state_batch = torch.FloatTensor(batch[0]).to(self._device)
+        action_batch = torch.FloatTensor(batch[1]).to(self._device)
+        reward_batch = torch.FloatTensor(batch[2]).to(self._device).unsqueeze(1)
+        next_state_batch = torch.FloatTensor(batch[3]).to(self._device)
+        terminated_batch = torch.FloatTensor(batch[4]).to(self._device).unsqueeze(1)
+        truncated_batch = torch.FloatTensor(batch[5]).to(self._device).unsqueeze(1)
+        marker_batch = torch.FloatTensor(batch[6]).to(self._device)
+        next_marker_batch = torch.FloatTensor(batch[7]).to(self._device)
+        morpho_batch = torch.FloatTensor(batch[8]).to(self._device)
         batch = (
             state_batch,
             action_batch,
@@ -423,7 +406,6 @@ class DualSAC(Agent):
             marker_batch,
             next_marker_batch,
             morpho_batch,
-            episode_batch,
         )
 
         imit_input, next_imit_input = self.get_imit_input(

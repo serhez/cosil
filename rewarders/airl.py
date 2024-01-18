@@ -73,7 +73,8 @@ class AIRL(Rewarder):
         )
 
     def _compute_rewards_impl(self, batch, _):
-        _, _, _, _, _, _, marker_batch, next_marker_batch, _, _ = batch
+        marker_batch = batch[6]
+        next_marker_batch = batch[7]
         feats = next_marker_batch
         if self.learn_disc_transitions:
             feats = torch.cat((marker_batch, next_marker_batch), dim=1)

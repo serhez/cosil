@@ -92,7 +92,8 @@ class SAIL(Rewarder):
         return disc_loss, expert_probs, policy_probs
 
     def _compute_rewards_impl(self, batch, demos):
-        _, _, _, _, _, _, marker_batch, next_marker_batch, _, _ = batch
+        marker_batch = batch[6]
+        next_marker_batch = batch[7]
         marker_feats = next_marker_batch
         if self.learn_disc_transitions:
             marker_feats = torch.cat((marker_batch, next_marker_batch), dim=1)
