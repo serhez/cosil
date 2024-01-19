@@ -43,7 +43,8 @@ class AIRL(Rewarder):
         demos_batch = demos[demos_ids]
 
         # Get the markers from the batch
-        _, _, _, _, _, _, markers, next_markers, _, _ = batch
+        markers = batch[6]
+        next_markers = batch[7]
         markers = torch.as_tensor(markers).float().to(self.device)
         if self.learn_disc_transitions:
             next_markers = torch.as_tensor(next_markers).float().to(self.device)
