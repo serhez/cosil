@@ -11,7 +11,6 @@ learn_disc_transitions: false
 
 method:
   replay_buffer_path: null
-  pretrain: false
   pretrain_path: /scratch/work/hernans2/cosil/models/final/pretrain-baseline/GaitTrackHalfCheetah-v0/seed-123456/baseline-pso_1691025687.pt
   dual_mode: q
   omega_scheduler: constant
