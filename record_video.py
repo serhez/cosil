@@ -45,7 +45,8 @@ def main(config: DictConfig) -> None:
     logger.info(f"Recording video for env {config.env_name}")
     method = create_method(config, logger, env)
     try:
-        method._evaluate(0, method.morpho_params_np, {})
+        for i in range(len(method.morphos) - 1):
+            method._evaluate(i, method.morphos[i], {})
     except Exception as e:
         logger.error({"Exception occurred during video recording": e})
         raise e

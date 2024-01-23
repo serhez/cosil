@@ -12,7 +12,6 @@ from gait_track_envs import register_env
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 from omegaconf import DictConfig
 
-import wandb
 from agents import SAC, DualSAC, create_dual_agents
 from common.observation_buffer import ObservationBuffer, multi_sample
 from common.schedulers import ConstantScheduler, create_scheduler
@@ -791,6 +790,7 @@ class CoSIL(object):
             morpho_episode = new_morpho_episode
 
         if self.config.method.save_final:
+            self.logger.info("Saving final model")
             self._save("final")
 
         if self.config.method.eval_final:

@@ -4,18 +4,15 @@ defaults:
   - base_humanoid_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
-  - override /method/rewarder: sail  # variable
+  - override /method/rewarder: gail  # variable
 
-#### Variables
-learn_disc_transitions: true
-
-# Humanoid om02-zsrew-disctrans-pso
-resume: /scratch/work/hernans2/cosil/final/om02-zsrew-disctrans-pso/GaitTrackHumanoid-v0/seed-13/om02-zsrew-disctrans-pso_1703684251.pt
+resume: /scratch/work/hernans2/cosil/final/baseline-pso-zs_short/GaitTrackHumanoid-v0/seed-123456/baseline-pso-zs_short_1705658334.pt
 
 method:
   record_test: true
 
   pretrain_path: null
+  omega_scheduler: constant
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
@@ -23,11 +20,9 @@ method:
   #### Variables
 
   # General
-  transfer: true
-  omega_scheduler: constant
-  omega_init: 0.2
-  pop_omega_init: 0.2
-  adapt_morpho_omega: 0.2
+  transfer: false
+  omega_init: 0.0
+  adapt_morpho_omega: 0.0
   demos_strategy: replace
 
   # Rewards normalization
@@ -49,5 +44,5 @@ method:
 logger:
   project_name: "cosil-humanoid-videos"
   group_name: "record-video"
-  experiment_name: "om02-zsrew-disctrans-pso"
+  experiment_name: "baseline-pso-zs"
   loggers: console
