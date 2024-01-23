@@ -16,7 +16,6 @@ method:
   record_test: true
 
   replay_buffer_path: null
-  pretrain: false
   pretrain_path: null
   dual_mode: q
   omega_scheduler: constant
