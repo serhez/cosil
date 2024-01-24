@@ -1,7 +1,7 @@
 import os
 import time
 from collections import deque
-from typing import Any
+from typing import Any, Optional
 
 import cma
 import gym
@@ -1109,7 +1109,7 @@ class CoSIL(object):
     def _evaluate(
         self,
         i_episode: int,
-        optimized_morpho_params,
+        morpho: Optional[np.ndarray],
         log_dict: dict[str, Any],
         final: bool = False,
     ):
@@ -1142,12 +1142,13 @@ class CoSIL(object):
 
             recorder = VideoRecorder(eval_env, vid_path)
 
-        if self.config.method.co_adapt and optimized_morpho_params is not None:
-            eval_env.set_task(*optimized_morpho_params)
-            eval_env.reset()
-
         for test_ep in range(episodes):
             self.logger.info(f"Evaluating episode {test_ep+1}")
+
+            if self.config.method.co_adapt and morpho is not None:
+                eval_env.set_task(*morpho)
+                eval_env.reset()
+
             state, _ = eval_env.reset()
             episode_reward = 0
             done = False
@@ -1157,7 +1158,7 @@ class CoSIL(object):
 
             while not done:
                 if self.config.morpho_in_state:
-                    feats = np.concatenate([state, self.morpho_params_np])
+                    feats = np.concatenate([state, morpho])
                 else:
                     feats = state
 
