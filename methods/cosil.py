@@ -1145,8 +1145,6 @@ class CoSIL(object):
             recorder = VideoRecorder(eval_env, vid_path)
 
         for test_ep in range(episodes):
-            self.logger.info(f"Evaluating episode {test_ep+1}")
-
             if self.config.method.co_adapt and morpho is not None:
                 eval_env.set_task(*morpho)
                 eval_env.reset()
@@ -1196,8 +1194,11 @@ class CoSIL(object):
                 state = next_state
                 episode_steps += 1
 
+            self.logger.info(f"Episode {test_ep+1} with reward {episode_reward}")
+
             avg_reward += episode_reward
             avg_steps += episode_steps
+
         avg_reward /= episodes
         avg_steps /= episodes
 
