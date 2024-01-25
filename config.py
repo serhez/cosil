@@ -420,7 +420,8 @@ class MethodConfig:
     record_test: bool = True
     """
     Whether to record the test episodes.
-    Note that this is only possible if the `eval_periodically`, `eval_morpho` or `eval_final` flags are set to True.
+    Note that this is only possible if either of the `eval_periodically`, `eval_morpho`
+    or `eval_final` flags are set to True.
     """
 
     record_path: str = "videos"
