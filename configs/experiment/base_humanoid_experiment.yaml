@@ -19,7 +19,7 @@ num_agents: 1
 
 method:
   replay_buffer_path: null
-  eval: false
+  eval_periodically: false
   eval_final: true
   eval_episodes: 10
   eval_per_episodes: 20

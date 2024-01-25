@@ -702,11 +702,23 @@ class CoSIL(object):
                 morpho_log[f"morpho/param_{i}"] = self.morpho_params_np[i]
             log_dict.update(morpho_log)
 
+            # Evaluation and video recording
+            if (
+                self.config.method.eval_periodically
+                and episode % self.config.method.eval_per_episodes == 0
+            ):
+                self._evaluate(episode, optimized_morpho_params, log_dict)
+                if self.config.method.save_checkpoints:
+                    self._save("checkpoint")
+
             # Morphology evolution
             new_morpho_episode = morpho_episode + 1
             if self.config.method.co_adapt and (
                 episode % self.config.method.episodes_per_morpho == 0
             ):
+                if self.config.method.eval_morpho:
+                    self._evaluate(episode, optimized_morpho_params, log_dict)
+
                 # Copy the contents of the current buffer to the replay buffer
                 self.replay_buffer.push(self.current_buffer.to_list())
 
@@ -769,16 +781,6 @@ class CoSIL(object):
                     "Took": took,
                 },
             )
-
-            # Evaluation episodes
-            # Also used to make plots
-            if (
-                self.config.method.eval
-                and episode % self.config.method.eval_per_episodes == 0
-            ):
-                self._evaluate(episode, optimized_morpho_params, log_dict)
-                if self.config.method.save_checkpoints:
-                    self._save("checkpoint")
 
             log_dict["general/total_steps"] = self.total_numsteps
             log_dict["general/episode"] = episode

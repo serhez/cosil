@@ -503,7 +503,7 @@ class CoIL(object):
             # Evaluation episodes
             # Also used to make plots
             if (
-                self.config.method.eval
+                self.config.method.eval_periodically
                 and episode % self.config.method.eval_per_episodes == 0
             ):
                 self._evaluate(episode, optimized_morpho_params, log_dict)

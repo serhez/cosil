@@ -11,7 +11,7 @@ save_path: /scratch/work/hernans2/cosil/data/replay_buffers/individual/
 device: cuda
 
 method:
-  eval: false
+  eval_periodically: false
   save_final: false
   num_episodes: 20
   replay_capacity: 20000

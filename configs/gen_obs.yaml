@@ -20,7 +20,7 @@ absorbing_state: true # humanoid
 # absorbing_state: false
 
 method:
-  eval: false
+  eval_periodically: false
   batch_size: 256
   updates_per_step: 1
   start_steps: 0

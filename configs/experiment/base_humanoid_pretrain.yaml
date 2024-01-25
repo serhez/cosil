@@ -20,7 +20,7 @@ num_agents: 1
 method:
   replay_buffer_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-111/pretrain-humanoid_1703068847.pt
   pretrain_path: null
-  eval: false
+  eval_periodically: false
   eval_final: false
   eval_episodes: 10
   eval_per_episodes: 20

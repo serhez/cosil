@@ -19,7 +19,7 @@ num_agents: 1
 
 method:
   replay_buffer_path: /scratch/work/hernans2/cosil/final/2segHalfCheetah/GaitTrack2segHalfCheetah-v0/seed-123456/pretrain-2seghalfcheetah_1701306212.pt
-  eval: false
+  eval_periodically: false
   eval_final: false
   eval_episodes: 10
   eval_per_episodes: 20

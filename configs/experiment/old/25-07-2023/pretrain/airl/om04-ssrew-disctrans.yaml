@@ -20,7 +20,7 @@ method:
   morpho_warmup: 0
   start_steps: 0
   disc_warmup: 0
-  eval: false
+  eval_periodically: false
   record_test: false
   save_checkpoints: false
   save_optimal: false

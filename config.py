@@ -402,8 +402,11 @@ class MethodConfig:
     rewarder: RewarderConfig = MISSING
     """Configuration for the rewarder."""
 
-    eval: bool = False
+    eval_periodically: bool = False
     """Whether to evaluate the agent."""
+
+    eval_morpho: bool = False
+    """Whether to evaluate the agent before every morphology change."""
 
     eval_episodes: int = 10
     """Number of episodes to evaluate the agent."""
@@ -413,6 +416,15 @@ class MethodConfig:
 
     eval_final: bool = True
     """Whether to evaluate the agent at the end of training."""
+
+    record_test: bool = True
+    """
+    Whether to record the test episodes.
+    Note that this is only possible if the `eval_periodically`, `eval_morpho` or `eval_final` flags are set to True.
+    """
+
+    record_path: str = "videos"
+    """Path to the directory where to save the videos."""
 
     batch_size: int = 256
     """Batch size for training."""
@@ -440,15 +452,6 @@ class MethodConfig:
 
     replay_dim_ratio: float = 1.0
     """The diminishing ratio for the replay buffer."""
-
-    record_test: bool = True
-    """
-    Whether to record the test episodes.
-    Note that this is only possible if the `eval` or `eval_final` flags are set to True.
-    """
-
-    record_path: str = "videos"
-    """Path to the directory where to save the videos."""
 
     save_checkpoints: bool = False
     """Whether to save the checkpoints."""
