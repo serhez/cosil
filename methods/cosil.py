@@ -707,7 +707,7 @@ class CoSIL(object):
                 self.config.method.eval_periodically
                 and episode % self.config.method.eval_per_episodes == 0
             ):
-                self._evaluate(episode, optimized_morpho_params, log_dict)
+                self._evaluate(episode, self.morpho_params_np, log_dict)
                 if self.config.method.save_checkpoints:
                     self._save("checkpoint")
 
@@ -717,7 +717,7 @@ class CoSIL(object):
                 episode % self.config.method.episodes_per_morpho == 0
             ):
                 if self.config.method.eval_morpho:
-                    self._evaluate(episode, optimized_morpho_params, log_dict)
+                    self._evaluate(episode, self.morpho_params_np, log_dict)
 
                 # Copy the contents of the current buffer to the replay buffer
                 self.replay_buffer.push(self.current_buffer.to_list())
