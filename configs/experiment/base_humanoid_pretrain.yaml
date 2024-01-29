@@ -25,8 +25,8 @@ method:
   eval_episodes: 10
   eval_per_episodes: 20
   batch_size: 256
-  num_episodes: 500
-  episodes_per_morpho: 500
+  num_episodes: 2000
+  episodes_per_morpho: 2000
   updates_per_step: 1
   start_steps: 0
   replay_capacity: 2000000
