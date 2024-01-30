@@ -12,7 +12,7 @@ method:
   eval_morpho: true
   eval_episodes: 1
   record_test: true
-  pretrain_path: MISSING
+  pretrain_path: /scratch/work/hernans2/cosil/final/baseline/GaitTrackHumanoid-v0/seed-123456/baseline-pso-zs-epm100_1706623122.pt
   omega_scheduler: constant
   co_adaptation:
     morphos_path: null
