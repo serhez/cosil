@@ -13,7 +13,7 @@ method:
   eval_periodically: false
   eval_final: false
   eval_morpho: true
-  eval_episodes: 10
+  eval_episodes: 1
   record_test: true
   pretrain_path: /scratch/work/hernans2/cosil/final/sail-pso/GaitTrackHumanoid-v0/seed-123456/om02-zsrew-disctrans-pso_1706587948.pt
   co_adaptation:

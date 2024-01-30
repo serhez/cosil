@@ -10,7 +10,7 @@ method:
   eval_periodically: false
   eval_final: false
   eval_morpho: true
-  eval_episodes: 10
+  eval_episodes: 1
   record_test: true
   pretrain_path: MISSING
   omega_scheduler: constant
