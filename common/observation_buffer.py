@@ -156,7 +156,7 @@ class ObservationBuffer:
         if isinstance(observations, list):
             if len(observations) == 0:
                 return
-            if len(observations) <= self._capacity:
+            if len(observations) > self._capacity:
                 msg = "The number of observations to push into the buffer must be less than or equal to the buffer's capacity."
                 if self._logger is not None:
                     self._logger.warning(msg)
