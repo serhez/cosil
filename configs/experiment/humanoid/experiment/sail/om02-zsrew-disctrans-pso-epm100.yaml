@@ -15,7 +15,7 @@ method:
   eval_morpho: true
   eval_episodes: 10
   record_test: true
-  pretrain_path: /scratch/work/hernans2/cosil/final/sail-pso/GaitTrackHumanoid-v0/seed-111/om02-zsrew-disctrans-pso_1703472349.pt
+  pretrain_path: /scratch/work/hernans2/cosil/final/sail-pso/GaitTrackHumanoid-v0/seed-123456/om02-zsrew-disctrans-pso_1706587948.pt
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
@@ -48,5 +48,5 @@ method:
     norm_type: none
 
 logger:
-  group_name: "om02-zsrew-disctrans-pso"
-  experiment_name: "om02-zsrew-disctrans-pso"
+  group_name: "om02-zsrew-disctrans-pso-epm100"
+  experiment_name: "om02-zsrew-disctrans-pso-epm100"
