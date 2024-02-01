@@ -203,13 +203,8 @@ def train_disc(
     expert_disc = disc(expert_feats)
     policy_disc = disc(marker_samples)
 
-    expert_labels = 0.8 * torch.ones(
-        len(expert_feats), 1, device=demos.device
-    )  # NOTE: Shouldn't expert labels be all ones?
-    policy_labels = 0.2 * torch.ones(
-        len(marker_feats), 1, device=demos.device
-    )  # NOTE: Shouldn't policy labels be all zeros?
-    # NOTE: This is so the discriminator learns to distinguish between expert and policy samples
+    expert_labels = 0.8 * torch.ones(len(expert_feats), 1, device=demos.device)
+    policy_labels = 0.2 * torch.ones(len(marker_feats), 1, device=demos.device)
 
     loss = disc_loss(expert_disc, expert_labels) + disc_loss(policy_disc, policy_labels)
 

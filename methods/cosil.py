@@ -24,9 +24,6 @@ from utils.imitation import get_bc_demos_for, load_demos
 from utils.rl import get_markers_by_ep
 
 
-# TODO: Encapsulate the morphology in a class
-# TODO: Move much of the code (e.g., the main loop) to main.py to avoid
-#       code repetition in other methods
 class CoSIL(object):
     def __init__(self, config: DictConfig, logger: Logger, env: gym.Env):
         self.config = config
@@ -429,7 +426,7 @@ class CoSIL(object):
 
     def train(self):
         self.adapt_morphos = []
-        self.pos_train_distances = []  # TODO: delete (still used by BO)
+        self.pos_train_distances = []
         self.optimized_or_not = [False]
 
         did_adapt_mbc = False

@@ -21,8 +21,6 @@ from utils.rl import hard_update, soft_update
 from .agent import Agent
 
 
-# TODO: Make this class as DualSAC (pass rewarders as arguments to __init__(), etc.)
-# TODO: Move the remaining imitation learning code somewhere else
 class DualRewardSAC(Agent):
     def __init__(
         self,
@@ -91,9 +89,6 @@ class DualRewardSAC(Agent):
         ).to(self._device)
         hard_update(self._critic_target, self._critic)
 
-        # TODO: Get these values out of here
-        #       They are only used by code in co_adaptation.py
-        #       They should be passed individually and not as part of the agent object
         self._morpho_value = MorphoValueFunction(morpho_dim).to(self._device)
         self._morpho_value_optim = Adam(self._morpho_value.parameters(), lr=1e-2)
 
@@ -130,8 +125,6 @@ class DualRewardSAC(Agent):
                 self._policy.parameters(), lr=config.method.agent.lr
             )
 
-    # FIX: Make this function work with batches, make the shape transformations be a responsibility of the caller
-    #      and replace ever call to self._policy.sample() with a call to this function
     def select_action(self, state, evaluate=False):
         state = torch.FloatTensor(state).to(self._device).unsqueeze(0)
         if evaluate is False:
@@ -382,8 +375,6 @@ class DualRewardSAC(Agent):
         if updates % self._target_update_interval == 0:
             soft_update(self._critic_target, self._critic, self._tau)
 
-        # TODO: move the vae_loss and absorbing_rewards loss to the rewarder (or somewhere else)
-        # TODO: we could include also the "reward/reinforcement_mean" and "reward/imitation_mean" if we are using a dual rewarder
         return {
             "reward/mean" + self.logs_suffix: reward_batch.mean().item(),
             "reward/rl_mean" + self.logs_suffix: rl_norm_rewards.mean().item(),

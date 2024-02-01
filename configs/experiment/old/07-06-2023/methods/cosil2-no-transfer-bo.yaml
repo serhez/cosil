@@ -1,5 +1,4 @@
 # @package _global_
-# TODO: Use best-performing config of prev. experiments in base_halfcheetah_experiment
 ---
 defaults:
   - base_halfcheetah_experiment

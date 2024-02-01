@@ -1,19 +1,11 @@
 {
     "configurations": [
         {
-            "name": "Train",
-            "type": "python",
-            "request": "launch",
-            "program": "train.py",
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
             "name": "Test",
             "type": "python",
             "request": "launch",
             "program": "train.py",
-            "args": ["+experiment=final/experiment/sail/om00-oma02-zsrew-disctrans-pso"],
+            "args": ["+experiment=humanoid/experiment/sail/om02-zsrew-disctrans-pso-epm100_TEST"],
             "console": "integratedTerminal",
             "justMyCode": true
         }

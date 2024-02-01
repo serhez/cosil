@@ -723,13 +723,13 @@ class Config:
     models_dir_path: str = "models"
     """Path to the directory where to save the models."""
 
-    learn_disc_transitions: bool = False  # FIX: We are gonna have a problem with this
+    learn_disc_transitions: bool = False
     """Learn discriminator using (s, s') transitions."""
 
     morpho_in_state: bool = True
     """Whether to include the morphology parameters in the state provided to the agent."""
 
-    absorbing_state: bool = False  # FIX: We are gonna have a problem with this
+    absorbing_state: bool = False
     """Whether to use absorbing states."""
 
     resume: Optional[str] = None

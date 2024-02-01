@@ -232,7 +232,6 @@ class ObservationBuffer:
 
         return tuple(map(np.stack, zip(*batch_list)))
 
-    # TODO: Change this for a `get_buffer` method that returns the buffer, and then use that in the `save` method
     def save(self, env_name, suffix="", save_path=None):
         """
         Saves the buffer to a file.
@@ -253,7 +252,6 @@ class ObservationBuffer:
         with open(save_path, "wb") as f:
             pickle.dump(self._buffer, f)
 
-    # TODO: This does not load the capacity nor the age
     def load(self, save_path):
         """
         Loads the buffer from a file.

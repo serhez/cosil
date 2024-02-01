@@ -1,15 +1,18 @@
 #!/bin/bash -l
-#SBATCH --time=60:00:00
+#SBATCH --time=80:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=16G
 #SBATCH --gres=gpu:1
 #SBATCH --mail-user=sergio.hernandezgutierrez@aalto.fi
 #SBATCH --mail-type=ALL
-#SBATCH --array=0-1
+#SBATCH --array=0-4
 
 case $SLURM_ARRAY_TASK_ID in
-   0)  SEED=289 ;;
-   1)  SEED=3 ;;
+   0)  SEED=111 ;;
+   1)  SEED=123456 ;;
+   2)  SEED=12417 ;;
+   3)  SEED=13 ;;
+   4)  SEED=214 ;;
 esac
 
 module restore cosil

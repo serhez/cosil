@@ -247,7 +247,6 @@ def obj_morpho_value(
             morpho_params, device=agent._device, dtype=torch.float32
         )
 
-    # TODO: morpho_value should not be part of the agent
     loss = agent._morpho_value(morpho_params).mean(-1)
 
     return loss
@@ -516,7 +515,7 @@ def bo_step(config, morphos, num_morpho, pos_train_distances, env):
         :, 0
     ][-prev_morphos_to_consider:]
     Y = (
-        np.array(pos_train_distances)  # FIX: this should be the reward from env
+        np.array(pos_train_distances)
         .reshape(-1, config.method.episodes_per_morpho)
         .mean(1, keepdims=True)[-prev_morphos_to_consider:]
     )
