@@ -1,15 +1,20 @@
 # @package _global_
 ---
 defaults:
-  - base_scaledhumanoid_pretrain
+  - base_humanoid_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
-  - override /method/rewarder: sail  # variable
-
-#### Variables
-learn_disc_transitions: true
+  - override /method/rewarder: gail  # variable
 
 method:
+  eval_periodically: false
+  eval_final: false
+  eval_morpho: false
+  eval_episodes: 10
+  record_test: false
+  num_episodes: 8100  # shorter
+  pretrain_path: /scratch/work/hernans2/cosil/final/baseline/GaitTrackHumanoid-v0/seed-111/baseline-pso-zs_1703472468.pt
+  omega_scheduler: constant
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
@@ -17,11 +22,9 @@ method:
   #### Variables
 
   # General
-  transfer: true
-  omega_scheduler: constant
-  omega_init: 0.3
-  pop_omega_init: 0.3
-  adapt_morpho_omega: 0.3
+  transfer: false
+  omega_init: 0.0
+  adapt_morpho_omega: 0.0
   demos_strategy: replace
 
   # Rewards normalization
@@ -41,6 +44,5 @@ method:
     norm_type: none
 
 logger:
-  group_name: "sail-pso"
-  experiment_name: "om03-zsrew-disctrans-pso"
-  loggers: console,wandb
+  group_name: "baseline-pso-zs_short"
+  experiment_name: "baseline-pso-zs_short"
