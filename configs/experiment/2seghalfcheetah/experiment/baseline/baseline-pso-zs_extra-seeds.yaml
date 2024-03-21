@@ -1,0 +1,52 @@
+# @package _global_
+---
+defaults:
+  - base_2seghalfcheetah_experiment
+  - override /method: cosil
+  - override /method/agent: dual_sac
+  - override /method/rewarder: gail  # variable
+
+method:
+  pretrain_path: /scratch/work/hernans2/cosil/final/baseline/GaitTrack2segHalfCheetah-v0/seed-123456/baseline-pso-zs_1701695073.pt
+  omega_scheduler: constant
+  co_adaptation:
+    morphos_path: null
+    dist_optimizer: pso
+
+  #### Variables
+
+  # General
+  num_episodes: 1500
+  transfer: false
+  omega_init: 0.0
+  adapt_morpho_omega: 0.0
+  demos_strategy: replace
+  eval_periodically: false
+  eval_final: false
+  record_test: false
+  save_checkpoints: false
+  save_optimal: false
+  save_final: false
+  save_buffers: false
+  save_demos: false
+
+  # Rewards normalization
+  rewarder:
+    log_scale_rewards: false
+    norm_type: z_score
+    norm_mode: mean
+    rl_norm_gamma: 10.0
+    rl_norm_beta: 1.0
+    il_norm_gamma: 10.0
+    il_norm_beta: 1.0
+    norm_low_clip: null
+    norm_high_clip: null
+
+  # Agent normalization
+  agent:
+    norm_type: none
+
+logger:
+  group_name: "baseline-pso-zs"
+  experiment_name: "baseline-pso-zs_extra-seeds"
+  loggers: console,wandb
