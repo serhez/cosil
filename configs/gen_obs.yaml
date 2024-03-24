@@ -35,10 +35,10 @@ method:
   save_optimal: false
   save_final: false
   sparse_mask: null
-  rm_action_penalty: false # humanoid
-  # rm_action_penalty: true
+  # rm_action_penalty: false # humanoid
+  rm_action_penalty: true
 
-  # Humanoid
+  # Ant
   pos_type: norm
   vel_type: rel
   expert_legs: [0, 1, 2, 3]
@@ -48,6 +48,17 @@ method:
   torso_type: null
   head_type: null
   head_wrt: null
+
+  # Humanoid
+  # pos_type: norm
+  # vel_type: rel
+  # expert_legs: [0, 1, 2, 3]
+  # policy_legs: [0, 1, 2, 3]
+  # expert_markers: [0, 1, 2]
+  # policy_markers: [0, 1, 2]
+  # torso_type: null
+  # head_type: null
+  # head_wrt: null
 
   # pos_type: norm
   # vel_type: rel
@@ -60,6 +71,24 @@ method:
   # head_wrt: null
 
   omit_done: false
+
+  agent:
+    gamma: 0.99
+    tau: 0.005
+    lr: 0.0003
+    q_weight_decay: 1e-5
+
+    # SAC
+    policy_type: gaussian
+    target_entropy: auto
+    alpha: 0.05
+    automatic_entropy_tuning: false
+    hidden_size: 256
+    target_update_interval: 1
+    bc_regularization: false
+
+  rewarder:
+    batch_size: 64
 
 logger:
   project_name: 'cosil-demos'
