@@ -4,11 +4,14 @@ defaults:
   - _self_
 
 # num_trajectories: 10 # cheetah
-num_trajectories: 40 # humanoid
+# num_trajectories: 40 # humanoid
+num_trajectories: 40 # ant
 # env_name: GaitTrackHumanoid-v0
 # resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-111/demonstrator_1702874491.pt
-env_name: GaitTrackScaledHumanoid-v0
-resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-111/demonstrator_1702930503.pt
+# env_name: GaitTrackScaledHumanoid-v0
+env_name: GaitTrackAnt-v0
+# resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-111/demonstrator_1702930503.pt
+resume: /scratch/work/hernans2/cosil/final/ant/GaitTrackAnt-v0/seed-355/demonstrator_1711202026.pt
 # env_name: GaitTrack2segHalfCheetah-v0
 # resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
 save_path: /scratch/work/hernans2/cosil/data/demos/
@@ -16,8 +19,8 @@ saved_agent_name: agent
 saved_morpho_name: morphos
 learn_disc_transitions: false
 morpho_in_state: true
-absorbing_state: true # humanoid
-# absorbing_state: false
+# absorbing_state: true # humanoid
+absorbing_state: false
 
 method:
   eval_periodically: false
@@ -40,8 +43,8 @@ method:
   vel_type: rel
   expert_legs: [0, 1, 2, 3]
   policy_legs: [0, 1, 2, 3]
-  expert_markers: [0, 1, 2]
-  policy_markers: [0, 1, 2]
+  expert_markers: [0, 1]
+  policy_markers: [0, 1]
   torso_type: null
   head_type: null
   head_wrt: null
@@ -60,7 +63,7 @@ method:
 
 logger:
   project_name: 'cosil-demos'
-  group_name: 'humanoid'
+  group_name: 'ant'
   experiment_name: 'gen_demos'
   run_id: ''
   loggers: console
