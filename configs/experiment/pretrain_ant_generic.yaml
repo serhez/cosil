@@ -9,8 +9,8 @@ defaults:
 seed: 123456
 device: cuda
 env_name: GaitTrackAnt-v0
-storage_path: MISSING
-models_dir_path: MISSING
+storage_path: /scratch/work/hernans2/cosil
+models_dir_path: data/replay_buffers/individual/
 learn_disc_transitions: false
 morpho_in_state: true
 absorbing_state: false
@@ -31,7 +31,7 @@ method:
   replay_capacity: 2000000
   replay_dim_ratio: 0.9999
   record_test: false
-  record_path: MISSING
+  record_path: /scratch/work/hernans2/cosil/videos
   save_checkpoints: false
   save_optimal: false
   save_final: true
@@ -58,7 +58,7 @@ method:
   co_adapt: true
   random_morphos: true
 
-  expert_demos: MISSING
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackAnt-v0_demos_1711299328.pt
 
   agent:
     gamma: 0.99
