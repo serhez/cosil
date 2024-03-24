@@ -539,6 +539,15 @@ class RLConfig(MethodConfig):
     omit_done: bool = False
     """Whether to omit the done signal."""
 
+    generate_demos: bool = False
+    """Whether to generate demonstrations at the end of training (treats the agent as an expert)."""
+
+    num_demos_trajectories: int = 10
+    """The number of demonstration trajectories to generate."""
+
+    demos_save_path: str = "demos"
+    """Path to save the demonstrations."""
+
 
 @dataclass(kw_only=True)
 class CoILConfig(MethodConfig):

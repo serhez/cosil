@@ -37,6 +37,10 @@ method:
   sparse_mask: null
   rm_action_penalty: true
 
+  generate_demos: true
+  num_demos_trajectories: 40
+  demos_save_path: /scratch/work/hernans2/cosil/data/demos/
+
   pos_type: norm
   vel_type: rel
   expert_legs: [0, 1, 2, 3]
