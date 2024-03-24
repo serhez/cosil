@@ -308,7 +308,7 @@ class RL(object):
         self.env.reset()
 
         demos = gen_obs_dict(
-            self.config.method.num_demo_trajectories,
+            self.config.method.num_demos_trajectories,
             self.env,
             self.morpho_params_np,
             self.agent,
