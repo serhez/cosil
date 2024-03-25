@@ -74,6 +74,7 @@ def gen_model_obs(
         agent,
         config.morpho_in_state,
         config.absorbing_state,
+        config.method.rm_action_penalty,
         logger,
         logger_mask,
     )

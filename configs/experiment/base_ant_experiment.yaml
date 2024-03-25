@@ -9,7 +9,7 @@ defaults:
 seed: 123456
 device: cuda
 env_name: GaitTrackAnt-v0
-storage_path: MISSING
+storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
 learn_disc_transitions: false
 morpho_in_state: true  # could be tested
@@ -35,7 +35,7 @@ method:
   rm_action_penalty: true
 
   # CoIL
-  expert_demos: MISSING
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackAnt-v0_demos_1711299328.pt
   morpho_warmup: 50000
   episodes_per_morpho: 100  # could be tested
   disc_warmup: 20000

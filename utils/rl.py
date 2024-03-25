@@ -83,6 +83,97 @@ def _add_obs(obs_dict, info, done, trajectory):
         obs_dict[key] = np.append(obs_dict[key], np.array([val]), axis=0)
 
 
+def gen_obs_dict(
+    num_trajectories: int,
+    env: gym.Env,
+    morpho: np.ndarray,
+    agent,
+    morpho_in_state: bool,
+    absorbing_state: bool,
+    rm_action_penalty: bool,
+    logger: Logger,
+    logger_mask: List[str] = ["wandb"],
+) -> dict:
+    """
+    Generates observations using the trained model.
+
+    The result is a dictionary containing each dimension of the observations as keys and
+    a list of that dimension's values for each observation as values.
+
+    Note that the trajectories are flattened, so that each dict item contains the total number of observations.
+
+    Parameters
+    ----------
+    num_trajectories -> the number of trajectories to generate.
+    env -> the environment.
+    morpho -> the morphological parameters.
+    agent -> the agent.
+    morpho_in_state -> whether to add the morphological parameters to the state.
+    absorbing_state -> whether to add an absorbing state to the observations.
+    rm_action_penalty -> whether to remove the action penalty.
+    logger -> the logger.
+    logger_mask -> the loggers to mask when logging.
+
+    Returns
+    -------
+    obs_dict -> the dictionary containing the observations.
+    """
+
+    obs_dict = {
+        "dones": np.array([]),
+        "episodes": np.array([]),
+    }
+
+    logger.info(f"Generating {num_trajectories} trajectories", logger_mask)
+
+    # Generate trajectories
+    for trajectory in range(1, num_trajectories + 1):
+        state, _ = env.reset()
+
+        feat = state
+        if morpho_in_state:
+            feat = np.concatenate([feat, morpho])
+        if absorbing_state:
+            feat = np.concatenate([feat, np.zeros(1)])
+
+        tot_reward = 0
+        traj_num_obs = 0
+        done = False
+
+        while not done:
+            action = agent.select_action(feat, evaluate=True)
+            next_state, reward, terminated, truncated, info = env.step(action)
+
+            # This is environment-dependent
+            if rm_action_penalty:
+                reward = info["reward_run"]
+
+            next_feat = next_state
+            if morpho_in_state:
+                next_feat = np.concatenate([next_state, morpho])
+            if absorbing_state:
+                next_feat = np.concatenate([next_feat, np.zeros(1)])
+
+            done = terminated or truncated
+            _add_obs(obs_dict, info, done, trajectory)
+            traj_num_obs += 1
+
+            feat = next_feat
+
+            tot_reward += reward
+
+        logger.info(
+            {
+                "Trajectory": trajectory,
+                "Reward": tot_reward,
+                "Generated observations": traj_num_obs,
+            },
+            logger_mask,
+        )
+
+    return obs_dict
+
+
 def gen_obs_list(
     num_obs: int,
     env: gym.Env,
@@ -174,91 +265,6 @@ def gen_obs_list(
         )
 
     return obs_list
-
-
-def gen_obs_dict(
-    num_trajectories: int,
-    env: gym.Env,
-    morpho: np.ndarray,
-    agent,
-    morpho_in_state: bool,
-    absorbing_state: bool,
-    logger: Logger,
-    logger_mask: List[str] = ["wandb"],
-) -> dict:
-    """
-    Generates observations using the trained model.
-
-    The result is a dictionary containing each dimension of the observations as keys and
-    a list of that dimension's values for each observation as values.
-
-    Note that the trajectories are flattened, so that each dict item contains the total number of observations.
-
-    Parameters
-    ----------
-    num_trajectories -> the number of trajectories to generate.
-    env -> the environment.
-    morpho -> the morphological parameters.
-    agent -> the agent.
-    morpho_in_state -> whether to add the morphological parameters to the state.
-    absorbing_state -> whether to add an absorbing state to the observations.
-    logger -> the logger.
-    logger_mask -> the loggers to mask when logging.
-
-    Returns
-    -------
-    obs_dict -> the dictionary containing the observations.
-    """
-
-    obs_dict = {
-        "dones": np.array([]),
-        "episodes": np.array([]),
-    }
-
-    logger.info(f"Generating {num_trajectories} trajectories", logger_mask)
-
-    # Generate trajectories
-    for trajectory in range(1, num_trajectories + 1):
-        state, _ = env.reset()
-
-        feat = state
-        if morpho_in_state:
-            feat = np.concatenate([feat, morpho])
-        if absorbing_state:
-            feat = np.concatenate([feat, np.zeros(1)])
-
-        tot_reward = 0
-        traj_num_obs = 0
-        done = False
-
-        while not done:
-            action = agent.select_action(feat, evaluate=True)
-            next_state, reward, terminated, truncated, info = env.step(action)
-
-            next_feat = next_state
-            if morpho_in_state:
-                next_feat = np.concatenate([next_state, morpho])
-            if absorbing_state:
-                next_feat = np.concatenate([next_feat, np.zeros(1)])
-
-            done = terminated or truncated
-            _add_obs(obs_dict, info, done, trajectory)
-            traj_num_obs += 1
-
-            feat = next_feat
-
-            tot_reward += reward
-
-        logger.info(
-            {
-                "Trajectory": trajectory,
-                "Reward": tot_reward,
-                "Generated observations": traj_num_obs,
-            },
-            logger_mask,
-        )
-
-    return obs_dict
 
 
 class ObservationsRecorderWrapper(gym.Wrapper):
