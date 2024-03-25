@@ -28,17 +28,19 @@ method:
   record_test: false
   save_checkpoints: false
   save_optimal: false
-  save_final: true
+  save_final: false
   save_buffers: false
-  save_agents: true
-  save_rewarders: true
-  save_morphos: true
+  save_agents: false
+  save_rewarders: false
+  save_morphos: false
   save_demos: false
   sparse_mask: null
   rm_action_penalty: true
 
   generate_demos: true
   num_demos_trajectories: 40
+  eval_final: true
+  eval_episodes: 40
   demos_save_path: /scratch/work/hernans2/cosil/data/demos/
 
   pos_type: norm

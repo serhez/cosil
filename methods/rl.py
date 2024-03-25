@@ -16,7 +16,7 @@ from normalizers import create_normalizer
 from rewarders import EnvReward
 from utils import dict_add, dict_div
 from utils.co_adaptation import get_marker_info, handle_absorbing
-from utils.rl import gen_obs_dict
+from utils.rl import _add_obs
 
 
 class RL(object):
@@ -296,50 +296,31 @@ class RL(object):
             self._save("final")
 
         if self.config.method.eval_final:
-            self._evaluate(episode, log_dict, final=True)
-
-        if self.config.method.generate_demos:
-            self._generate_demos()
+            self._evaluate(
+                episode,
+                log_dict,
+                final=True,
+                save_demos=self.config.method.generate_demos,
+            )
 
         return self.agent, self.morpho_params_np
 
-    def _generate_demos(self):
-        self.env.set_task(*self.morpho_params_np)
-        self.env.reset()
-
-        demos = gen_obs_dict(
-            self.config.method.num_demos_trajectories,
-            self.env,
-            self.morpho_params_np,
-            self.agent,
-            self.config.morpho_in_state,
-            self.config.absorbing_state,
-            self.logger,
-            [],
-        )
-
-        path = self.config.method.demos_save_path
-
-        assert path is not None, "Must provide path to save observations"
-        try:
-            if not os.path.exists(path):
-                os.makedirs(path)
-        except Exception:
-            raise ValueError("Invalid path")
-
-        if path[-1] != "/":
-            path += "/"
-
-        file_name = f"{path}{self.config.env_name}_demos_{self.config.logger.run_id}.pt"
-
-        self.logger.info(f"Saving demonstrations to {file_name}")
-        torch.save(demos, file_name)
-
-    def _evaluate(self, i_episode: int, log_dict: dict[str, Any], final: bool = False):
+    def _evaluate(
+        self,
+        i_episode: int,
+        log_dict: dict[str, Any],
+        final: bool = False,
+        save_demos: bool = False,
+    ):
         start = time.time()
         avg_reward = 0.0
         avg_steps = 0
         episodes = self.config.method.eval_episodes
+
+        obs_dict = {
+            "dones": np.array([]),
+            "episodes": np.array([]),
+        }
 
         recorder = None
         vid_path = None
@@ -382,6 +363,7 @@ class RL(object):
 
                 next_state, reward, terminated, truncated, info = self.env.step(action)
                 done = terminated or truncated
+                _add_obs(obs_dict, info, done, test_ep)
 
                 if recorder is not None and test_ep == 0:
                     recorder.capture_frame()
@@ -417,6 +399,26 @@ class RL(object):
 
         if self.config.method.save_checkpoints:
             self._save("checkpoint")
+
+        if save_demos:
+            path = self.config.method.demos_save_path
+
+            assert path is not None, "Must provide path to save observations"
+            try:
+                if not os.path.exists(path):
+                    os.makedirs(path)
+            except Exception:
+                raise ValueError("Invalid path")
+
+            if path[-1] != "/":
+                path += "/"
+
+            file_name = (
+                f"{path}{self.config.env_name}_demos_{self.config.logger.run_id}.pt"
+            )
+
+            self.logger.info(f"Saving demonstrations to {file_name}")
+            torch.save(obs_dict, file_name)
 
         if recorder is not None:
             recorder.close()
