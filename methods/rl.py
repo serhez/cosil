@@ -150,7 +150,7 @@ class RL(object):
 
                     action = self.agent.select_action(feats)
 
-                if len(self.replay_buffer) >= self.batch_size:
+                if len(self.replay_buffer) >= 2000: # self.batch_size:
                     for _ in range(self.config.method.updates_per_step):
                         # Train the individual agent
                         batch = self.replay_buffer.sample(self.batch_size)
@@ -208,7 +208,7 @@ class RL(object):
                 else:
                     feats = state
                     next_feats = next_state
-
+                #print(reward*0.2)
                 if self.absorbing_state:
                     obs_list = handle_absorbing(
                         feats,

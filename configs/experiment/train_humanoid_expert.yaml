@@ -6,7 +6,7 @@ defaults:
   - override /method/agent: sac
   - override /method/rewarder: env
 
-seed: 123456
+seed: 42 #123456
 device: cuda
 env_name: GaitTrackHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
@@ -25,13 +25,13 @@ method:
   batch_size: 256
   num_episodes: 7000
   updates_per_step: 1
-  start_steps: 0
+  start_steps: 2000
   replay_capacity: 350000
   replay_dim_ratio: 0.9999
   record_test: false
   record_path: /scratch/work/hernans2/cosil/videos
   save_checkpoints: false
-  save_optimal: false
+  save_optimal: true
   save_final: true
   sparse_mask: null
   rm_action_penalty: false

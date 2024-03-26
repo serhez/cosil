@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 env_name: GaitTrackHalfCheetah-v0
-device: cpu
+device: cuda
 updates: 50
 models_dir_path: data/pretrained
 

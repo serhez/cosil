@@ -190,7 +190,7 @@ class DualSAC(Agent):
         loss_fn = torch.nn.MSELoss()
         n_samples = len(memory)
         n_batches = n_samples // batch_size
-
+        n_batches = 300
         policy_optim_state_dict = self._policy_optim.state_dict()
 
         mean_loss = 0

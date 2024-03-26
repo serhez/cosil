@@ -24,7 +24,7 @@ class WandbLogger(Logger):
         config -> the configuration of the experiment.
         """
 
-        super().__init__()
+        super().__init__(None)
         wandb.init(
             project=project, group=group, name=name + "_" + id, config=vars(config)
         )

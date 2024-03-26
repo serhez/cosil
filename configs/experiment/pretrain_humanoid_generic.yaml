@@ -10,23 +10,29 @@ seed: 123456
 device: cuda
 env_name: GaitTrackHumanoid-v0
 storage_path: /scratch/work/hernans2/cosil
-models_dir_path: data/replay_buffers/individual/
+models_dir_path: data/replay_buffers/individual_new/
 learn_disc_transitions: false
 morpho_in_state: true
 absorbing_state: true
 resume: null
 num_agents: 1
 
+
 method:
+  disc_warmup: 200
+  omega_init: 0.0
+  adapt_morpho_omega: 0.0
+  train_pop_networks: false
+  init_ind_networks: true
   eval_periodically: false
   eval_episodes: 10
   eval_per_episodes: 20
   eval_final: false
   batch_size: 256
   num_episodes: 5000
-  episodes_per_morpho: 500
+  episodes_per_morpho: 1000
   updates_per_step: 1
-  start_steps: 0
+  start_steps: 100
   morpho_warmup: 0
   replay_capacity: 2000000
   replay_dim_ratio: 0.9999
@@ -58,7 +64,11 @@ method:
   co_adapt: true
   random_morphos: true
 
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1703035428.pt
+  # expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1703035428.pt
+  #expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1709809741.pt
+  #expert_demos: /scratch/work/hernans2/cosil/optimal/humanoid/GaitTrackHumanoid-v0/seed-42/demonstrator_1710322655.pt
+  #expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1710411029.pt
+  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1710528654.pt
 
   agent:
     gamma: 0.99

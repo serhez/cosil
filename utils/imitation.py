@@ -37,11 +37,14 @@ def load_demos(config: DictConfig):
             mean_reward = np.mean(expert_obs["reward_run"])
         else:
             # Humanoid env (bad practice: hard-coded)
-            mean_reward = np.mean(
-                expert_obs["reward_run"]
-                - expert_obs["reward_quadctrl"]
-                - expert_obs["reward_impact"]
-                + expert_obs["reward_alive"]
+            #print(expert_obs['reward_sum'].reshape(300,-1).shape)
+            mean_reward = np.sum(
+               # expert_obs["reward_run"]
+               # - expert_obs["reward_quadctrl"]
+               # - expert_obs["reward_impact"]
+               # + expert_obs["reward_alive"]
+               expert_obs['reward_sum'].reshape(-1,300),
+               axis=1
             )
 
         expert_obs_np, to_match = get_marker_info(

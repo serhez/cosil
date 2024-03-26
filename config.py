@@ -87,7 +87,7 @@ class Schedulers(StrEnum):
     step = "step"
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class LoggerConfig:
     """
     Configuration for the logger.
@@ -112,7 +112,7 @@ class LoggerConfig:
     """Default mask to be used by the multi-logger."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class RewarderConfig:
     """
     Configuration for the rewarder.
@@ -155,7 +155,7 @@ class RewarderConfig:
     """Number of updates for the pretraining of the rewarder after a morphology change."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class EnvRewarderConfig(RewarderConfig):
     """
     Configuration for the environment rewarder.
@@ -165,7 +165,7 @@ class EnvRewarderConfig(RewarderConfig):
     """Name of the rewarder."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class MBCConfig(RewarderConfig):
     """
     Configuration for the Morphological Behavioral Cloning rewarder.
@@ -178,7 +178,7 @@ class MBCConfig(RewarderConfig):
     """Number of episodes every which the MBC rewarder adapts its demonstrator morphology."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class GAILConfig(RewarderConfig):
     """
     Configuration for the GAIL rewarder.
@@ -194,7 +194,7 @@ class GAILConfig(RewarderConfig):
     """Weight decay for the discriminator."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class AIRLConfig(RewarderConfig):
     """
     Configuration for the AIRL rewarder.
@@ -210,7 +210,7 @@ class AIRLConfig(RewarderConfig):
     """Weight decay for the discriminator."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class SAILConfig(RewarderConfig):
     """
     Configuration for the SAIL rewarder.
@@ -235,7 +235,7 @@ class SAILConfig(RewarderConfig):
     """Scaler for the VAE loss."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class AgentConfig:
     """
     Configuration for the agent.
@@ -257,7 +257,7 @@ class AgentConfig:
     """Weight decay for the Q networks."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class SACConfig(AgentConfig):
     """
     Configuration for the SAC agent.
@@ -324,7 +324,7 @@ class SACConfig(AgentConfig):
     """Normalization upper bound for the clipping of the policy loss (RL part)."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class DualSACConfig(SACConfig):
     """
     Configuration for the Dual SAC agent.
@@ -358,7 +358,7 @@ class DualSACConfig(SACConfig):
     """Normalization upper bound for the clipping of the Q-values."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class CoAdaptationConfig:
     """
     Configuration for co-adaptation.
@@ -387,7 +387,7 @@ class CoAdaptationConfig:
     """Bayesian optimization LCB acquisition function exploration weight."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class MethodConfig:
     """
     Configuration for the method.
@@ -489,7 +489,7 @@ class MethodConfig:
     """Whether to remove the action penalty given as part of the reward by the environment."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class RLConfig(MethodConfig):
     """
     Configuration for the RL method.
@@ -540,7 +540,7 @@ class RLConfig(MethodConfig):
     """Whether to omit the done signal."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class CoILConfig(MethodConfig):
     """
     Configuration for CoIL.
@@ -618,7 +618,7 @@ class CoILConfig(MethodConfig):
     """Fixed morphology to use."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class CoSILConfig(CoILConfig):
     """
     Configuration for the CoSIL method.
@@ -697,9 +697,14 @@ class CoSILConfig(CoILConfig):
 
     pretrain_il_rewarder: bool = True
     """Whether to pretrain the IL rewarder after each morphology change using observations from the replay buffer."""
+    
+    train_pop_networks: bool = True
+    """Wheter to train the population networks"""
 
+    init_ind_networks: bool = True
+    """Whether to initialize the ind networks from the pop networks"""
 
-@dataclass(kw_only=True)
+@dataclass()
 class Config:
     """
     Base configuration.
@@ -739,7 +744,7 @@ class Config:
     """Path to the directory where to save large files."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class TrainConfig(Config):
     """
     Configuration for training.
@@ -764,7 +769,7 @@ class TrainConfig(Config):
     """Number of agents to train."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class GenTrajectoriesConfig(Config):
     """
     Configuration for generating trajectories as demonstrations.
@@ -796,7 +801,7 @@ class GenTrajectoriesConfig(Config):
     """Number of trajectories to generate."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class GenBufferConfig(Config):
     """
     Configuration for generating observation buffers with a single morphology.
@@ -824,7 +829,7 @@ class GenBufferConfig(Config):
     """Number of agents to train."""
 
 
-@dataclass(kw_only=True)
+@dataclass()
 class PretrainConfig(Config):
     """
     Configuration for generating observation buffers with a single morphology.

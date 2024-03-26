@@ -4,10 +4,14 @@ defaults:
   - base_humanoid_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
-  - override /method/rewarder: gail  # variable
+  - override /method/rewarder: sail  # variable
+
+seed: 100
+device: cuda
 
 method:
-  pretrain_path: /scratch/work/hernans2/cosil/final/baseline/GaitTrackHumanoid-v0/seed-111/baseline-pso-zs_1703472468.pt
+  #pretrain_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-123456/pretrain-humanoid_1710411388.pt
+  #pretrain_path: /scratch/work/hernans2/cosil/final/baseline/GaitTrackHumanoid-v0/seed-111/baseline-pso-zs_1703472468.pt
   omega_scheduler: constant
   co_adaptation:
     morphos_path: null
@@ -16,6 +20,7 @@ method:
   #### Variables
 
   # General
+  episodes_per_morpho: 300
   transfer: false
   omega_init: 0.0
   adapt_morpho_omega: 0.0

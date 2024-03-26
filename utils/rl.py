@@ -48,11 +48,21 @@ def get_markers_by_ep(
     """
 
     all_markers_np = []
+    episodic_rewards = []
     for ep in np.unique(obs[9]):
         ep_obs = obs[6][obs[9] == ep]
         all_markers_np.append(ep_obs)
-    start_i = int(max(len(all_markers_np) - n_ep, 0))
-    return [torch.from_numpy(x).float().to(device) for x in all_markers_np[start_i:]]
+        rewards = obs[2][obs[9] == ep]
+        episodic_rewards.append(np.sum(rewards)/0.05) #TODO 0.05 is necc. because of the hacked reward scaling... :( Only works good for humanoid probably...
+    #start_i = int(max(len(all_markers_np) - n_ep, 0))
+    idx = list(np.argsort(episodic_rewards)[-int(n_ep):])
+    all_markers_np_new = []
+    ep_rewards_sorted = []
+    for i in idx:
+        all_markers_np_new.append(all_markers_np[i])
+        ep_rewards_sorted.append(episodic_rewards[i])
+
+    return [torch.from_numpy(x).float().to(device) for x in all_markers_np_new], ep_rewards_sorted
 
 
 def _add_obs(obs_dict, info, done, trajectory):
@@ -242,6 +252,7 @@ def gen_obs_dict(
                 next_feat = np.concatenate([next_feat, np.zeros(1)])
 
             done = terminated or truncated
+            info['reward_sum'] = reward
             _add_obs(obs_dict, info, done, trajectory)
             traj_num_obs += 1
 

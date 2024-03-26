@@ -395,8 +395,8 @@ def handle_absorbing(
                 add_action,
                 0.0,
                 next_feats,
-                1.0,
-                1.0,
+                0.0,
+                0.0,
                 absorbing_state,
                 absorbing_state,
             )
