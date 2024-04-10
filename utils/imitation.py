@@ -43,7 +43,7 @@ def load_demos(config: DictConfig):
                # - expert_obs["reward_quadctrl"]
                # - expert_obs["reward_impact"]
                # + expert_obs["reward_alive"]
-               expert_obs['reward_sum'].reshape(-1,300),
+               expert_obs['reward_sum'].reshape(config.num_trajectories,-1),
                axis=1
             )
 

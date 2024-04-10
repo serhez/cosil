@@ -47,6 +47,7 @@ class PosVelTypes(StrEnum):
 class TorsoHeadTypes(StrEnum):
     velocity = "velocity"
     position = "position"
+    vel = "vel"
 
 
 class HeadWrtTypes(StrEnum):
@@ -703,6 +704,9 @@ class CoSILConfig(CoILConfig):
 
     init_ind_networks: bool = True
     """Whether to initialize the ind networks from the pop networks"""
+    
+    vae_batch: int = 10000
+    """VAE pretrianing batch size"""
 
 @dataclass()
 class Config:
@@ -742,6 +746,9 @@ class Config:
 
     storage_path: str = "./"
     """Path to the directory where to save large files."""
+    
+    reward_scale: float = 0.05
+    """Scaling of reaward for replay buffer"""
 
 
 @dataclass()
@@ -767,6 +774,8 @@ class TrainConfig(Config):
 
     num_agents: int = 1
     """Number of agents to train."""
+    
+    num_trajectories: int = 40
 
 
 @dataclass()

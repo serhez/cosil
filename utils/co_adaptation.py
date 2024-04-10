@@ -157,8 +157,9 @@ def get_marker_info(
             all_data.append(data)
 
     if torso_type is not None:
-        for t_type in torso_type:
-            torso_key = f"track/abs/{t_type}/torso"
+        #for t_type in torso_type:
+            #print(t_type);print(torso_type)
+            torso_key = f"track/abs/{torso_type}/torso"
             all_keys.append(torso_key)
             data = info_dict[torso_key]
             all_data.append(data)

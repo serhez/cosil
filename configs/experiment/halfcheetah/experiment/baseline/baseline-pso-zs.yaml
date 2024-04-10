@@ -4,15 +4,14 @@ defaults:
   - base_halfcheetah_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
-  - override /method/rewarder: airl  # variable
+  - override /method/rewarder: sail  # variable
 
 #### Variables
 learn_disc_transitions: false
+seed: 102
+device: cuda
 
 method:
-  replay_buffer_path: null
-  pretrain: false
-  pretrain_path: /scratch/work/hernans2/cosil/models/final/pretrain-baseline/GaitTrackHalfCheetah-v0/seed-123456/baseline-pso_1691025687.pt
   dual_mode: q
   omega_scheduler: constant
   num_episodes: 2000
@@ -21,7 +20,7 @@ method:
   start_steps: 0
   disc_warmup: 0
   eval_periodically: false
-  record_test: false
+  record_test: true
   save_checkpoints: false
   save_optimal: false
   save_final: false

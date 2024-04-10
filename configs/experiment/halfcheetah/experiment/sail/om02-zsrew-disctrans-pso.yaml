@@ -7,24 +7,21 @@ defaults:
   - override /method/rewarder: sail  # variable
 
 #### Variables
+seed: 103
+device: cuda
 learn_disc_transitions: true
 
 method:
-  replay_buffer_path: null
-  pretrain: false
-  pretrain_path: /scratch/work/hernans2/cosil/models/final/pretrain-sail/GaitTrackHalfCheetah-v0/seed-123456/om02-zsrew-disctrans-pso_1690727321.pt
   dual_mode: q
-  omega_scheduler: constant
   num_episodes: 2000
   episodes_per_morpho: 100
   morpho_warmup: 0
   start_steps: 0
   disc_warmup: 0
   eval_periodically: false
-  record_test: false
   save_checkpoints: false
   save_optimal: false
-  save_final: false
+  save_final: true
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
@@ -34,6 +31,7 @@ method:
   # General
   transfer: true
   omega_init: 0.2
+  omega_scheduler: constant
   pop_omega_init: 0.2
   adapt_morpho_omega: 0.2
   demos_strategy: replace
@@ -65,6 +63,6 @@ method:
 
 
 logger:
-  group_name: "sail-om02-zsrew-disctrans-pso"
-  experiment_name: "sail-om02-zsrew-disctrans-pso"
+  group_name: "sail-om02-zsrew-disctrans-pso-hc36-3"
+  experiment_name: "sail-om02-zsrew-disctrans-pso-hc36"
   loggers: console,wandb

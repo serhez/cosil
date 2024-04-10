@@ -224,7 +224,7 @@ class CoSIL(object):
             and config.resume is None
             and config.method.omega_init > 0
         ):
-            self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, 10000)
+            self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, config.method.vae_batch)
             #self.il_rewarder.g_inv_loss = self._pretrain_sail(
             #    self.il_rewarder, co_adapt=config.method.co_adapt
             #)
@@ -294,6 +294,8 @@ class CoSIL(object):
             #random.shuffle(rand_dix_list)
             #irand_dix_list = rand_dix_list[:replace_nmb]
             rand_dix_list = list(np.argsort(self._expert_demos_epreward)[:replace_nmb])
+            print(len(episodic_rewards)); 
+            print(len(self._expert_demos_epreward))
             for r_idx, idx in zip(rand_dix_list, list(range( int(self.demos_n_ep)-1, int(self.demos_n_ep - replace_nmb)-1, -1))):
                 if self._expert_demos_epreward[r_idx] < episodic_rewards[idx]:
                     self.demos[r_idx] = demos[idx]
@@ -692,7 +694,7 @@ class CoSIL(object):
                     obs_list = handle_absorbing(
                         feats,
                         action,
-                        reward*0.05,
+                        reward*self.config.reward_scale,
                         next_feats,
                         mask,
                         marker_obs,
@@ -710,7 +712,7 @@ class CoSIL(object):
                     current_obs = (
                         feats,
                         action,
-                        reward*0.05,
+                        reward*self.config.reward_scale,
                         next_feats,
                         mask,
                         mask,

@@ -32,7 +32,7 @@ method:
   save_optimal: false
   save_final: true
   sparse_mask: null
-  rm_action_penalty: true
+  rm_action_penalty: false
 
   pos_type: norm
   vel_type: rel
@@ -40,7 +40,7 @@ method:
   policy_legs: [0, 1]
   expert_markers: [1, 2, 3]
   policy_markers: [1, 2, 3]
-  torso_type: abs/vel
+  torso_type: vel
   head_type: null
   head_wrt: null
 
@@ -65,8 +65,8 @@ method:
     batch_size: 64
 
 logger:
-  project_name: "cosil-demonstrator"
-  group_name: "half-cheetah"
-  experiment_name: "demonstrator"
+  project_name: "cosil-demonstrator-hc36"
+  group_name: "half-cheetah36"
+  experiment_name: "demonstrator-hc36"
   run_id: ""
   loggers: console

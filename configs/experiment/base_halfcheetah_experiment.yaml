@@ -4,18 +4,20 @@ defaults:
   - /base_train
   - override /method: cosil  # variable
   - override /method/agent: dual_sac  # variable
-  - override /method/rewarder: airl  # variable
+  - override /method/rewarder: sail  # variable
 
-seed: 123456
+seed: 103
 device: cuda
-env_name: GaitTrackHalfCheetah-v0
+env_name: GaitTrackHalfCheetah36-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
-learn_disc_transitions: false
+learn_disc_transitions: true
 morpho_in_state: true  # could be tested
 absorbing_state: false  # could be tested
 resume: null
 num_agents: 1
+reward_scale: 0.05
+num_trajectories: 10
 
 method:
   eval_periodically: false
@@ -27,24 +29,30 @@ method:
   start_steps: 10000
   replay_capacity: 2000000
   replay_dim_ratio: 0.9999  # could be tested
-  record_test: false
+  record_test: true
   save_checkpoints: false
   save_optimal: false
   save_final: false
   sparse_mask: null
-  rm_action_penalty: true
+  rm_action_penalty: false
 
   # CoIL
-  expert_demos: data/demos/demos_1687522046.pt
-  morpho_warmup: 50000
+  # expert_demos: ./data_own/demo/GaitTrackHalfCheetah36-v0_demos_1712061160.pt #[1,2,3], torso:vel
+  #expert_demos: ./data_own/demo/GaitTrackHalfCheetah36-v0_demos_1712239715.pt #[1,3]
+  expert_demos: ./data_own/demo/GaitTrackHalfCheetah36-v0_demos_1712438908.pt #[3]
+  #replay_buffer_path: ./data_own/pretrain-halfcheetah36_1712061329.pt #[1,2,3], torso:vel
+  #replay_buffer_path: ./data_own/pretrain-halfcheetah36_1712240578.pt #[1,3]
+  ###replay_buffer_path: ./data_own/pretrain-halfcheetah36_1712439150.pt #[3]
+  replay_buffer_path: ./data_own/pretrain-halfcheetah36_1712570773.pt #[3]
+  morpho_warmup: 0
   episodes_per_morpho: 100  # could be tested
-  disc_warmup: 20000
+  disc_warmup: 0
   pos_type: norm
   vel_type: rel
   expert_legs: [0, 1]
   policy_legs: [0, 1]
-  expert_markers: [1, 2, 3]
-  policy_markers: [1, 2, 3]
+  expert_markers: [3]
+  policy_markers: [3]
   train_distance_value: false
   co_adapt: true
   subject_id: 8
@@ -53,6 +61,9 @@ method:
   head_wrt: null
   omit_done: false
   fixed_morpho: null
+  init_ind_networks: true
+  train_pop_networks: true
+  vae_batch: 256
 
   agent:
     gamma: 0.99
@@ -77,9 +88,8 @@ method:
     # disc_weight_decay: 1
 
   co_adaptation:
-    dist_optimizer: bo
-    bo_gp_mean: Zero
-    acq_weight: 2.0
+    morphos_path: null
+    dist_optimizer: pso
 
 logger:
   project_name: "cosil-experiments"

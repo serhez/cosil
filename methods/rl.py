@@ -213,7 +213,7 @@ class RL(object):
                     obs_list = handle_absorbing(
                         feats,
                         action,
-                        reward,
+                        reward*0.05,
                         next_feats,
                         mask,
                         marker_obs,
@@ -228,7 +228,7 @@ class RL(object):
                     current_obs = (
                         feats,
                         action,
-                        reward,
+                        reward*0.05,
                         next_feats,
                         mask,
                         mask,
