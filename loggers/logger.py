@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union, Tuple
 
 
 class Logger(ABC):
-    def __init__(self, default_mask: list[str] = []):
+    def __init__(self, default_mask):
         """
         Initializes the logger base class.
 
@@ -17,9 +17,9 @@ class Logger(ABC):
     @abstractmethod
     def _log_impl(
         self,
-        message: Union[str, Dict[str, Any]],
+        message,
         level: str = "INFO",
-        mask: Optional[list[str]] = None,
+        mask: Optional[list] = None,
     ) -> bool:
         """The child class internal implementation of the log method; not to be called directly."""
 
@@ -29,7 +29,7 @@ class Logger(ABC):
         self,
         message: Union[str, Dict[str, Any]],
         level: str = "INFO",
-        mask: Optional[list[str]] = None,
+        mask: Optional[list] = None,
     ) -> bool:
         """
         Log a message.
@@ -60,7 +60,7 @@ class Logger(ABC):
     __call__: Callable[..., Any] = _call_impl
 
     def info(
-        self, message: Union[str, Dict[str, Any]], mask: Optional[list[str]] = None
+        self, message: Union[str, Dict[str, Any]], mask: Optional[list] = None
     ) -> bool:
         """
         Wrapper for calling logger.log with level="INFO".
@@ -83,7 +83,7 @@ class Logger(ABC):
         return self.log(message, "INFO", mask)
 
     def warning(
-        self, message: Union[str, Dict[str, Any]], mask: Optional[list[str]] = None
+        self, message: Union[str, Dict[str, Any]], mask: Optional[list] = None
     ) -> bool:
         """
         Wrapper for calling logger.log with level="WARNING".
@@ -106,7 +106,7 @@ class Logger(ABC):
         return self.log(message, "WARNING", mask)
 
     def error(
-        self, message: Union[str, Dict[str, Any]], mask: Optional[list[str]] = None
+        self, message: Union[str, Dict[str, Any]], mask: Optional[list] = None
     ) -> bool:
         """
         Wrapper for calling logger.log with level="ERROR".

@@ -3,15 +3,15 @@ defaults:
   - base_gen_obs
   - _self_
 
-# num_trajectories: 10 # cheetah
-# num_trajectories: 40 # humanoid
-num_trajectories: 40 # ant
+num_trajectories: 10 # cheetah
+#num_trajectories: 40 # humanoid
 # env_name: GaitTrackHumanoid-v0
 # resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-111/demonstrator_1702874491.pt
-# env_name: GaitTrackScaledHumanoid-v0
-env_name: GaitTrackAnt-v0
-# resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackScaledHumanoid-v0/seed-111/demonstrator_1702930503.pt
-resume: /scratch/work/hernans2/cosil/final/ant/GaitTrackAnt-v0/seed-355/demonstrator_1711202026.pt
+#env_name: GaitTrackHumanoid-v0
+env_name: GaitTrackHalfCheetah36-v0
+#resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-123456/demonstrator_1709747996.pt
+#resume: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-42/demonstrator_1710521294.pt
+resume: /scratch/work/hernans2/cosil/final/half-cheetah36/GaitTrackHalfCheetah36-v0/seed-123456/demonstrator-hc36_1712000712.pt
 # env_name: GaitTrack2segHalfCheetah-v0
 # resume: /scratch/work/hernans2/cosil/models/final/half-cheetah-2seg/GaitTrack2segHalfCheetah-v0/seed-123456/demonstrator_1700092284.pt
 save_path: /scratch/work/hernans2/cosil/data/demos/
@@ -19,8 +19,8 @@ saved_agent_name: agent
 saved_morpho_name: morphos
 learn_disc_transitions: false
 morpho_in_state: true
-# absorbing_state: true # humanoid
-absorbing_state: false
+absorbing_state: false # humanoid
+# absorbing_state: false
 
 method:
   eval_periodically: false
@@ -35,31 +35,42 @@ method:
   save_optimal: false
   save_final: false
   sparse_mask: null
-  # rm_action_penalty: false # humanoid
-  rm_action_penalty: true
+  #rm_action_penalty: false # humanoid
+  rm_action_penalty: false
 
-  # Ant
+  # Humanoid
+  #pos_type: norm
+  #vel_type: rel
+  #expert_legs: [0, 1, 2, 3]
+  #policy_legs: [0, 1, 2, 3]
+  #expert_markers: [0, 1, 2]
+  #policy_markers: [0, 1, 2]
+  #torso_type: null
+  #head_type: null
+  #head_wrt: null
+
+  #HalfCheetah
+  #pos_type: norm
+  #vel_type: rel
+  #expert_legs: [0, 1]
+  #policy_legs: [0, 1]
+  #expert_markers: [1, 2, 3]
+  #policy_markers: [1, 2, 3]
+  #torso_type: vel
+  #head_type: null
+  #head_wrt: null
+  
+  #HalfCheetah COIL
   pos_type: norm
   vel_type: rel
-  expert_legs: [0, 1, 2, 3]
-  policy_legs: [0, 1, 2, 3]
-  expert_markers: [0, 1]
-  policy_markers: [0, 1]
+  expert_legs: [0, 1]
+  policy_legs: [0, 1]
+  expert_markers: [ 3]
+  policy_markers: [ 3]
   torso_type: null
   head_type: null
   head_wrt: null
-
-  # Humanoid
-  # pos_type: norm
-  # vel_type: rel
-  # expert_legs: [0, 1, 2, 3]
-  # policy_legs: [0, 1, 2, 3]
-  # expert_markers: [0, 1, 2]
-  # policy_markers: [0, 1, 2]
-  # torso_type: null
-  # head_type: null
-  # head_wrt: null
-
+  
   # pos_type: norm
   # vel_type: rel
   # expert_legs: [0, 1]
@@ -72,27 +83,9 @@ method:
 
   omit_done: false
 
-  agent:
-    gamma: 0.99
-    tau: 0.005
-    lr: 0.0003
-    q_weight_decay: 1e-5
-
-    # SAC
-    policy_type: gaussian
-    target_entropy: auto
-    alpha: 0.05
-    automatic_entropy_tuning: false
-    hidden_size: 256
-    target_update_interval: 1
-    bc_regularization: false
-
-  rewarder:
-    batch_size: 64
-
 logger:
   project_name: 'cosil-demos'
-  group_name: 'ant'
+  group_name: 'halfcheetah'
   experiment_name: 'gen_demos'
   run_id: ''
   loggers: console

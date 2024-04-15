@@ -12,6 +12,7 @@ from config import setup_config
 from loggers import create_multilogger
 from methods import create_method
 
+torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
 @hydra.main(version_base=None, config_path="configs", config_name="train")
 def main(config: DictConfig) -> None:

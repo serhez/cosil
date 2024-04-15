@@ -394,7 +394,7 @@ class CoIL(object):
                     obs_list = handle_absorbing(
                         feats,
                         action,
-                        reward,
+                        reward*0.05,
                         next_feats,
                         mask,
                         marker_obs,
@@ -407,7 +407,7 @@ class CoIL(object):
                     obs = (
                         feats,
                         action,
-                        reward,
+                        reward*0.05,
                         next_feats,
                         mask,
                         mask,
@@ -630,8 +630,8 @@ class CoIL(object):
     def _adapt_morphology(
         self,
         epsilon: float,
-        es: cma.CMAEvolutionStrategy | None,
-        es_buffer: deque | None,
+        es,
+        es_buffer,
         log_dict: dict[str, Any],
     ):
         optimized_morpho_params = None

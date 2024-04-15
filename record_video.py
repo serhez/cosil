@@ -45,6 +45,7 @@ def main(config: DictConfig) -> None:
     logger.info(f"Recording video for env {config.env_name}")
     method = create_method(config, logger, env)
     try:
+      if hasattr(method, 'morphos'):
         for i in range(len(method.morphos) - 1):
             method._evaluate(i, method.morphos[i], {})
     except Exception as e:

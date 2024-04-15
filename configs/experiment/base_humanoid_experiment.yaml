@@ -18,7 +18,8 @@ resume: null
 num_agents: 1
 
 method:
-  replay_buffer_path: null
+  #replay_buffer_path: null
+  replay_buffer_path: ./data_own/pretrain-humanoid_1710617758.pt
   eval_periodically: false
   eval_final: true
   eval_episodes: 10
@@ -42,7 +43,9 @@ method:
   sparse_mask: null
   rm_action_penalty: false
 
-  expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1703035428.pt
+  # expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1703035428.pt
+  #expert_demos: data/demos/GaitTrackHumanoid-v0_demos_1703035428.pt
+  expert_demos: ./data_own/demo/GaitTrackHumanoid-v0_demos_1710630906.pt
   morpho_warmup: 0
   disc_warmup: 0
   pos_type: norm
@@ -59,6 +62,8 @@ method:
   head_wrt: null
   omit_done: false
   fixed_morpho: null
+  init_ind_networks: true
+  train_pop_networks: true
 
   agent:
     gamma: 0.99

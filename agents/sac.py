@@ -360,6 +360,7 @@ class SAC(Agent):
                     device=terminated_batch.device,
                 ),
             )
+            #print(dones)
             next_q_value = reward_batch + dones * self._gamma * (min_qf_next_target)
 
         # Plot absorbing rewards
