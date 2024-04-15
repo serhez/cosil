@@ -575,7 +575,7 @@ class CoSIL(object):
                                 demos = get_bc_demos_for(
                                     self.il_rewarder.batch_demonstrator,
                                     batch,
-                                    self.pop_agent,
+                                    self.pop_agent._policy,
                                     self.device,
                                 )
                             else:
