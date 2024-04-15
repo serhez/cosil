@@ -572,7 +572,7 @@ class CoSIL(object):
                             if self.config.method.transfer and isinstance(
                                 self.il_rewarder, MBC
                             ):
-                                demos = self.get_bc_demos_for(
+                                demos = get_bc_demos_for(
                                     self.il_rewarder.batch_demonstrator,
                                     batch,
                                     self.pop_agent,
