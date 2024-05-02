@@ -8,7 +8,7 @@ defaults:
 
 seed: 123456
 device: cuda
-env_name: GaitTrackAnt-v0
+env_name: GaitTrackAntAllValues-v0
 storage_path: /scratch/work/hernans2/cosil
 models_dir_path: models
 learn_disc_transitions: false
@@ -47,8 +47,8 @@ method:
   vel_type: rel
   expert_legs: [0, 1, 2, 3]
   policy_legs: [0, 1, 2, 3]
-  expert_markers: [0, 1]
-  policy_markers: [0, 1]
+  expert_markers: [0, 3]
+  policy_markers: [0, 3]
   torso_type: null
   head_type: null
   head_wrt: null
