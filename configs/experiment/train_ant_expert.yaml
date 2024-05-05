@@ -78,4 +78,4 @@ logger:
   group_name: "ant"
   experiment_name: "demonstrator"
   run_id: ""
-  loggers: console
+  loggers: console, wandb
