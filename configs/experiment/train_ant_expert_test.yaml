@@ -1,0 +1,81 @@
+# @package _global_
+---
+defaults:
+  - /base_train
+  - override /method: rl
+  - override /method/agent: sac
+  - override /method/rewarder: env
+
+seed: 123456
+device: cuda
+env_name: GaitTrackAntAllValues-v0
+storage_path: /scratch/work/hernans2/cosil
+models_dir_path: models
+learn_disc_transitions: false
+morpho_in_state: true
+absorbing_state: false
+resume: null
+num_agents: 1
+
+method:
+  eval_periodically: false
+  batch_size: 256
+  num_episodes: 5
+  updates_per_step: 1
+  start_steps: 0
+  replay_capacity: 2000000
+  replay_dim_ratio: 0.9999
+  record_test: false
+  save_checkpoints: false
+  save_optimal: false
+  save_final: false
+  save_buffers: false
+  save_agents: false
+  save_rewarders: false
+  save_morphos: false
+  save_demos: false
+  sparse_mask: null
+  rm_action_penalty: true
+
+  generate_demos: true
+  num_demos_trajectories: 40
+  eval_final: true
+  eval_episodes: 40
+  demos_save_path: /scratch/work/hernans2/cosil/data/demos/
+
+  pos_type: norm
+  vel_type: rel
+  expert_legs: [0, 1, 2, 3]
+  policy_legs: [0, 1, 2, 3]
+  expert_markers: [0, 3]
+  policy_markers: [0, 3]
+  torso_type: null
+  head_type: null
+  head_wrt: null
+
+  omit_done: false
+
+  agent:
+    gamma: 0.99
+    tau: 0.005
+    lr: 0.0003
+    q_weight_decay: 1e-5
+
+    # SAC
+    policy_type: gaussian
+    target_entropy: auto
+    alpha: 0.05
+    automatic_entropy_tuning: false
+    hidden_size: 256
+    target_update_interval: 1
+    bc_regularization: false
+
+  rewarder:
+    batch_size: 64
+
+logger:
+  project_name: "cosil-demonstrator"
+  group_name: "ant"
+  experiment_name: "demonstrator"
+  run_id: ""
+  loggers: console, wandb
