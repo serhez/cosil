@@ -10,7 +10,7 @@ defaults:
 learn_disc_transitions: true
 
 method:
-  replay_buffer_path: /scratch/work/hernans2/cosil/final/ant/GaitTrackAnt-v0/seed-1202/pretrain-ant_1711302228.pt
+  replay_buffer_path: /scratch/work/hernans2/cosil/final/ant/GaitTrackAnt-v0/seed-1202/pretrain-ant_1715780498.pt
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
