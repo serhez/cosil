@@ -235,19 +235,19 @@ class CoSIL(object):
             self.il_rewarder.g_inv_loss = self.il_rewarder.pretrain_g_inv(
                 self.replay_buffer, self.batch_size, n_epochs=n_epoch_pre
             )
-        if config.method.replay_buffer_path is not None:
-            ind_policy_pretrain_loss = self.ind_agent.pretrain_policy(
-                self.il_rewarder,
-                self.replay_buffer,
-                self.batch_size,
-                n_epochs=n_epoch_pre,
-            )
-            pop_policy_pretrain_loss = self.pop_agent.pretrain_policy(
-                self.il_rewarder,
-                self.replay_buffer,
-                self.batch_size,
-                n_epochs=n_epoch_pre,
-            )
+            if config.method.replay_buffer_path is not None:
+                _ = self.ind_agent.pretrain_policy(
+                    self.il_rewarder,
+                    self.replay_buffer,
+                    self.batch_size,
+                    n_epochs=n_epoch_pre,
+                )
+                _ = self.pop_agent.pretrain_policy(
+                    self.il_rewarder,
+                    self.replay_buffer,
+                    self.batch_size,
+                    n_epochs=n_epoch_pre,
+                )
 
         if config.resume is not None:
             self._load(config.resume)

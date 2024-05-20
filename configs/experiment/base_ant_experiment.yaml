@@ -4,7 +4,7 @@ defaults:
   - /base_train
   - override /method: cosil  # variable
   - override /method/agent: dual_sac  # variable
-  - override /method/rewarder: airl  # variable
+  - override /method/rewarder: sail  # variable
 
 seed: 123456
 device: cuda

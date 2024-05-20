@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 import torch
 
 from common.observation_buffer import ObservationBuffer
+from rewarders import SAIL
 
 
 class Agent(ABC):
@@ -47,7 +48,11 @@ class Agent(ABC):
 
     @abstractmethod
     def pretrain_policy(
-        self, memory: ObservationBuffer, batch_size: int, n_epochs: int = 200
+        self,
+        rewarder: SAIL,
+        memory: ObservationBuffer,
+        batch_size: int,
+        n_epochs: int = 200,
     ) -> torch.Tensor:
         """
         Pretrain the policy to match the policy prior.
