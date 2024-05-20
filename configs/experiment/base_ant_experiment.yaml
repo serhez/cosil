@@ -33,7 +33,7 @@ method:
   save_optimal: false
   save_final: false
   sparse_mask: null
-  rm_action_penalty: true
+  rm_action_penalty: false
 
   # CoIL
   expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackAnt-v0_demos_1711379240.pt

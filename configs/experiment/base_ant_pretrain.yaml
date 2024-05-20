@@ -33,7 +33,7 @@ method:
   save_optimal: false
   save_final: true
   sparse_mask: null
-  rm_action_penalty: true
+  rm_action_penalty: false
 
   # CoIL
   expert_demos: MISSING
