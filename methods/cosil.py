@@ -88,9 +88,12 @@ class CoSIL(object):
         if config.method.expert_demos is not None:
             expert_demos, self.to_match, self.mean_demos_reward = load_demos(config)
             self.demos.extend(expert_demos)
-            self._expert_demos_epreward = [self.mean_demos_reward] * int(
-                self.demos_n_ep
-            )
+            if isinstance(self.mean_demos_reward, (list, np.ndarray)):
+                self._expert_demos_epreward = list(self.mean_demos_reward)
+            else:
+                self._expert_demos_epreward = [self.mean_demos_reward] * int(
+                    self.demos_n_ep
+                )
         else:
             self.mean_demos_reward = -9999
             self._expert_demos_epreward = [-9999] * self.demos_n_ep
