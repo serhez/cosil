@@ -22,7 +22,7 @@ from utils import dict_add, dict_div
 from utils.co_adaptation import bo_step, get_marker_info, handle_absorbing, rs_step
 from utils.imitation import get_bc_demos_for, load_demos
 from utils.rl import get_markers_by_ep
-import random
+
 
 class CoSIL(object):
     def __init__(self, config: DictConfig, logger: Logger, env: gym.Env):
@@ -31,7 +31,6 @@ class CoSIL(object):
         self.absorbing_state = config.absorbing_state
 
         self.device = config.device
-        
 
         self.logger = logger
         self.storage_path = config.storage_path
@@ -89,10 +88,12 @@ class CoSIL(object):
         if config.method.expert_demos is not None:
             expert_demos, self.to_match, self.mean_demos_reward = load_demos(config)
             self.demos.extend(expert_demos)
-            self._expert_demos_epreward = self.mean_demos_reward#] * int(self.demos_n_ep)
+            self._expert_demos_epreward = [self.mean_demos_reward] * int(
+                self.demos_n_ep
+            )
         else:
             self.mean_demos_reward = -9999
-            self._expert_demos_epreward = [-9999]*self.demos_n_ep
+            self._expert_demos_epreward = [-9999] * self.demos_n_ep
             self.to_match = None
             self.demos = []
 
@@ -216,7 +217,7 @@ class CoSIL(object):
             self.obs_size,
             self.num_morpho,
         )
-        n_epoch_pre = 100 #300
+        n_epoch_pre = 100  # 300
         # SAIL includes a pretraining step for the VAE and inverse dynamics
         if (
             isinstance(self.il_rewarder, SAIL)
@@ -224,18 +225,28 @@ class CoSIL(object):
             and config.resume is None
             and config.method.omega_init > 0
         ):
-            self.vae_loss = self.il_rewarder.pretrain_vae(self.demos, config.method.vae_batch)
-            #self.il_rewarder.g_inv_loss = self._pretrain_sail(
+            self.vae_loss = self.il_rewarder.pretrain_vae(
+                self.demos, config.method.vae_batch
+            )
+            # self.il_rewarder.g_inv_loss = self._pretrain_sail(
             #    self.il_rewarder, co_adapt=config.method.co_adapt
-            #)
-            #n_epoch_pre = 100 #300
-            self.il_rewarder.g_inv_loss = self.il_rewarder.pretrain_g_inv(self.replay_buffer, self.batch_size, n_epochs=n_epoch_pre)
+            # )
+            # n_epoch_pre = 100 #300
+            self.il_rewarder.g_inv_loss = self.il_rewarder.pretrain_g_inv(
+                self.replay_buffer, self.batch_size, n_epochs=n_epoch_pre
+            )
         if config.method.replay_buffer_path is not None:
             ind_policy_pretrain_loss = self.ind_agent.pretrain_policy(
-              self.il_rewarder, self.replay_buffer, self.batch_size, n_epochs=n_epoch_pre
+                self.il_rewarder,
+                self.replay_buffer,
+                self.batch_size,
+                n_epochs=n_epoch_pre,
             )
             pop_policy_pretrain_loss = self.pop_agent.pretrain_policy(
-              self.il_rewarder, self.replay_buffer, self.batch_size, n_epochs=n_epoch_pre
+                self.il_rewarder,
+                self.replay_buffer,
+                self.batch_size,
+                n_epochs=n_epoch_pre,
             )
 
         if config.resume is not None:
@@ -289,21 +300,33 @@ class CoSIL(object):
             self.logger.info("Replacing the demonstrations")
             self.mean_demos_reward = mean_reward
             replace_nmb = int(self.demos_n_ep * 0.3)
-            demos, episodic_rewards = get_markers_by_ep(obs, self.device, self.demos_n_ep)
-            #rand_dix_list = list(range(int(self.demos_n_ep)))
-            #random.shuffle(rand_dix_list)
-            #irand_dix_list = rand_dix_list[:replace_nmb]
+            demos, episodic_rewards = get_markers_by_ep(
+                obs, self.device, self.demos_n_ep
+            )
+            # rand_dix_list = list(range(int(self.demos_n_ep)))
+            # random.shuffle(rand_dix_list)
+            # irand_dix_list = rand_dix_list[:replace_nmb]
             rand_dix_list = list(np.argsort(self._expert_demos_epreward)[:replace_nmb])
-            print(len(episodic_rewards)); 
+            print(len(episodic_rewards))
             print(len(self._expert_demos_epreward))
-            for r_idx, idx in zip(rand_dix_list, list(range( int(self.demos_n_ep)-1, int(self.demos_n_ep - replace_nmb)-1, -1))):
+            for r_idx, idx in zip(
+                rand_dix_list,
+                list(
+                    range(
+                        int(self.demos_n_ep) - 1,
+                        int(self.demos_n_ep - replace_nmb) - 1,
+                        -1,
+                    )
+                ),
+            ):
                 if self._expert_demos_epreward[r_idx] < episodic_rewards[idx]:
                     self.demos[r_idx] = demos[idx]
                     self._expert_demos_epreward[r_idx] = episodic_rewards[idx]
                     self.logger.info("Found better demo")
-                #elif random.random() < 0.1:
+                # elif random.random() < 0.1:
                 #    self.demos[r_idx] = demos[idx]
-            print(self._expert_demos_epreward);print(episodic_rewards)#;exit(0);
+            print(self._expert_demos_epreward)
+            print(episodic_rewards)  # ;exit(0);
 
         elif self.demos_strategy == "add":
             self.logger.info("Adding new demonstrations")
@@ -336,7 +359,7 @@ class CoSIL(object):
         took = time.time()
         log_dict, logged = {}, 0
         print(episode)
-        #if episode < 1500:
+        # if episode < 1500:
         #   episode_updates = 0
         n_updates = episode_updates * morpho_episode
         if not self.config.method.train_pop_networks:
@@ -566,7 +589,7 @@ class CoSIL(object):
                         if (
                             len(self.current_buffer) >= self.rewarder_batch_size
                             and len(self.demos) > 0
-                            and self.config.method.omega_init > 0 
+                            and self.config.method.omega_init > 0
                         ):
                             batch = self.current_buffer.sample(self.rewarder_batch_size)
                             (
@@ -694,7 +717,7 @@ class CoSIL(object):
                     obs_list = handle_absorbing(
                         feats,
                         action,
-                        reward*self.config.reward_scale,
+                        reward * self.config.reward_scale,
                         next_feats,
                         mask,
                         marker_obs,
@@ -712,7 +735,7 @@ class CoSIL(object):
                     current_obs = (
                         feats,
                         action,
-                        reward*self.config.reward_scale,
+                        reward * self.config.reward_scale,
                         next_feats,
                         mask,
                         mask,
@@ -724,7 +747,6 @@ class CoSIL(object):
                     self.current_buffer.push(current_obs)
                     self.potential_demos_buffer.push(current_obs)
 
-
                 state = next_state
                 marker_obs = next_marker_obs
 
@@ -732,19 +754,20 @@ class CoSIL(object):
 
             self.adapt_morphos.append(self.morpho_params_np.flatten())
 
-            #Add possible new demso to buffer
-            if (episode > 10 and (episode % 20) == 0) or (self.config.method.co_adapt and (
-                episode % self.config.method.episodes_per_morpho == 0
-            )):
-              self._update_demos(self.potential_demos_buffer.all())
-              self.potential_demos_buffer.clear()
+            # Add possible new demso to buffer
+            if (episode > 10 and (episode % 20) == 0) or (
+                self.config.method.co_adapt
+                and (episode % self.config.method.episodes_per_morpho == 0)
+            ):
+                self._update_demos(self.potential_demos_buffer.all())
+                self.potential_demos_buffer.clear()
 
             # Logging
             dict_div(log_dict, logged)
             log_dict["buffers/replay_size"] = len(self.replay_buffer)
             log_dict["buffers/current_size"] = len(self.current_buffer)
             log_dict["buffers/demos_size"] = len(self.demos)
-            log_dict["buffers/demo_perf"] = np.mean(self._expert_demos_epreward) 
+            log_dict["buffers/demo_perf"] = np.mean(self._expert_demos_epreward)
             log_dict["general/episode_steps"] = episode_steps
             log_dict["general/episode_updates"] = episode_updates
             log_dict["general/omega"] = self.ind_omega_scheduler.value
@@ -782,10 +805,10 @@ class CoSIL(object):
                 optimized_morpho_params = self._adapt_morphology(es, es_buffer)
 
                 ## Train the population agent and copy the parameters to the individual agent
-                #self._train_pop_agent(episode, episode_updates, morpho_episode)
+                # self._train_pop_agent(episode, episode_updates, morpho_episode)
 
                 # Update the demonstrations
-                #self._update_demos(self.current_buffer.all())
+                # self._update_demos(self.current_buffer.all())
 
                 # Clear the current buffer
                 self.current_buffer.clear()

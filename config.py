@@ -660,7 +660,7 @@ class CoSILConfig(CoILConfig):
     The ratio of observations coming from the buffer contaning only obs. from the current morphology is consequently (1 - ind_replay_weight).
     """
 
-    demos_n_ep: float = 10
+    demos_n_ep: int = 10
     """Number of episodes for each morphology to consider as demonstrations, starting from the last episode."""
 
     add_new_demos: bool = True
