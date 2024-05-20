@@ -42,6 +42,8 @@ method:
   save_demos: false
   sparse_mask: null
   rm_action_penalty: false
+  train_pop_networks: false
+  init_ind_networks: true
 
   pos_type: norm
   vel_type: rel
