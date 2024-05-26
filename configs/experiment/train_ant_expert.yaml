@@ -35,7 +35,7 @@ method:
   save_morphos: false
   save_demos: false
   sparse_mask: null
-  rm_action_penalty: false
+  rm_action_penalty: true
 
   generate_demos: true
   num_demos_trajectories: 40

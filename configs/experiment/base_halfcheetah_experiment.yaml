@@ -34,7 +34,7 @@ method:
   save_optimal: false
   save_final: false
   sparse_mask: null
-  rm_action_penalty: false
+  rm_action_penalty: true
 
   # CoIL
   # expert_demos: ./data_own/demo/GaitTrackHalfCheetah36-v0_demos_1712061160.pt #[1,2,3], torso:vel
