@@ -64,7 +64,7 @@ class ConsoleLogger(Logger):
 
                 if isinstance(value, float):
                     print(f"{colored_level}{time} {key}: {value:.5f}")
-                elif isinstance(value, Union[dict, list]):
+                elif isinstance(value, dict) or isinstance(value, list):
                     value = json.dumps(value, indent=4)
                     print(f"{colored_level}{time} {key}: {value}")
                 elif value is None:  # Used for headers, titles, etc.
