@@ -1,13 +1,11 @@
-This folder contains the code for the AAAI submission "Co-Imitation: Learning Design and Behaviour by Imitation"
-The `coil` folder contains the main code to run the experiments.
-The `bo_mat` folder contains a pip installable package for bayesian optimization used in the experiments
-The `mocap` folder includes code for preprocessing the CMU motion capture data,
-    but the preprocessed data is also included for convenience in the `data` folder
-The `gait-track-envs` folder includes a pip installable package for the adapted mujoco environments 
-    which allow changing morphology before each episode
-See each folder for further instructions
+This repository contains the code for the Co-Adaptation with Self-Imitation Learning (CoSIL) method.
 
-# Install dependencies
-1. Install pytorch, Gpy, numpy 
-2. Go to bo_mat folder and `pip install -e .`
-3. Go to gait-track-envs folder and `pip install -e.`
+# Authors
+
+Sergio Hernández-Gutiérrez, Ville Kyrki and Kevin Sebastian Luck.
+
+# Dependencies
+
+1. All packages specified in `requirements.txt`.
+2. [`bo_mat`](https://github.com/serhez/bo-mat), which you can install via `pip install -e .` from its cloned folder. Credits to Chang Rajani, Karol Arndt, David Blanco-Mulero, Kevin Sebastian Luck and Ville Kyrki.
+3. [`gait-track-envs`](https://github.com/serhez/gait-track-envs), which you can install via `pip install -e .` from its cloned folder. Credits to Chang Rajani, Karol Arndt, David Blanco-Mulero, Kevin Sebastian Luck and Ville Kyrki.
