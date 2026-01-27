@@ -1,27 +1,21 @@
 # @package _global_
 ---
 defaults:
-  - base_halfcheetah_experiment
+  - base_walker_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
   - override /method/rewarder: sail  # variable
 
-#### Variables
 seed: 100
 device: cuda
+#### Variables
 learn_disc_transitions: true
 
 method:
-  dual_mode: q
-  num_episodes: 2000
-  episodes_per_morpho: 100
-  morpho_warmup: 0
-  start_steps: 0
-  disc_warmup: 0
-  eval_periodically: false
-  save_checkpoints: false
-  save_optimal: false
-  save_final: true
+  #pretrain_path: /scratch/work/hernans2/cosil/final/sail-pso/GaitTrackHumanoid-v0/seed-111/om02-zsrew-disctrans-pso_1703472349.pt
+  #pretrain_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-123456/pretrain-humanoid_1709813048.pt
+  #pretrain_path: /scratch/work/hernans2/cosil/final/humanoid/GaitTrackHumanoid-v0/seed-123456/pretrain-humanoid_1710411388.pt
+  #expert_demos: /scratch/work/hernans2/cosil/data/demos/GaitTrackHumanoid-v0_demos_1710528654.pt
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
@@ -29,9 +23,10 @@ method:
   #### Variables
 
   # General
+  episodes_per_morpho: 200
   transfer: true
-  omega_init: 0.2
   omega_scheduler: constant
+  omega_init: 0.2
   pop_omega_init: 0.2
   adapt_morpho_omega: 0.2
   demos_strategy: replace
@@ -48,21 +43,10 @@ method:
     norm_low_clip: null
     norm_high_clip: null
 
-  # Agent normalization and entropy
+  # Agent normalization
   agent:
-    alpha: 0.05
-    automatic_entropy_tuning: false
     norm_type: none
-    norm_mode: mean
-    rl_norm_gamma: 1.0
-    rl_norm_beta: 0.0
-    il_norm_gamma: 1.0
-    il_norm_beta: 0.0
-    norm_low_clip: null
-    norm_high_clip: null
-
 
 logger:
-  group_name: "sail-om02-zsrew-disctrans-pso-hc36-3-c03-exp"
-  experiment_name: "sail-om02-zsrew-disctrans-pso-c03-exp"
-  loggers: console,wandb
+  group_name: "om02-zsrew-disctrans-pso-ep300"
+  experiment_name: "om02-zsrew-disctrans-pso-ep300"

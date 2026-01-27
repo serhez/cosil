@@ -1,27 +1,30 @@
 # @package _global_
 ---
 defaults:
-  - base_halfcheetah_experiment
+  - base_halfcheetah_36motor_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
   - override /method/rewarder: sail  # variable
 
 #### Variables
-seed: 100
+learn_disc_transitions: false
+seed: 103
+env_name: GaitTrackHalfCheetah36Motor-v0
 device: cuda
-learn_disc_transitions: true
 
 method:
   dual_mode: q
+  omega_scheduler: constant
   num_episodes: 2000
   episodes_per_morpho: 100
   morpho_warmup: 0
   start_steps: 0
   disc_warmup: 0
   eval_periodically: false
+  record_test: true
   save_checkpoints: false
   save_optimal: false
-  save_final: true
+  save_final: false
   co_adaptation:
     morphos_path: null
     dist_optimizer: pso
@@ -29,11 +32,10 @@ method:
   #### Variables
 
   # General
-  transfer: true
-  omega_init: 0.2
-  omega_scheduler: constant
-  pop_omega_init: 0.2
-  adapt_morpho_omega: 0.2
+  transfer: false
+  omega_init: 0.0
+  pop_omega_init: 0.0
+  adapt_morpho_omega: 0.0
   demos_strategy: replace
 
   # Rewards normalization
@@ -63,6 +65,6 @@ method:
 
 
 logger:
-  group_name: "sail-om02-zsrew-disctrans-pso-hc36-3-c03-exp"
-  experiment_name: "sail-om02-zsrew-disctrans-pso-c03-exp"
+  group_name: "baseline-pso-zs"
+  experiment_name: "baseline-pso-zs"
   loggers: console,wandb

@@ -1,13 +1,13 @@
 # @package _global_
 ---
 defaults:
-  - base_halfcheetah_experiment
+  - base_halfcheetah_36motor_experiment
   - override /method: cosil
   - override /method/agent: dual_sac
   - override /method/rewarder: sail  # variable
 
 #### Variables
-seed: 100
+seed: 103
 device: cuda
 learn_disc_transitions: true
 
@@ -30,10 +30,10 @@ method:
 
   # General
   transfer: true
-  omega_init: 0.2
+  omega_init: 0.1
   omega_scheduler: constant
-  pop_omega_init: 0.2
-  adapt_morpho_omega: 0.2
+  pop_omega_init: 0.1
+  adapt_morpho_omega: 0.1
   demos_strategy: replace
 
   # Rewards normalization
@@ -63,6 +63,6 @@ method:
 
 
 logger:
-  group_name: "sail-om02-zsrew-disctrans-pso-hc36-3-c03-exp"
+  group_name: "sail-om02-zsrew-disctrans-pso-3-c03-exp"
   experiment_name: "sail-om02-zsrew-disctrans-pso-c03-exp"
   loggers: console,wandb

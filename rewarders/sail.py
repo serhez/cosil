@@ -10,6 +10,7 @@ from common.observation_buffer import ObservationBuffer
 from common.vae import VAE
 from normalizers import Normalizer
 from utils.imitation import train_wgan_critic
+import numpy as np
 
 from .rewarder import Rewarder
 
@@ -38,7 +39,10 @@ class SAIL(Rewarder):
         self.morpho_slice = slice(-num_morpho_obs, None)
         if self.absorbing_state:
             self.morpho_slice = slice(-num_morpho_obs - 1, -1)
-
+        print("----")
+        print(demo_dim)
+        print(action_space.shape[0])
+        print(num_morpho_obs)
         self.g_inv = InverseDynamics(
             demo_dim * 2 + num_morpho_obs,
             action_space.shape[0],
@@ -162,6 +166,7 @@ class SAIL(Rewarder):
 
         n_samples = len(memory)
         n_batches = n_samples // batch_size
+        n_batches = np.amin([n_batches, 100])
 
         mean_loss = 0
         for e in range(n_epochs):
@@ -191,7 +196,7 @@ class SAIL(Rewarder):
         marker_batch = torch.FloatTensor(batch[6]).to(self.device)
         next_marker_batch = torch.FloatTensor(batch[7]).to(self.device)
         morpho_params = torch.FloatTensor(batch[8]).to(self.device)
-
+	
         pred = self.g_inv(marker_batch, next_marker_batch, morpho_params)
 
         loss = loss_fn(pred, action_batch)

@@ -62,7 +62,8 @@ class CoSIL(object):
         if self.loaded_morphos:
             morpho_params = self.loaded_morphos.pop(0)
         else:
-            morpho_params = self.morpho_dist.sample().cpu().numpy()
+            #morpho_params = self.morpho_dist.sample().cpu().numpy()
+            morpho_params = self.env.sample_task()
         self.env.set_task(*morpho_params)
         self.env.reset()
         self.morphos.append(morpho_params)
@@ -89,6 +90,7 @@ class CoSIL(object):
         if config.method.expert_demos is not None:
             expert_demos, self.to_match, self.mean_demos_reward = load_demos(config)
             self.demos.extend(expert_demos)
+            print(self.mean_demos_reward)
             self._expert_demos_epreward = self.mean_demos_reward#] * int(self.demos_n_ep)
         else:
             self.mean_demos_reward = -9999
@@ -568,7 +570,12 @@ class CoSIL(object):
                             and len(self.demos) > 0
                             and self.config.method.omega_init > 0 
                         ):
-                            batch = self.current_buffer.sample(self.rewarder_batch_size)
+                            #batch = self.current_buffer.sample(self.rewarder_batch_size)
+                            batch = multi_sample(
+                                self.rewarder_batch_size,
+                                [self.replay_buffer, self.current_buffer],
+                                [0.5, 0.5],
+                            )
                             (
                                 disc_loss,
                                 expert_probs,
@@ -892,7 +899,8 @@ class CoSIL(object):
         step = 0
         while step < steps:
             if co_adapt:
-                morpho_params = self.morpho_dist.sample()
+                #morpho_params = self.morpho_dist.sample()
+                morpho_params = torch.from_numpy(self.env.sample_task())
                 self.env.set_task(*morpho_params.cpu().numpy())
                 self.env.reset()
 
@@ -998,7 +1006,8 @@ class CoSIL(object):
             or self.total_numsteps < self.config.method.morpho_warmup
         ):
             self.logger.info("Sampling morphology")
-            morpho_params = self.morpho_dist.sample()
+            #morpho_params = self.morpho_dist.sample()
+            morpho_params =  torch.from_numpy(self.env.sample_task())
             self.morpho_params_np = morpho_params.cpu().numpy()
             self.optimized_morpho = False
 

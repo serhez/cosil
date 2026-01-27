@@ -39,8 +39,10 @@ class RL(object):
 
         # The distribution used for morphology exploration
         self.morpho_dist = torch.distributions.Uniform(lows, highs)
-        morpho_params = self.morpho_dist.sample().cpu().numpy()
-        self.env.set_task(*morpho_params)
+        #only deactivated for Unitree!
+        #morpho_params = self.morpho_dist.sample().cpu().numpy()
+        #self.env.set_task(*morpho_params)
+        morpho_params = self.env.get_task()
         self.env.reset()
 
         self.morpho_params_np = np.array(morpho_params)
@@ -196,7 +198,7 @@ class RL(object):
                 mask = (
                     1
                     if episode_steps == self.env._max_episode_steps
-                    else float(not done)
+                    else float(not terminated)
                 )
 
                 if self.config.method.omit_done:
